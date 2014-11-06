@@ -12,7 +12,7 @@ import rbm_header as rbm
 
 
 print "Testing vector sampler"
-n = 1000000.0
+n = 100000.0
 m = [0.0, 0.1, 0.25,  0.5, 0.75, 1.0]
 print "Mean:", m[0], "empirical mean:", np.average(rbm.bern_samp(m[0] * np.ones((n)),n))
 print "Mean:", m[1], "empirical mean:", np.average(rbm.bern_samp(m[1] * np.ones((n)),n))
