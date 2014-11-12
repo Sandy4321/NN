@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 import rbm_header as rbm
 
 # Load data
-f1 = "../../data/rbm/params_mnist.data"
-f2 = "../../data/rbm/params_stats_mnist.data"
+f1 = "../../data/params_mnist.data"
+f2 = "../../data/params_stats_mnist.data"
 
 print "Loading data"
 f = open(f1)

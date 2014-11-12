@@ -14,8 +14,8 @@ n = 1
 n_smpl = 49    # Number of samples split n iterations apart
 
 # Load data
-f1 = "../../data/rbm/params_mnist.data"
-f2 = "../../data/mldata/mnist_bin.data"
+f1 = "../../data/params_mnist.data"
+f2 = "../../data/mnist-bin.data"
 
 print "Loading data"
 f = open(f1)
@@ -48,6 +48,7 @@ N = i + 1
 seed = np.random.choice(N, 1)
 
 # Read off the image of the random number
+print "Chosen random number seed and dispalying image" 
 f.seek(0)
 for i, line in enumerate(f):
     if i == seed:

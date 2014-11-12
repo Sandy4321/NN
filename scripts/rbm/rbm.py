@@ -20,9 +20,9 @@ beta = 0.0005           # weight-cost (regularisation)
 rho = 0.05              # sparsity target
 l = 0.95                # sparsity decay
 PCD_size = 10           # number of fantasy particles
-inFile = "../../data/mldata/mnist_bin.data"
-outFile = "../../data/rbm/params_mnist.data"
-outFile2 = "../../data/rbm/params_stats_mnist.data"
+inFile = "../../data/mnist-bin.data"
+outFile = "../../data/params_mnist.data"
+outFile2 = "../../data/params_stats_mnist.data"
 
 # Load data
 print "Loading data"
