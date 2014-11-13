@@ -9,9 +9,15 @@
 import numpy as np                         # for matrix operations
 import matplotlib.pyplot as plt            # for weight visualisation
 from numbapro import cuda
+from numbapro.cudalib import curand        # fast random numbers
 from numba import *
 import os
 from timeit import default_timer as timer
+
+# Setup pseudo-random noise generator --- will localise this later
+prng = curand.PRNG(rndtype=curand.PRNG.XORWOW)
+noise = np.zeros((784))
+noise_mat = np.zeros((784,250))
 
 def main():
 
@@ -52,12 +58,12 @@ def main():
     # We are going to time this for primitive profile-sake
     start = timer()
     
-        for epoch in np.arange(max_epochs):
+    for epoch in np.arange(max_epochs):
         alpha_t = alpha*(max_epochs-epoch)/max_epochs
         for B in np.arange(n_batches):
            
-            gW = np.zeros((R,K))    # gradient of weights
-            gb = np.zeros((R))   # visible bias gradient
+            gW = np.zeros((R,K))  # gradient of weights
+            gb = np.zeros((R))    # visible bias gradient
             gc = np.zeros((K))    # hidden bias gradient
             
             for i in np.arange(B*batch_size,min((B+1)*batch_size,N)):
@@ -162,7 +168,9 @@ def bern_samp(m,h):
     # Draw a sample from the bernoulli distribution with mean m of length h. For
     # vector input each entry i can be interpreted as coming from an independent
     # bernoulli with mean m[i]. Note column vectors only.
-    return (np.random.random_sample((h)) < m) * 1
+    global noise
+    prng.uniform(noise)
+    return (noise < m) * 1
 
 
 
@@ -170,7 +178,9 @@ def bern_samp_mat(m,(h,w)):
     
     # For a (h,w)-matrix sample each element iid from the bernoulli distribution
     # with matrix of means m[i,j].
-    return (np.random.random_sample((h,w)) < m) * 1
+    global noise_mat
+    prng.uniform(noise_mat)
+    return (noise_mat < m) * 1
 
 
 
