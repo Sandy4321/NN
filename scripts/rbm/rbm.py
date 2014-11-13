@@ -8,9 +8,11 @@
 # Imports
 import numpy as np                         # for matrix operations
 import matplotlib.pyplot as plt            # for weight visualisation
-from numba import autojit
+from numbapro import cuda
+from numba import *
+import os
+from timeit import default_timer as timer
 
-@autojit
 def main():
 
     # Parameters
@@ -29,6 +31,10 @@ def main():
     
     # Load data
     (train,(N,R)) = load_data(inFile)
+    
+    # Hack for analysis only
+    train = train[:1000,:]
+    N = 1000
     print("Data loaded")
        
     # Calculate/initialise some data-dependent parameters for training. We use
@@ -42,7 +48,11 @@ def main():
     
     # Training loop
     print("Begin training...")
-    for epoch in np.arange(max_epochs):
+    
+    # We are going to time this for primitive profile-sake
+    start = timer()
+    
+        for epoch in np.arange(max_epochs):
         alpha_t = alpha*(max_epochs-epoch)/max_epochs
         for B in np.arange(n_batches):
            
@@ -77,6 +87,9 @@ def main():
             print("Iteration: %d \t |W|_F: %.3f \t |b|_F: %.3f \t |c|_F: %.3f" \
                 % (epoch, W_size[epoch], np.linalg.norm(b), np.linalg.norm(c)))
     
+    end = timer() - start
+    print("Time = %g", end)
+    
     # Save data to file
     save((W_size,b,c,W),outFile,outFile2)
     
@@ -85,7 +98,7 @@ def main():
     
 
 
-@autojit
+
 def load_data(inFile):
     '''
     Load the data --- I'm hoping to add extra options in future
@@ -102,7 +115,7 @@ def load_data(inFile):
     return (train,(N,R))
 
 
-@autojit
+
 def init(N,batch_size,R,K,max_epochs,PCD_size):
     '''
     Initialise data
@@ -119,7 +132,7 @@ def init(N,batch_size,R,K,max_epochs,PCD_size):
     return(n_batches,W,b,c,W_size,q,F)
 
 
-@autojit
+
 def visualise(K,R,W):
     '''
     Visualise the weight matrices
@@ -136,14 +149,14 @@ def visualise(K,R,W):
     plt.show()
 
 
-@autojit
+
 def sig(x):
     
     # Evaluation of the sigmoid nonlinearity on each element of the input list
     return 1./(1 + np.exp(-x))
 
 
-@autojit
+
 def bern_samp(m,h):
     
     # Draw a sample from the bernoulli distribution with mean m of length h. For
@@ -152,7 +165,7 @@ def bern_samp(m,h):
     return (np.random.random_sample((h)) < m) * 1
 
 
-@autojit
+
 def bern_samp_mat(m,(h,w)):
     
     # For a (h,w)-matrix sample each element iid from the bernoulli distribution
@@ -160,7 +173,7 @@ def bern_samp_mat(m,(h,w)):
     return (np.random.random_sample((h,w)) < m) * 1
 
 
-@autojit
+
 def sparsity(h,rho):
     
     # h is the vector of hidden units
@@ -177,7 +190,7 @@ def sparsity(h,rho):
     #return rho-r
 
 
-@autojit
+
 def CD(b,c,W,v,n,K):
     
     # b is the column vector of visible biases
@@ -204,7 +217,7 @@ def CD(b,c,W,v,n,K):
     return (Eh,vn,hn)
 
 
-@autojit
+
 def sample(b,c,W,v,n,K,R):
     
     # b is the column vector of visible biases
@@ -229,7 +242,7 @@ def sample(b,c,W,v,n,K,R):
     return vn
 
 
-@autojit
+
 def PCD(b,c,W,F,v,n,K,R):
     
     # b is the column vector of visible biases
@@ -249,7 +262,7 @@ def PCD(b,c,W,F,v,n,K,R):
     return Eh, ph, vsmpl
 
 
-@autojit
+
 def save((W_size,b,c,W),outFile,outFile2):
     
     # Save parameters to file and create directory if it doesn't exist
@@ -284,7 +297,6 @@ def save((W_size,b,c,W),outFile,outFile2):
 
     np.savez(outFile2,W_size=W_size)
     
-    f.close()
     print("Stats printed to file %r" % outFile2)
     
     
