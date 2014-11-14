@@ -9,10 +9,10 @@
 import numpy as np                         # for matrix operations
 import matplotlib.pyplot as plt            # for weight visualisation
 from numbapro import cuda
-from numbapro.cudalib import curand        # fast random numbers
 from numba import *
 import os
 from timeit import default_timer as timer
+<<<<<<< HEAD
 import math
 
 class Rbm:
@@ -79,6 +79,55 @@ class Rbm:
         q = np.zeros((self.K))                  # tracked estimate of the mean hidden activation probability
         
         for epoch in np.arange(self.max_epochs):
+=======
+
+def main():
+
+    # Parameters
+    alpha = np.exp(-1)             # learning rate numerator
+    K = 250                 # num hidden units
+    batch_size = 10.0       # mini-batch size
+    max_epochs = 10        # number of epochs until finished
+    t = 1                  # time between cmd line progress updates
+    beta = 0.0005           # weight-cost (regularisation)
+    rho = 0.05              # sparsity target
+    l = 0.95                # sparsity decay
+    PCD_size = 10           # number of fantasy particles
+    inFile = "../../data/preproc.npz"
+    outFile = "../../data/params_mnist.npz"
+    outFile2 = "../../data/params_stats_mnist.npz"
+    
+    # Load data
+    (train,(N,R)) = load_data(inFile)
+    
+    # Hack for analysis only
+    train = train[:1000,:]
+    N = 1000
+    print("Data loaded")
+       
+    # Calculate/initialise some data-dependent parameters for training. We use
+    # the intialisation of weights and biases as per Hinton (2010) practical
+    # recommendations noting that the biases are initialised low for sparsity.
+    # May change this....
+    
+    print("Parameters initialising...")
+    (n_batches,W,b,c,W_size,q,F) = init(N,batch_size,R,K,max_epochs,PCD_size)
+    print("Parameters initialised")
+    
+    # Training loop
+    print("Begin training...")
+    
+    # We are going to time this for primitive profile-sake
+    start = timer()
+    
+        for epoch in np.arange(max_epochs):
+        alpha_t = alpha*(max_epochs-epoch)/max_epochs
+        for B in np.arange(n_batches):
+           
+            gW = np.zeros((R,K))    # gradient of weights
+            gb = np.zeros((R))   # visible bias gradient
+            gc = np.zeros((K))    # hidden bias gradient
+>>>>>>> parent of ac13873... PRNGs are proving harder to implement in CUDA that I originally thought
             
             self.alpha_t = self.alpha*(self.max_epochs-epoch)/self.max_epochs
             for self.B in np.arange(self.n_batches):
@@ -179,6 +228,7 @@ class Rbm:
     
     def bern_samp(self, m, h):
     
+<<<<<<< HEAD
         # Draw a sample from the bernoulli distribution with mean m of length h. For
         # vector input each entry i can be interpreted as coming from an independent
         # bernoulli with mean m[i]. Note column vectors only.
@@ -187,6 +237,24 @@ class Rbm:
         noise_mat2 = np.reshape(self.noise_mat,(self.R))
         return (noise_mat2 < m) * 1  
     
+=======
+    # Draw a sample from the bernoulli distribution with mean m of length h. For
+    # vector input each entry i can be interpreted as coming from an independent
+    # bernoulli with mean m[i]. Note column vectors only.
+    return (np.random.random_sample((h)) < m) * 1
+
+
+
+def bern_samp_mat(m,(h,w)):
+    
+    # For a (h,w)-matrix sample each element iid from the bernoulli distribution
+    # with matrix of means m[i,j].
+    return (np.random.random_sample((h,w)) < m) * 1
+
+
+
+def sparsity(h,rho):
+>>>>>>> parent of ac13873... PRNGs are proving harder to implement in CUDA that I originally thought
     
     def bern_samp_mat(self, m,(h,w)):
         
