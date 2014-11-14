@@ -74,35 +74,33 @@ class Rbm:
         # We are going to time this for primitive profile-sake
         start = timer()
         
+        q = np.zeros((self.K))                  # tracked estimate of the mean hidden activation probability
+        
         for epoch in np.arange(self.max_epochs):
+            
             self.alpha_t = self.alpha*(self.max_epochs-epoch)/self.max_epochs
             for self.B in np.arange(self.n_batches):
                
-                self.gW = np.zeros((self.R,self.K))  # gradient of weights
-                self.gb = np.zeros((self.R))         # visible bias gradient
-                self.gc = np.zeros((self.K))    # hidden bias gradient
+                gW = np.zeros((self.R,self.K))  # gradient of weights
+                gb = np.zeros((self.R))         # visible bias gradient
+                gc = np.zeros((self.K))    # hidden bias gradient
                 
                 for i in np.arange(self.B*self.batch_size,min((self.B+1)*self.batch_size,self.N)):
                               
                     # Calculate the expectation over the model distribtution using PCD
-                    self.vi = self.train[i,:]
+                    vi = self.train[i,:]
                    
                     # Perform the Persistent CD algorithm
-                    (self.Eh, self.h2, self.F) = self.PCD(self.b,self.c,self.W,self.F,self.vi,self.PCD_size,self.K,self.R)
+                    (Eh, h2, self.F) = self.PCD(vi)
                     
                     # Update cumulative gradients and mean activation estimate
-                    self.gW += np.outer(self.vi,self.Eh) - (np.einsum('ik,jk',self.F,self.h2)/self.PCD_size) # efficient way to evaluate sum of outer products
-                    self.gb += self.vi - np.average(self.F,axis=1)
-                    self.gc += self.Eh - np.average(self.h2,axis=1)
+                    gW += np.outer(vi,Eh) - (np.einsum('ik,jk',self.F,h2)/self.PCD_size) # efficient way to evaluate sum of outer products
+                    gb += vi - np.average(self.F,axis=1)
+                    gc += Eh - np.average(h2,axis=1)
                     
-                    self.q = self.l*self.q + (1-self.l)*self.Eh
+                    q = self.l*q + (1-self.l)*Eh
             
-                # Update weights and biases, note the weight decay term
-                self.batch_size2 = min((self.B+1)*self.batch_size,self.N) - self.B*self.batch_size
-                
-                self.W += self.alpha_t*(self.gW/self.batch_size2 - self.beta*self.sparsity(self.q,self.rho))
-                self.b += self.alpha_t*self.gb/self.batch_size2 
-                self.c += self.alpha_t*(self.gc/self.batch_size2 - self.beta*self.sparsity(self.q,self.rho))
+                self.update_weights(gW,gb,gc,q)
                 
                 self.W_size[epoch] = np.linalg.norm(self.W,'fro')
             if (epoch%self.t == 0):    
@@ -113,7 +111,7 @@ class Rbm:
         print("Time = %g", end)
         
         # Save data to file
-        self.save((self.W_size,self.b,self.c,self.W),self.outFile,self.outFile2)
+        self.save()
         
         # Visualise weights as a grid
         self.visualise()
@@ -151,7 +149,6 @@ class Rbm:
         self.b          visible biases
         self.c          hidden biases
         self.W_size     storage for Frobenius norm of weights
-        self.q          storage for hidden activation probability
         self.F          fanstasy particle storage
         '''
         
@@ -160,7 +157,6 @@ class Rbm:
         self.b = 0.01*np.random.randn(self.R)
         self.c = 0.01*np.random.randn(self.K)-4
         self.W_size = np.zeros((self.max_epochs,1))
-        self.q = np.zeros((self.K))             # tracked estimate of the mean hidden activation probability
         self.F = 0.01*np.random.randn(self.R,self.PCD_size) 
     
     
@@ -188,7 +184,7 @@ class Rbm:
     
     
     
-    def sparsity(self, h,rho):
+    def sparsity(self, h):
         
         # h is the vector of hidden units
         # rho is the averrage sparsity penalty, say 0.05
@@ -200,8 +196,7 @@ class Rbm:
         # Note, instead of/as well as using this penalty you can initialise the biases
         # at -4 to encourage bias sparsity.
         r = np.average(h)
-        return -(rho/r) + ((1-rho)/(1-r))
-        #return rho-r
+        return -(self.rho/r) + ((1-self.rho)/(1-r))
     
     
     
@@ -257,7 +252,7 @@ class Rbm:
     
     
     
-    def PCD(self, b,c,W,F,v,n,K,R):
+    def PCD(self,v):
         
         # b is the column vector of visible biases
         # c is the column vector of hidden biases
@@ -267,51 +262,59 @@ class Rbm:
         # n is the number of fantasy particles in F
         # K is the number of hidden units
         # R is the number of visible units
-        Eh = self.sig(c + np.dot(v,W).T)
+        Eh = self.sig(self.c + np.dot(v,self.W).T)
     
-        ph = self.sig(c + np.dot(F.T,W)).T
-        pv = self.sig(b + np.dot(W,ph).T).T            
-        vsmpl = self.bern_samp_mat(pv,(R,n))       
+        ph = self.sig(self.c + np.dot(self.F.T,self.W)).T
+        pv = self.sig(self.b + np.dot(self.W,ph).T).T            
+        vsmpl = self.bern_samp_mat(pv,(self.R,self.PCD_size))       
         
         return Eh, ph, vsmpl
     
     
     
-    def save(self, (W_size,b,c,W),outFile,outFile2):
+    def update_weights(self,gW,gb,gc,q):
+        # Update weights and biases, note the weight decay term
+        self.batch_size2 = min((self.B+1)*self.batch_size,self.N) - self.B*self.batch_size
+        
+        self.W += self.alpha_t*(gW/self.batch_size2 - self.beta*self.sparsity(q))
+        self.b += self.alpha_t*gb/self.batch_size2 
+        self.c += self.alpha_t*(gc/self.batch_size2 - self.beta*self.sparsity(q))
+    
+    
+    
+    def save(self):
         
         # Save parameters to file and create directory if it doesn't exist
         # Check if output file exists
-        if outFile[-1] == '/':
-            outFile = outFile[:-1]
+        if self.outFile[-1] == '/':
+            self.outFile = self.outFile[:-1]
         
-        baseName = os.path.basename(outFile)
-        dirName = os.path.dirname(outFile)
+        baseName = os.path.basename(self.outFile)
+        dirName = os.path.dirname(self.outFile)
         
         # If not then create file
         if not os.path.isdir(dirName):
             os.makedirs(dirName)
         
         # Print to file
-        (R,K) = W.shape
-    
-        np.savez(outFile,b=b,c=c,W=W)
-        print("Data printed to file %r" % outFile)
+        np.savez(self.outFile,b=self.b,c=self.c,W=self.W)
+        print("Data printed to file %r" % self.outFile)
         
         
         # Now to save the parameter statistics
-        if outFile2[-1] == '/':
-            outFile2 = outFile2[:-1]
+        if self.outFile2[-1] == '/':
+            self.outFile2 = self.outFile2[:-1]
         
-        baseName = os.path.basename(outFile2)
-        dirName = os.path.dirname(outFile2)
+        baseName = os.path.basename(self.outFile2)
+        dirName = os.path.dirname(self.outFile2)
         
         # If not then create file
         if not os.path.isdir(dirName):
             os.makedirs(dirName)
     
-        np.savez(outFile2,W_size=W_size)
+        np.savez(self.outFile2,W_size=self.W_size)
         
-        print("Stats printed to file %r" % outFile2)
+        print("Stats printed to file %r" % self.outFile2)
         
         
     def visualise(self):
