@@ -17,179 +17,170 @@ from timeit import default_timer as timer
 class Rbm:
     
     def __init__(self,parameters):
-
-        # Localise later!!!!!!
-        self.prng = curand.PRNG(rndtype=curand.PRNG.XORWOW)
+ 
+        # Initialise parameters. I want to include a nice wrapper later so that we can
+        # nice and self-contained
+        print("Training parameters loading")
+        self.alpha = np.exp(-1)             # learning rate numerator
+        self.K = 250                        # num hidden units
+        self.batch_size = 10.0              # mini-batch size
+        self.max_epochs = 10                # number of epochs until finished
+        self.t = 1                          # time between cmd line progress updates
+        self.beta = 0.0005                  # weight-cost (regularisation)
+        self.rho = 0.05                     # sparsity target
+        self.l = 0.95                       # sparsity decay
+        self.PCD_size = 10                  # number of fantasy particles
+        self.inFile = "../../data/preproc.npz"
+        self.outFile = "../../data/params_mnist.npz"
+        self.outFile2 = "../../data/params_stats_mnist.npz"
+    
+        # Set up some dedicated GPU memory for pseudorandom number generation
+       # self.prng = curand.PRNG(rndtype=curand.PRNG.XORWOW)
         
         # Let's initialise pseudorandom noise generator on the the GPU
         # Setup pseudo-random noise generator --- will localise this later
             
-        self.noise = np.zeros((784), dtype=np.float32)
-        self.noise_mat = np.zeros((784,250), dtype=np.float32)
+       # self.noise = np.zeros((784), dtype=np.float32)
+       # self.noise_mat = np.zeros((784,250), dtype=np.float32)
             
-        self.d_noise = cuda.to_device(noise)
-        self.d_noise_mat = cuda.to_device(noise_mat)
-    
-    def main(self):
-    
-        # Parameters
-        self.alpha = np.exp(-1)             # learning rate numerator
-        self.K = 250                 # num hidden units
-        self.batch_size = 10.0       # mini-batch size
-        self.max_epochs = 10        # number of epochs until finished
-        self.t = 1                  # time between cmd line progress updates
-        self.beta = 0.0005           # weight-cost (regularisation)
-        self.rho = 0.05              # sparsity target
-        self.l = 0.95                # sparsity decay
-        self.PCD_size = 10           # number of fantasy particles
-        self.inFile = "../../data/preproc.npz"
-        self.outFile = "../../data/params_mnist.npz"
-        self.outFile2 = "../../data/params_stats_mnist.npz"
-        
+      #  self.d_noise = cuda.to_device(noise)
+       # self.d_noise_mat = cuda.to_device(noise_mat)
+       
         # Load data
-        (self.train,(self.N,self.R)) = load_data(self.inFile)
+        self.load_data()
         
         # Hack for analysis only
+        print("Data loading")
         self.train = self.train[:1000,:]
         self.N = 1000
-        print("Data loaded")
-        
-           
+         
         # Calculate/initialise some data-dependent parameters for training. We use
         # the intialisation of weights and biases as per Hinton (2010) practical
         # recommendations noting that the biases are initialised low for sparsity.
         # May change this....
         
-        print("Parameters initialising...")
-        (n_batches,W,b,c,W_size,q,F) = init(N,batch_size,R,K,max_epochs,PCD_size)
-        print("Parameters initialised")
-        
+        print("Model parameters initialising")
+        self.param_init()
+
+        print("Initialisation complete")
+        print("")
+    
+    
+    
+    def main(self): 
         # Training loop
         print("Begin training...")
         
         # We are going to time this for primitive profile-sake
         start = timer()
         
-        for epoch in np.arange(max_epochs):
-            alpha_t = alpha*(max_epochs-epoch)/max_epochs
-            for B in np.arange(n_batches):
+        for epoch in np.arange(self.max_epochs):
+            self.alpha_t = self.alpha*(self.max_epochs-epoch)/self.max_epochs
+            for self.B in np.arange(self.n_batches):
                
-                gW = np.zeros((R,K))  # gradient of weights
-                gb = np.zeros((R))    # visible bias gradient
-                gc = np.zeros((K))    # hidden bias gradient
+                self.gW = np.zeros((self.R,self.K))  # gradient of weights
+                self.gb = np.zeros((self.R))         # visible bias gradient
+                self.gc = np.zeros((self.K))    # hidden bias gradient
                 
-                for i in np.arange(B*batch_size,min((B+1)*batch_size,N)):
+                for i in np.arange(self.B*self.batch_size,min((self.B+1)*self.batch_size,self.N)):
                               
                     # Calculate the expectation over the model distribtution using PCD
-                    vi = train[i,:]
+                    self.vi = self.train[i,:]
                    
                     # Perform the Persistent CD algorithm
-                    (Eh, h2, F) = PCD(b,c,W,F,vi,PCD_size,K,R)
+                    (self.Eh, self.h2, self.F) = self.PCD(self.b,self.c,self.W,self.F,self.vi,self.PCD_size,self.K,self.R)
                     
                     # Update cumulative gradients and mean activation estimate
-                    gW += np.outer(vi,Eh) - (np.einsum('ik,jk',F,h2)/PCD_size) # efficient way to evaluate sum of outer products
-                    gb += vi - np.average(F,axis=1)
-                    gc += Eh - np.average(h2,axis=1)
+                    self.gW += np.outer(self.vi,self.Eh) - (np.einsum('ik,jk',self.F,self.h2)/self.PCD_size) # efficient way to evaluate sum of outer products
+                    self.gb += self.vi - np.average(self.F,axis=1)
+                    self.gc += self.Eh - np.average(self.h2,axis=1)
                     
-                    q = l*q + (1-l)*Eh
+                    self.q = self.l*self.q + (1-self.l)*self.Eh
             
                 # Update weights and biases, note the weight decay term
-                batch_size2 = min((B+1)*batch_size,N) - B*batch_size
+                self.batch_size2 = min((self.B+1)*self.batch_size,self.N) - self.B*self.batch_size
                 
-                W += alpha_t*(gW/batch_size2 - beta*sparsity(q,rho))
-                b += alpha_t*gb/batch_size2 
-                c += alpha_t*(gc/batch_size2 - beta*sparsity(q,rho))
+                self.W += self.alpha_t*(self.gW/self.batch_size2 - self.beta*self.sparsity(self.q,self.rho))
+                self.b += self.alpha_t*self.gb/self.batch_size2 
+                self.c += self.alpha_t*(self.gc/self.batch_size2 - self.beta*self.sparsity(self.q,self.rho))
                 
-                W_size[epoch] = np.linalg.norm(W,'fro')
-            if (epoch%t == 0):    
+                self.W_size[epoch] = np.linalg.norm(self.W,'fro')
+            if (epoch%self.t == 0):    
                 print("Iteration: %d \t |W|_F: %.3f \t |b|_F: %.3f \t |c|_F: %.3f" \
-                    % (epoch, W_size[epoch], np.linalg.norm(b), np.linalg.norm(c)))
+                    % (epoch, self.W_size[epoch], np.linalg.norm(self.b), np.linalg.norm(self.c)))
         
         end = timer() - start
         print("Time = %g", end)
         
         # Save data to file
-        save((W_size,b,c,W),outFile,outFile2)
+        self.save((self.W_size,self.b,self.c,self.W),self.outFile,self.outFile2)
         
         # Visualise weights as a grid
-        visualise(K,R,W)
+        self.visualise()
         
     
     
     
-    def load_data(inFile):
+    def load_data(self):
         '''
         Load the data --- I'm hoping to add extra options in future
+        
+        CREATES
+        self.train      matrix of training data - each row is a training vector
+        self.N          number of training samples
+        self.R          number of 
         '''
         
         print("Loading data")
-        f = np.load(inFile)
-        train = f['digits']
+        f = np.load(self.inFile)
+        self.train = f['digits']
         
-        (N,R) = train.shape
-        print("Number of training samples =",N)
-        print("Number of dimensions =",R)
-        
-        return (train,(N,R))
+        (self.N,self.R) = self.train.shape
+        print("Number of training samples = %d" % self.N)
+        print("Number of dimensions = %d" % self.R)
     
     
     
-    def init(N,batch_size,R,K,max_epochs,PCD_size):
+    def param_init(self):
         '''
-        Initialise data
-        '''
+        Initialise model parameters and storage --- will need to add GPU functionality later
         
-        n_batches = np.ceil(N/batch_size)
-        W = 0.01*np.random.randn(R,K)
-        b = 0.01*np.random.randn(R)
-        c = 0.01*np.random.randn(K)-4
-        W_size = np.zeros((max_epochs,1))
-        q = np.zeros((K))             # tracked estimate of the mean hidden activation probability
-        F = 0.01*np.random.randn(R,PCD_size)
-        
-        return(n_batches,W,b,c,W_size,q,F)
-    
-    
-    
-    def visualise(K,R,W):
-        '''
-        Visualise the weight matrices
+        CREATES
+        self.n_batches  number of mini-batches
+        self.W          weight matrix
+        self.b          visible biases
+        self.c          hidden biases
+        self.W_size     storage for Frobenius norm of weights
+        self.q          storage for hidden activation probability
+        self.F          fanstasy particle storage
         '''
         
-        print("Loading weights for visualisation")
-        sqrtK = np.ceil(np.sqrt(K))
-        for k in np.arange(K):
-            plt.subplot(sqrtK,sqrtK,k)
-            img = W[:,k].reshape((np.sqrt(R),np.sqrt(R)))
-            plt.imshow(img, cmap=plt.cm.gray,interpolation='nearest')
-            plt.axis('off')
-        # Show
-        plt.show()
+        self.n_batches = np.ceil(self.N/self.batch_size)
+        self.W = 0.01*np.random.randn(self.R,self.K)
+        self.b = 0.01*np.random.randn(self.R)
+        self.c = 0.01*np.random.randn(self.K)-4
+        self.W_size = np.zeros((self.max_epochs,1))
+        self.q = np.zeros((self.K))             # tracked estimate of the mean hidden activation probability
+        self.F = 0.01*np.random.randn(self.R,self.PCD_size) 
     
     
-    
-    def sig(x):
+    def sig(self, x):
         
         # Evaluation of the sigmoid nonlinearity on each element of the input list
         return 1./(1 + np.exp(-x))
     
     
     
-    def bern_samp(m,h):
-        
+    def bern_samp(self, m,h):
+    
         # Draw a sample from the bernoulli distribution with mean m of length h. For
         # vector input each entry i can be interpreted as coming from an independent
         # bernoulli with mean m[i]. Note column vectors only.
-        global prng
-        global d_noise
-        global noise
-        prng.uniform(d_noise)
-        d_noise.copy_to_host(noise)
-        return (noise < m) * 1
+        return (np.random.random_sample((h)) < m) * 1
     
     
     
-    def bern_samp_mat(m,(h,w)):
+    def bern_samp_mat(self, m,(h,w)):
         
         # For a (h,w)-matrix sample each element iid from the bernoulli distribution
         # with matrix of means m[i,j].
@@ -197,7 +188,7 @@ class Rbm:
     
     
     
-    def sparsity(h,rho):
+    def sparsity(self, h,rho):
         
         # h is the vector of hidden units
         # rho is the averrage sparsity penalty, say 0.05
@@ -214,7 +205,7 @@ class Rbm:
     
     
     
-    def CD(b,c,W,v,n,K):
+    def CD(self, b,c,W,v,n,K):
         
         # b is the column vector of visible biases
         # c is the column vector of hidden biases
@@ -231,17 +222,17 @@ class Rbm:
         vn = v    
     
         for i in np.arange(n):
-            ph = sig(c + np.dot(vn,W))
-            hn = bern_samp(ph,K)                  # sample of h (smpl induces bottleneck)
-            vn = sig(b + np.dot(W,hn))            # probability of v (less noise than smpl)
+            ph = self.sig(c + np.dot(vn,W))
+            hn = self.bern_samp(ph,K)                  # sample of h (smpl induces bottleneck)
+            vn = self.sig(b + np.dot(W,hn))            # probability of v (less noise than smpl)
         
-        hn = sig(c + np.dot(vn,W))            # probability of h for final sweep
+        hn = self.sig(c + np.dot(vn,W))            # probability of h for final sweep
             
         return (Eh,vn,hn)
     
     
     
-    def sample(b,c,W,v,n,K,R):
+    def sample(self, b,c,W,v,n,K,R):
         
         # b is the column vector of visible biases
         # c is the column vector of hidden biases
@@ -255,10 +246,10 @@ class Rbm:
         # returning a sample --- increasing this value will create more decorrelated samples
         vn = v
         for i in np.arange(n):
-            ph = sig(c + np.dot(vn,W))
-            hn = bern_samp(ph,K)                  # sample of h
-            pv = sig(b + np.dot(W,hn))            
-            vn = bern_samp(pv,R)                  # sample of v 
+            ph = self.sig(c + np.dot(vn,W))
+            hn = self.bern_samp(ph,K)                  # sample of h
+            pv = self.sig(b + np.dot(W,hn))            
+            vn = self.bern_samp(pv,R)                  # sample of v 
     
         #print sum(ph), sum(hn), sum(pv), sum(vn)
     
@@ -266,7 +257,7 @@ class Rbm:
     
     
     
-    def PCD(b,c,W,F,v,n,K,R):
+    def PCD(self, b,c,W,F,v,n,K,R):
         
         # b is the column vector of visible biases
         # c is the column vector of hidden biases
@@ -276,17 +267,17 @@ class Rbm:
         # n is the number of fantasy particles in F
         # K is the number of hidden units
         # R is the number of visible units
-        Eh = sig(c + np.dot(v,W).T)
+        Eh = self.sig(c + np.dot(v,W).T)
     
-        ph = sig(c + np.dot(F.T,W)).T
-        pv = sig(b + np.dot(W,ph).T).T            
-        vsmpl = bern_samp_mat(pv,(R,n))       
+        ph = self.sig(c + np.dot(F.T,W)).T
+        pv = self.sig(b + np.dot(W,ph).T).T            
+        vsmpl = self.bern_samp_mat(pv,(R,n))       
         
         return Eh, ph, vsmpl
     
     
     
-    def save((W_size,b,c,W),outFile,outFile2):
+    def save(self, (W_size,b,c,W),outFile,outFile2):
         
         # Save parameters to file and create directory if it doesn't exist
         # Check if output file exists
@@ -323,6 +314,20 @@ class Rbm:
         print("Stats printed to file %r" % outFile2)
         
         
+    def visualise(self):
+        '''
+        Visualise the weight matrices
+        '''
+        
+        print("Loading weights for visualisation")
+        sqrtK = np.ceil(np.sqrt(self.K))
+        for k in np.arange(self.K):
+            plt.subplot(sqrtK,sqrtK,k+1)
+            img = self.W[:,k].reshape((np.sqrt(self.R),np.sqrt(self.R)))
+            plt.imshow(img, cmap=plt.cm.gray,interpolation='nearest')
+            plt.axis('off')
+        # Show
+        plt.show()
 
 if __name__ == '__main__':
     rbm = Rbm(1)
