@@ -13,6 +13,7 @@ from numbapro.cudalib import curand        # fast random numbers
 from numba import *
 import os
 from timeit import default_timer as timer
+import math
 
 class Rbm:
     
@@ -56,18 +57,13 @@ class Rbm:
         # GPU allocations
         # Set up some dedicated GPU memory for pseudorandom number generation
         print("Allocating GPU resources...")
-        self.prng = curand.PRNG(rndtype=curand.PRNG.XORWOW)         
-        self.noise = np.zeros((self.R), dtype=np.float32)  # may opt for float64 in future         
-        self.d_noise = cuda.to_device(self.noise)
+        self.prng = curand.PRNG(rndtype=curand.PRNG.XORWOW)             
+        self.d_noise = cuda.device_array((self.R)) 
         
-        self.gW = np.zeros((self.R,self.K), dtype=np.float32)     # gradient of weights
-        self.gb = np.zeros((self.R), dtype=np.float32)            # visible bias gradient
-        self.gc = np.zeros((self.K), dtype=np.float32)            # hidden bias gradient
+        self.d_gW = cuda.device_array((self.R,self.K))            # weight gradient
+        self.d_gb = cuda.device_array((self.R))                   # visible bias gradient
+        self.d_gc = cuda.device_array((self.K))                   # hidden bias gradient
         
-        self.d_gW = cuda.to_device(self.gW)  # gradient of weights
-        self.d_gb = cuda.to_device(self.gb)  # visible bias gradient
-        self.d_gc = cuda.to_device(self.gc)  # hidden bias gradient
-
         print("Initialisation complete")
         print("")
     
@@ -90,18 +86,14 @@ class Rbm:
                 self.d_gW = self.reset_gradients(self.d_gW)
                 self.d_gb = self.reset_gradients(self.d_gb)
                 self.d_gc = self.reset_gradients(self.d_gc)
-                
-                d_gW.copy_to_host(self.gW)
-                d_gb.copy_to_host(self.gb)
-                d_gc.copy_to_host(self.gc)
-                
+                              
                 for i in np.arange(self.B*self.batch_size,min((self.B+1)*self.batch_size,self.N)):
                               
                     # Calculate the expectation over the model distribtution using PCD
-                    vi = self.train[i,:]
+                    d_v = cuda.to_device(self.train[i,:])
                    
                     # Perform the Persistent CD algorithm
-                    (Eh, h2, self.F) = self.PCD(vi)
+                    (Eh, h2, self.F) = self.PCD(self,d_v)
                     
                     # Update cumulative gradients and mean activation estimate
                     self.gW += np.outer(vi,Eh) - (np.einsum('ik,jk',self.F,h2)/self.PCD_size) # efficient way to evaluate sum of outer products
@@ -155,25 +147,33 @@ class Rbm:
         
         CREATES
         self.n_batches  number of mini-batches
-        self.W          weight matrix
-        self.b          visible biases
-        self.c          hidden biases
+        self.d_W        weight matrix
+        self.d_b        visible biases
+        self.d_c        hidden biases
         self.W_size     storage for Frobenius norm of weights
-        self.F          fanstasy particle storage
+        self.d_F        fanstasy particle storage
         '''
         
         self.n_batches = np.ceil(self.N/self.batch_size)
-        self.W = 0.01*np.random.randn(self.R,self.K)
-        self.b = 0.01*np.random.randn(self.R)
-        self.c = 0.01*np.random.randn(self.K)-4
+        
+        self.d_W = cuda.to_device(self.W)
+        self.d_b = cuda.to_device(self.b)
+        self.d_c = cuda.to_device(self.c)
+        
+        self.prng.normal(self.d_W, 0., 0.01)
+        self.prng.normal(self.d_b, 0., 0.01)
+        self.prng.normal(self.d_c, 0., 0.01)
+        
         self.W_size = np.zeros((self.max_epochs,1))
-        self.F = 0.01*np.random.randn(self.R,self.PCD_size) 
+        self.d_F = cuda.device_array((self.R,self.PCD_size))
+        
     
     
+    @vectorize(['float32(float32,float32)'], target='gpu')
     def sig(self, x):
         
         # Evaluation of the sigmoid nonlinearity on each element of the input list
-        return 1./(1 + np.exp(-x))
+        return 1./(1 + math.exp(-x))
     
     
     
@@ -212,20 +212,22 @@ class Rbm:
     
     
     
-    def PCD(self, v):
-        
-        # b is the column vector of visible biases
-        # c is the column vector of hidden biases
-        # W is the matrix of weights
-        # F is the matrix of fantasy particles stored columnwise
-        # v is the columm vector of the data
-        # n is the number of fantasy particles in F
-        # K is the number of hidden units
-        # R is the number of visible units
-        Eh = self.sig(self.c + np.dot(v,self.W).T)
+    @jit(argtypes=[float32,float32], target='gpu')
+    def PCD(self,v):
     
-        ph = self.sig(self.c + np.dot(self.F.T,self.W)).T
-        pv = self.sig(self.b + np.dot(self.W,ph).T).T            
+    # b is the column vector of visible biases
+    # c is the column vector of hidden biases
+    # W is the matrix of weights
+    # F is the matrix of fantasy particles stored columnwise
+    # v is the columm vector of the data
+    # n is the number of fantasy particles in F
+    # K is the number of hidden units
+    # R is the number of visible units
+        g = self.d_c + np.dot(v,self.d_W).T
+        Eh = self.sig(g)
+    
+        ph = self.sig(self.c + np.dot(self.F.T,self.d_W)).T
+        pv = self.sig(self.d_b + np.dot(self.W,ph).T).T            
         vsmpl = self.bern_samp_mat(pv,(self.R,self.PCD_size))       
         
         return Eh, ph, vsmpl
@@ -241,12 +243,13 @@ class Rbm:
         self.c += self.alpha_t*(self.gc/self.batch_size2 - self.beta*self.sparsity(q))
     
     
+    
     @vectorize(['float32(float32)'], target='gpu')
     def reset_gradients(vec):
         '''
         Reset all of the weight/bias gradients on the gpu
         '''
-        return 0
+        return 0.
         
     
     
