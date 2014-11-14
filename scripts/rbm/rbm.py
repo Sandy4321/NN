@@ -20,7 +20,7 @@ class Rbm:
  
         # Initialise parameters. I want to include a nice wrapper later so that we can
         # nice and self-contained
-        print("Training parameters loading")
+        print("Training parameters loading...")
         self.alpha = np.exp(-1)             # learning rate numerator
         self.K = 250                        # num hidden units
         self.batch_size = 10.0              # mini-batch size
@@ -33,24 +33,14 @@ class Rbm:
         self.inFile = "../../data/preproc.npz"
         self.outFile = "../../data/params_mnist.npz"
         self.outFile2 = "../../data/params_stats_mnist.npz"
-    
-        # Set up some dedicated GPU memory for pseudorandom number generation
-       # self.prng = curand.PRNG(rndtype=curand.PRNG.XORWOW)
-        
-        # Let's initialise pseudorandom noise generator on the the GPU
-        # Setup pseudo-random noise generator --- will localise this later
-            
-       # self.noise = np.zeros((784), dtype=np.float32)
-       # self.noise_mat = np.zeros((784,250), dtype=np.float32)
-            
-      #  self.d_noise = cuda.to_device(noise)
-       # self.d_noise_mat = cuda.to_device(noise_mat)
+       
        
         # Load data
         self.load_data()
         
+        
         # Hack for analysis only
-        print("Data loading")
+        print("Reshuffling data...")
         self.train = self.train[:1000,:]
         self.N = 1000
          
@@ -59,8 +49,24 @@ class Rbm:
         # recommendations noting that the biases are initialised low for sparsity.
         # May change this....
         
-        print("Model parameters initialising")
+        print("Model parameters initialising...")
         self.param_init()
+        
+        
+        # GPU allocations
+        # Set up some dedicated GPU memory for pseudorandom number generation
+        print("Allocating GPU resources...")
+        self.prng = curand.PRNG(rndtype=curand.PRNG.XORWOW)         
+        self.noise = np.zeros((self.R), dtype=np.float32)  # may opt for float64 in future         
+        self.d_noise = cuda.to_device(self.noise)
+        
+        self.gW = np.zeros((self.R,self.K), dtype=np.float32)     # gradient of weights
+        self.gb = np.zeros((self.R), dtype=np.float32)            # visible bias gradient
+        self.gc = np.zeros((self.K), dtype=np.float32)            # hidden bias gradient
+        
+        self.d_gW = cuda.to_device(self.gW)  # gradient of weights
+        self.d_gb = cuda.to_device(self.gb)  # visible bias gradient
+        self.d_gc = cuda.to_device(self.gc)  # hidden bias gradient
 
         print("Initialisation complete")
         print("")
@@ -81,9 +87,13 @@ class Rbm:
             self.alpha_t = self.alpha*(self.max_epochs-epoch)/self.max_epochs
             for self.B in np.arange(self.n_batches):
                
-                gW = np.zeros((self.R,self.K))  # gradient of weights
-                gb = np.zeros((self.R))         # visible bias gradient
-                gc = np.zeros((self.K))    # hidden bias gradient
+                self.d_gW = self.reset_gradients(self.d_gW)
+                self.d_gb = self.reset_gradients(self.d_gb)
+                self.d_gc = self.reset_gradients(self.d_gc)
+                
+                d_gW.copy_to_host(self.gW)
+                d_gb.copy_to_host(self.gb)
+                d_gc.copy_to_host(self.gc)
                 
                 for i in np.arange(self.B*self.batch_size,min((self.B+1)*self.batch_size,self.N)):
                               
@@ -94,13 +104,13 @@ class Rbm:
                     (Eh, h2, self.F) = self.PCD(vi)
                     
                     # Update cumulative gradients and mean activation estimate
-                    gW += np.outer(vi,Eh) - (np.einsum('ik,jk',self.F,h2)/self.PCD_size) # efficient way to evaluate sum of outer products
-                    gb += vi - np.average(self.F,axis=1)
-                    gc += Eh - np.average(h2,axis=1)
+                    self.gW += np.outer(vi,Eh) - (np.einsum('ik,jk',self.F,h2)/self.PCD_size) # efficient way to evaluate sum of outer products
+                    self.gb += vi - np.average(self.F,axis=1)
+                    self.gc += Eh - np.average(h2,axis=1)
                     
                     q = self.l*q + (1-self.l)*Eh
             
-                self.update_weights(gW,gb,gc,q)
+                self.update_weights(q)
                 
                 self.W_size[epoch] = np.linalg.norm(self.W,'fro')
             if (epoch%self.t == 0):    
@@ -126,7 +136,7 @@ class Rbm:
         CREATES
         self.train      matrix of training data - each row is a training vector
         self.N          number of training samples
-        self.R          number of 
+        self.R          number of dimensions of training 
         '''
         
         print("Loading data")
@@ -167,13 +177,15 @@ class Rbm:
     
     
     
-    def bern_samp(self, m,h):
+    def bern_samp(self, m, h):
     
         # Draw a sample from the bernoulli distribution with mean m of length h. For
         # vector input each entry i can be interpreted as coming from an independent
         # bernoulli with mean m[i]. Note column vectors only.
-        return (np.random.random_sample((h)) < m) * 1
-    
+        self.prng.uniform(self.d_noise)
+        self.d_noise.copy_to_host(self.noise_mat)
+        noise_mat2 = np.reshape(self.noise_mat,(self.R))
+        return (noise_mat2 < m) * 1  
     
     
     def bern_samp_mat(self, m,(h,w)):
@@ -200,59 +212,7 @@ class Rbm:
     
     
     
-    def CD(self, b,c,W,v,n,K):
-        
-        # b is the column vector of visible biases
-        # c is the column vector of hidden biases
-        # W is the matrix of weights
-        # v is the columm vector of the data
-        # n is the number of Gibbs iterations
-        # K is the number of hidden units
-        # 
-        # Perform the n loads of constrastive divergence, known as CD-n
-        # We should technically sample from the model distribution, but if we calculate
-        # expectations instead then mixing is faster because we are rejecting the sample
-        # noise. Reference Hinton 2010. 
-        Eh = sig(c + np.dot(v,W))
-        vn = v    
-    
-        for i in np.arange(n):
-            ph = self.sig(c + np.dot(vn,W))
-            hn = self.bern_samp(ph,K)                  # sample of h (smpl induces bottleneck)
-            vn = self.sig(b + np.dot(W,hn))            # probability of v (less noise than smpl)
-        
-        hn = self.sig(c + np.dot(vn,W))            # probability of h for final sweep
-            
-        return (Eh,vn,hn)
-    
-    
-    
-    def sample(self, b,c,W,v,n,K,R):
-        
-        # b is the column vector of visible biases
-        # c is the column vector of hidden biases
-        # W is the matrix of weights
-        # v is the columm vector of the seed data
-        # n is the number of Gibbs iterations
-        # K is the number of hidden units
-        # R is the number of visible units
-        # This is a really siple method which samples directly from the RBM given a set
-        # of parameters and an initial state. The sampler will perform n iterations before
-        # returning a sample --- increasing this value will create more decorrelated samples
-        vn = v
-        for i in np.arange(n):
-            ph = self.sig(c + np.dot(vn,W))
-            hn = self.bern_samp(ph,K)                  # sample of h
-            pv = self.sig(b + np.dot(W,hn))            
-            vn = self.bern_samp(pv,R)                  # sample of v 
-    
-        #print sum(ph), sum(hn), sum(pv), sum(vn)
-    
-        return vn
-    
-    
-    
-    def PCD(self,v):
+    def PCD(self, v):
         
         # b is the column vector of visible biases
         # c is the column vector of hidden biases
@@ -272,14 +232,22 @@ class Rbm:
     
     
     
-    def update_weights(self,gW,gb,gc,q):
+    def update_weights(self, q):
         # Update weights and biases, note the weight decay term
         self.batch_size2 = min((self.B+1)*self.batch_size,self.N) - self.B*self.batch_size
         
-        self.W += self.alpha_t*(gW/self.batch_size2 - self.beta*self.sparsity(q))
-        self.b += self.alpha_t*gb/self.batch_size2 
-        self.c += self.alpha_t*(gc/self.batch_size2 - self.beta*self.sparsity(q))
+        self.W += self.alpha_t*(self.gW/self.batch_size2 - self.beta*self.sparsity(q))
+        self.b += self.alpha_t*self.gb/self.batch_size2 
+        self.c += self.alpha_t*(self.gc/self.batch_size2 - self.beta*self.sparsity(q))
     
+    
+    @vectorize(['float32(float32)'], target='gpu')
+    def reset_gradients(vec):
+        '''
+        Reset all of the weight/bias gradients on the gpu
+        '''
+        return 0
+        
     
     
     def save(self):
