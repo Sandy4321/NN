@@ -13,32 +13,18 @@ from collections import namedtuple
 
 TOP = namedtuple('TOP', ['layers','types'])
 top = TOP((784,250),('bin','bin'))
-print('Topology set as %s' % top)
 
-PCD = namedtuple('PCD', ['alpha', 'num_particles', 'mini_batch_size', 'max_epochs', 'max_time'])
-pcd = PCD(np.exp(-1), 10.0, 10.0, 10, 3600)
-print('Training parameters set')
+TRN = namedtuple('TRN', ['alpha', 'num_particles', 'mini_batch_size', 'max_epochs', 'max_time'])
+trn = TRN(np.exp(-1), 10.0, 10.0, 10, 3600)
 
 REG = namedtuple('REG', ['weight_cost', 'sparsity_target', 'sparsity_decay'])
 reg = REG(0.0005, 0.05, 0.95)
-print('Regulariser set')
 
-IO = namedtuple('IO', ['update_interval', 'save_interval'])
-io = IO(1, 5)
-print("IO settings set")
+IO = namedtuple('IO', ['update_interval', 'save_interval', 'input', 'output', 'meta_out'])
+io = IO(1, 5 , '../../data/binary_mnist.npz', '../../data/deep_out.npz', '../../data/deep_meta_out.npz')
 
 # Now to instantiate a deep neural network object
-deep = Deep(top, pcd, reg, io)
-
-
-
-#self.inFile = "../../data/preproc.npz"
-#self.outFile = "../../data/params_mnist.npz"
-#self.outFile2 = "../../data/params_stats_mnist.npz"
-
-
-# Load data
-#self.load_data()
+deep = Deep(top, trn, reg, io)
 
 
     

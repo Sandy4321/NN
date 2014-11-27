@@ -17,5 +17,22 @@ class Deep:
     def __init__(self):
         pass
 
-    def __init__(self, top, pcd, reg, io):
-        pass
+    def __init__(self, top, trn, reg, io):
+        
+        # Load parameters
+        self.top = top
+        self.trn = trn
+        self.reg = reg
+        self.io = io
+        print()
+        print(top)
+        print()
+        print(trn)
+        print()
+        print(reg)
+        print()
+        print(io)
+        print()
+        
+        # Allocate GPU memory
+        
