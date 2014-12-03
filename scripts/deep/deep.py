@@ -81,16 +81,16 @@ class Deep:
         N = self.N
         
         self.d_W = ga.empty((R,K), np.float32, order="C")      # weights
-        self.d_b = ga.empty((R), np.float32)        # visible bias
-        self.d_c = ga.empty((N), np.float32)        # hidden bias
+        self.d_b = ga.empty((R), np.float32, order="C")        # visible bias
+        self.d_c = ga.empty((N), np.float32, order="C")        # hidden bias
         
-        self.d_gW = ga.empty((R,K), np.float32)     # weight gradient
-        self.d_gb = ga.empty((R), np.float32)       # visible bias gradient
-        self.d_gc = ga.empty((N), np.float32)       # hidden bias gradient
+        self.d_gW = ga.empty((R,K), np.float32, order="C")     # weight gradient
+        self.d_gb = ga.empty((R), np.float32, order="C")       # visible bias gradient
+        self.d_gc = ga.empty((N), np.float32, order="C")       # hidden bias gradient
         
-        self.d_v = ga.empty((R), np.float32)        # visible vectors
-        self.d_h = ga.empty((K), np.float32)        # hidden vectors
-        self.d_data = ga.to_gpu(self.data.astype(np.float32))          # REMEMBER TO CHANGE THIS LATER - works for small data sets
+        self.d_v = ga.empty((R), np.float32, order="C")        # visible vectors
+        self.d_h = ga.empty((K), np.float32, order="C")        # hidden vectors
+        self.d_data = ga.to_gpu(self.data.astype(np.float32, order="C"))          # REMEMBER TO CHANGE THIS LATER - works for small data sets
         
             
         # Now initialise array values randomly to instantiate symmetry breaking
