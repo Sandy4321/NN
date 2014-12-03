@@ -25,6 +25,7 @@ io = IO(1, 5 , '../../data/binary_mnist.npz', '../../data/deep_out.npz', '../../
 
 # Now to instantiate a deep neural network object
 deep = Deep(top, trn, reg, io)
-
+deep.load_data()
+deep.train()
 
     
