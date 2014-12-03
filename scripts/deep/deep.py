@@ -138,6 +138,7 @@ class Deep:
         print(np.min(vv))
         print(np.max(WW))
         print(np.min(WW))
+        print(vv.shape)
         print(WW.shape)
    
         print(self.d_W.shape)
