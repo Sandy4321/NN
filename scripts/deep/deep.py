@@ -130,9 +130,8 @@ class Deep:
         # R is the number of visible units
         i = int(i)
         self.d_v = self.d_data[i,:]
-        self.d_h = ga.dot(self.d_v,self.d_W)
+        self.d_h = ga.dot(self.d_W,self.d_v)
         
-        print(self.d_v)
    
         print(self.d_W.shape)
         print(self.d_h)
