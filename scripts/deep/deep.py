@@ -134,12 +134,8 @@ class Deep:
         
         vv = self.d_v.get()
         WW = self.d_W.get()
-        print(np.max(vv))
-        print(np.min(vv))
-        print(np.max(WW))
-        print(np.min(WW))
-        print(vv.shape)
-        print(WW.shape)
+        hh = np.dot(vv,WW)
+        print(hh.shape)
    
         print(self.d_W.shape)
         print(self.d_h)
