@@ -1,4 +1,4 @@
-'''
+exit'''
 A simple example of an RBM on the MNIST dataset
 
 @author: dew

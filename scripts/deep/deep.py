@@ -80,7 +80,7 @@ class Deep:
         R = self.R
         N = self.N
         
-        self.d_W = ga.empty((R,K), np.float32)      # weights
+        self.d_W = ga.empty((R,K), np.float32, order="C")      # weights
         self.d_b = ga.empty((R), np.float32)        # visible bias
         self.d_c = ga.empty((N), np.float32)        # hidden bias
         
