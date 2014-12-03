@@ -132,10 +132,7 @@ class Deep:
         self.d_v = self.d_data[i,:]
         self.d_h = ga.dot(self.d_v,self.d_W)
         
-        vv = self.d_v.get()
-        WW = self.d_W.get()
-        hh = np.dot(vv,WW)
-        print(hh.shape)
+        print(self.d_v)
    
         print(self.d_W.shape)
         print(self.d_h)
