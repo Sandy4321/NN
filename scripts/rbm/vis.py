@@ -12,8 +12,8 @@ import rbm_header as rbm
 # Parameters
 K = 250    # num hidden units
 
-f1 = "../../data/mldata/mnist_bin.data"
-f2 = "../../data/rbm/params_mnist.data"
+f1 = "../../data/mnist-bin.data"
+f2 = "../../data/params_mnist.data"
 
 # Load data --- currently I've only considered my comma and space separated format.
 # Loading the data takes some time, so I only read from my subcollection of lines.
