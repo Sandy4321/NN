@@ -129,7 +129,7 @@ class Deep:
         # K is the number of hidden units
         # R is the number of visible units
         i = int(i)
-        self.d_v = self.d_data[i,:]
+        self.d_v = self.d_data[i,:][np.newaxis]
         self.d_h = ga.dot(self.d_v,self.d_W)
 
         print(self.d_v.shape)
