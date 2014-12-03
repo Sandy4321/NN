@@ -131,11 +131,15 @@ class Deep:
         i = int(i)
         self.d_v = self.d_data[i,:]
         self.d_h = ga.dot(self.d_v,self.d_W)
-
-        print(np.max(self.d_v))
-        print(np.min(self.d_v))
-        print(np.max(self.d_W))
-        print(np.min(self.d_W))
+        
+        vv = self.d_v.get()
+        WW = self.d_W.get()
+        print(np.max(vv))
+        print(np.min(vv))
+        print(np.max(WW))
+        print(np.min(WW))
+        print(WW.shape)
+   
         print(self.d_W.shape)
         print(self.d_h)
         print(self.d_h.shape)
