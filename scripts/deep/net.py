@@ -11,7 +11,7 @@ import theano
 import theano.tensor as T
 
 from layer import Layer
-from initialisation import Initialisation
+from initialisation import Initialisation 
 
 class Net(object):
     ''' Net class
@@ -39,6 +39,7 @@ class Net(object):
         weights/biases.
         '''
         
+        # Build layers
         for i in np.arange(1,len(topology)):
             if (input_bias == True) and (i == 1):
                 lyr = Layer(topology[i-1],topology[i], b_in = topology[i-1])
@@ -46,19 +47,11 @@ class Net(object):
             lyr = Layer(topology[i-1],topology[i])
             self.layers.append(lyr)
         
+        # Initialise weights of each constructed layer
         for lyr in self.layers:
-            
-        
-        
-
-
-
-
-
-
-
-
-
+            init_lyr = Initialisation()
+            init_lyr.init_weights(lyr, command='Glorot', nonlinearity='sigmoid')
+            print lyr, 'initialised'
 
 
 
