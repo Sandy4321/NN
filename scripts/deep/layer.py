@@ -27,6 +27,7 @@ class Layer(object):
         n_out=500,
         W=None,
         b=None,
+        b_in=None,
         mask=None
         ):
         
@@ -51,6 +52,16 @@ class Layer(object):
         :param mask: mask specifiying specialist connectivities
         '''
         
+        if b_in is not None:
+            # b_in is an optional bias applied to the input of the first layer
+            # only. If used in hidden layers it will create big problems, but that
+            # option is left for the user (you never know, certain doubly-biased
+            # hidden neurons may be of particular esoteric interest).
+
+            b_in = theano.shared(value=b_in, name='b_in', borrow=True)
+            self.b_in = b_in
+            print 'Input bias constructed'
+        
         if not b:
             # b is initialised as all zeros. This is common. If the user wants
             # to coax sparsity, it is possible to subtract 4 (or there abouts)
@@ -58,6 +69,7 @@ class Layer(object):
             
             initial_b = np.zeros(shape=(n_out), dtype=theano.config.floatX)
             b = theano.shared(value=initial_b, name='b', borrow=True)
+            print 'Bias constructed'
             
 
         if not W:
@@ -66,8 +78,12 @@ class Layer(object):
             
             initial_W = np.zeros(shape=(n_in, n_out), dtype=theano.config.floatX)
             W = theano.shared(value=initial_W, name='W', borrow=True)
+            print 'Weight constructed'
         
+        self.W = W
+        self.b = b
         
+
         
         
         
