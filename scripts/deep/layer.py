@@ -60,29 +60,27 @@ class Layer(object):
 
             b_in = theano.shared(value=b_in, name='b_in', borrow=True)
             self.b_in = b_in
-            print 'Input bias constructed'
         
-        if not b:
+        if b is None:
             # b is initialised as all zeros. This is common. If the user wants
             # to coax sparsity, it is possible to subtract 4 (or there abouts)
             # from the the biases.
             
             initial_b = np.zeros(shape=(n_out), dtype=theano.config.floatX)
             b = theano.shared(value=initial_b, name='b', borrow=True)
-            print 'Bias constructed'
             
 
-        if not W:
+        if W is None:
             # W is initialised as all zeros. This forces the user to include an
             # initialisation routine over all layers in order to break symmetry.
             
             initial_W = np.zeros(shape=(n_in, n_out), dtype=theano.config.floatX)
             W = theano.shared(value=initial_W, name='W', borrow=True)
-            print 'Weight constructed'
         
         self.W = W
         self.b = b
-        
+    
+    
 
         
         

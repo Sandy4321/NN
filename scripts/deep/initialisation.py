@@ -39,6 +39,6 @@ class Initialisation:
                 print 'Invalid nonlinearity'
                 exit(1)
             
-            np_rng = r*np.random.random_sample(size=W_shape)
+            np_rng = r*np.random.random_sample(size=W_shape).astype(dtype=theano.config.floatX)
             lyr.W.set_value(np_rng)
             
