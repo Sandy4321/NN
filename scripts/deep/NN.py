@@ -16,8 +16,8 @@ from layer import Layer
 from initialisation import Initialisation
 from train import Train
 
-class Net(object):
-    ''' Net class
+class NN(object):
+    ''' NN class
     
     We can define a general network topology. At the moment masks are not
     supported and all hidden nodes MUST bind ONE input to ONE output
@@ -50,21 +50,21 @@ class Net(object):
         '''
         
         
-        # We are going to store the layers of the NN in a layers object,
-        # where layers[0] is the input layer, layers[1] the first hidden
-        # layer etc. This has callable symbolic parameters e.g. layers[x].W
-        self.layers = []   
+        # We are going to store the layers of the NN in a net object, where
+        # net[0] is the input layer, net[1] the first hidden layer etc. This
+        # has callable symbolic parameters e.g. net[x].W
+        self.net = []   
         
         # Make sure that the specfied nonlinearities correspond to layers,
-        # otherwise throw and error and exit
+        # otherwise throw an error and exit
         assert len(nonlinearities) == len(topology) - 1
-        self.nonlinearities = nonlinearities
         
         # It may be the case that we wish to load a premade model, in which
         # case it is important to check that the parameters match up with
         # the stated topology and we also need to bypass parameter initialisation.
         # Note that a pretrained model may only be fully pretrained. Partial
         # pretraining is yet to be supported
+        
         if pparams is None:
             W=None,
             b=None,
@@ -72,16 +72,18 @@ class Net(object):
             mask=None
         else:
             if  hasattr(pparams[0], 'b_in'):
-                assert pparams[0].b_in.shape == (topology[0],), \
-                    "b_in wrong shape"
                 assert input_bias == True, "Need to set 'input_bias=True'"
+                assert pparams[0].b_in.shape[0] == pparams[0].W.shape[1], \
+                    "b_in or W wrong shape"
                 print('Input biases consistent')
                 
-            for i in np.arange(0,len(topology)-1):
-                assert pparams[i].W.shape == (topology[i],topology[i+1]), \
-                    "W of layer %i wrong shape" % i
-                assert pparams[i].b.shape == (topology[i+1],), \
-                    "b of layer %i wrong shape" % i
+            for i in np.arange(0,len(pparams)-1):
+                assert pparams[i].W.shape[1] == pparams[i+1].W.shape[0], \
+                    "W connectivity mismatch between layer %i and layer %i" % (i, i+1)
+                assert pparams[i].b.shape[0] == pparams[i].W.shape[0], \
+                    "b/W connectivity mismatch in layer %i" % i
+                assert self.supported_nonlinearity(pparams[i].nonlinearity), \
+                    "Unsupported nonlinearity"
                 print('Layer %i parameters are consistent' % (i))
             
 
@@ -101,11 +103,11 @@ class Net(object):
                 else:
                     #Instantiate hidden/output layers
                     lyr = Layer(topology[i-1],topology[i])
-                self.layers.append(lyr)
+                self.net.append(lyr)
             
             # Initialise weights of each constructed layer
             init_lyr = Initialisation()
-            for lyr in self.layers:
+            for lyr in self.net:
                 init_lyr.init_weights(lyr, command='Glorot', nonlinearity='sigmoid')
                 print(lyr, 'built')
             
@@ -119,14 +121,26 @@ class Net(object):
                 else:
                     #Instantiate hidden/output layers
                     lyr = Layer(W=pparams[i-1].W, b=pparams[i-1].b)
-                self.layers.append(lyr)
+                self.net.append(lyr)
                 print(lyr, "built")
+        
+        # It will turn out advantageous later to easily access these variables
+        self.num_layers = len(topology) - 1
+        self.topology = topology
+        self.nonlinearities = nonlinearities
+        self.intialisation = initialisation
+        self.pparams = pparams
+        self.input_bias = input_bias
+        # Run this command to load defaults.
+        self.pretrain_params()
     
     
     
     def load_data(self, dataset):
         '''Load the dataset, which must be in pickled form. Will want to add a
         database retrieval function later
+        
+        Disclaimer: Copied straight from Montreal deep learning tutorials
         
         :type dataset: string
         :param dataset: path to dataset directory
@@ -137,34 +151,76 @@ class Net(object):
         train_set, valid_set, test_set = cPickle.load(f)
         f.close()
         
-        self.train_set = train_set
-        self.valid_set = valid_set
-        self.test_set = test_set
+        def shared_dataset(data_xy, borrow=True):
+            data_x, data_y = data_xy
+            shared_x = theano.shared(np.asarray(data_x,
+                                                   dtype=theano.config.floatX),
+                                     borrow=borrow)
+            shared_y = theano.shared(np.asarray(data_y,
+                                                   dtype=theano.config.floatX),
+                                     borrow=borrow)
+            return shared_x, T.cast(shared_y, 'int32')
+    
+        self.test_set_x, self.test_set_y = shared_dataset(test_set)
+        self.valid_set_x, self.valid_set_y = shared_dataset(valid_set)
+        self.train_set_x, self.train_set_y = shared_dataset(train_set)
+    
 
-####### NEED A SHARED DATASET METHOD!!!!!!!!!
 
     
-    
-    def pretrain(
+    def pretrain_params(
         self, 
         method='AE',
         loss='SE',
-        regulariser=('CAE'),
+        regulariser=('L2'),
         optimiser='SDG',
         momentum='0.1',
         scheduler='ED'
         ):
-        self.method = method
-        self.loss = loss
-        self.regulariser = regulariser
-        self.optimiser = optimiser
-        self.momentum = momentum
-        self.scheduler = scheduler
+        '''
+        Load pretraining parameters into every layer in the network.
+        
+        For now we force the pretrainer to apply the same scheme to every layer
+        but in future we expect the training scheme to be per layer, hence the
+        training commands are stored layer-wise.
+        '''
+        
+        for lyr in self.net:
+            lyr.method = method
+            lyr.loss = loss
+            lyr.regulariser = regulariser
+            lyr.optimiser = optimiser
+            lyr.momentum = momentum
+            lyr.scheduler = scheduler
+        
+        # Note that for the autoencoder setup we need to specify a few extra parameters
+        # These are whether the AE in symmetric in the representation layer and thus,
+        # the kinds of weight-tying we would like to use. Furthermore, which half of the
+        # parameters we may wish to discard.
+        #
+        # AE = symmetric + weight tying
+        # AE_ns = non_symmetric (no weight tying)
+        
+        if method == 'AE':
+            # Check for topology symmetry
+            for i in xrange(self.num_layers):
+                print i
+                assert self.topology[i] == self.topology[self.num_layers - i], \
+                    'AE-autoencoders need to symmetric in the representations layer'
+        
+        print("Pretraining parameters loaded")
+            
+    
+    def pretrain(self):
+        '''
+        Greedy layer-wise pretrain the network
+        '''
         
         train = Train()
         
-        for lyr in self.layers:
-            train.train_layer(lyr)
+        for layer_number in xrange(len(self.net)):
+            train.train_layer_build(self, layer_number)
+            train.train_layer(self, layer_number)
         
         
 
@@ -173,6 +229,12 @@ class Net(object):
     
     
     
+    
+    
+    
+    
+    def supported_nonlinearity(self,nonlinearity):
+        return nonlinearity == 'sigmoid'
     
     
     

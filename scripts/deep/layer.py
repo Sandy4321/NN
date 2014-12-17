@@ -17,14 +17,13 @@ class Layer(object):
     
     The layer class creates a symbolic object storing the parameters of a
     single layer of a layered neural network (MLP, Autoencoder, DBM, etc..)
-    with a defined connectivity. The specific choice of nonlinearity and
-    input domain are explicitly excluded - those have to be defined outside
-    in a separate script controlling overall topology and functionality.
+    with a defined connectivity. 
     '''
     def __init__(
         self,
         n_in=784,
         n_out=500,
+        nonlinearity='sigmoid',
         W=None,
         b=None,
         b_in=None,
@@ -79,6 +78,7 @@ class Layer(object):
         
         self.W = W
         self.b = b
+        self.nonlinearity = nonlinearity
     
     
 
