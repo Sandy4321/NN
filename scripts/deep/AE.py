@@ -20,6 +20,10 @@ def main():
 
     AE.load_data('./data/mnist.pkl.gz')
     
+    print AE.train_set_x.get_value()[32:33,:].shape
+    print AE.net[0].get_output(AE.train_set_x.get_value()[32:33,:]).shape
+    
+    '''
     AE.pretrain_params(
         method='AE',
         loss='SE',
@@ -30,7 +34,7 @@ def main():
         )
     
     AE.pretrain()
-
+'''
 
 
 

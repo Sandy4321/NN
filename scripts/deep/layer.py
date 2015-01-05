@@ -10,6 +10,7 @@ import numpy as np
 
 import theano
 import theano.tensor as T
+import theano.tensor.nnet as Tnet
 
 
 class Layer(object):
@@ -79,8 +80,40 @@ class Layer(object):
         self.W = W
         self.b = b
         self.nonlinearity = nonlinearity
+        
+        # Define encoding function
+        x = T.matrix('x',dtype=theano.config.floatX)
+        if self.nonlinearity == 'sigmoid':
+            encoding_function = Tnet.sigmoid(T.dot(x,self.W) + self.b)
+        elif self.nonlinearity == 'ultra_fast_sigmoid':
+            encoding_function = ultra_fast_sigmoid(T.dot(x,self.W) + self.b)
+        elif self.nonlinearity == 'hard_sigmoid':
+            encoding_function = hard_sigmoid(T.dot(x,self.W) + self.b)
+        elif self.nonlinearity == 'linear':
+            encoding_function = (T.dot(x,self.W) + self.b)
+        else:
+            print("Encoding nonlinearity not supported")
+        
+        newW = T.matrix(name='newW', dtype=theano.config.floatX)
+        self.enc_fn = theano.function([x], encoding_function)
+        self.enc_fn2 = theano.function([x, newW], encoding_function, givens=[(self.W, newW)])
+        
+    
+    def get_output(self, input):
+        ''' Computes the output of a layer '''
+        return self.enc_fn(input)
+    
+    def get_output2(self, input):
+        ''' Computes the output of a layer '''
+        return self.enc_fn2(input, newW)
+    
+
     
     
+    
+    
+
+
 
         
         

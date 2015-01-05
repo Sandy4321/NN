@@ -29,7 +29,8 @@ class NN(object):
         nonlinearities=('sigmoid','sigmoid'),
         initialisation='glorot',
         pparams=None,
-        input_bias=False
+        input_bias=False,
+        input=None
         ):
         '''
         :type topology: tuple of ints
@@ -51,8 +52,9 @@ class NN(object):
         
         
         # We are going to store the layers of the NN in a net object, where
-        # net[0] is the input layer, net[1] the first hidden layer etc. This
-        # has callable symbolic parameters e.g. net[x].W
+        # net[0] is the input layer etc. This has callable symbolic parameters
+        # e.g. net[x].W, net[x].b
+        
         self.net = []   
         
         # Make sure that the specfied nonlinearities correspond to layers,
@@ -64,6 +66,7 @@ class NN(object):
         # the stated topology and we also need to bypass parameter initialisation.
         # Note that a pretrained model may only be fully pretrained. Partial
         # pretraining is yet to be supported
+        
         
         if pparams is None:
             W=None,
@@ -134,6 +137,14 @@ class NN(object):
         # Run this command to load defaults.
         self.pretrain_params()
     
+    
+        # if no input is given, generate a variable representing the input
+        if input is None:
+            # we use a matrix because we expect a minibatch of several
+            # examples, each example being a row
+            self.x = T.dmatrix(name='input')
+        else:
+            self.x = input
     
     
     def load_data(self, dataset):
