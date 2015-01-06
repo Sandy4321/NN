@@ -32,8 +32,8 @@ class Train:
                 layer.b_prime = NN.net[NN.num_layers - layer_number - 1].b
                 
                 # Define cost
-                a = T.vector('a',dtype=theano.config.floatX)
-                b = T.vector('b',dtype=theano.config.floatX)
+                a = T.matrix('a',dtype=theano.config.floatX)
+                b = T.matrix('b',dtype=theano.config.floatX)
                 if layer.loss == 'SE':
                     L = T.mean(0.5 * T.sum((a - b)**2, axis=1))
                 elif layer.loss == 'xent':

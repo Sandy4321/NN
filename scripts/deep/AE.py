@@ -13,17 +13,16 @@ def main():
     
     
     AE = NN(
-        topology=(784, 450, 784),
-        nonlinearities=('sigmoid','sigmoid'),
+        topology=(784, 450, 25, 450, 784),
+        nonlinearities=('sigmoid','sigmoid','sigmoid','sigmoid'),
         initialisation='glorot'
         )
 
     AE.load_data('./data/mnist.pkl.gz')
     
-    print AE.train_set_x.get_value()[32:33,:].shape
-    print AE.net[0].get_output(AE.train_set_x.get_value()[32:33,:]).shape
+    print AE.net[0].get_output(AE.train_set_x.get_value()[32:33,:])
     
-    '''
+    '''  
     AE.pretrain_params(
         method='AE',
         loss='SE',
@@ -34,9 +33,8 @@ def main():
         )
     
     AE.pretrain()
-'''
 
-
+    '''
 
 
 

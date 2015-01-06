@@ -213,13 +213,15 @@ class NN(object):
         # AE_ns = non_symmetric (no weight tying)
         
         if method == 'AE':
-            # Check for topology symmetry
+            # Check for topology symmetry and various constraints which are:
+            # 1 - even number of layers
+            assert self.num_layers%2 == 0, \
+                                      "Autoencoders require an even number of layers"
             for i in xrange(self.num_layers):
-                print i
+                # print i
                 assert self.topology[i] == self.topology[self.num_layers - i], \
                     'AE-autoencoders need to symmetric in the representations layer'
-        
-        print("Pretraining parameters loaded")
+
             
     
     def pretrain(self):
