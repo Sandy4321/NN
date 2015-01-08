@@ -7,12 +7,18 @@ in a separate script controlling overall topology and functionality.
 
 We avoid sanity check for now, which will only hinder getting a system
 up and running fast.
+
+@author: dew
+@date: 8 Jan 2013
 '''
 
 import numpy as np
 import theano
 import theano.tensor as T
 import theano.tensor.nnet as Tnet
+from theano.tensor.shared_randomstreams import RandomStreams
+import sys
+
 
 
 class Layer(object):
@@ -31,10 +37,13 @@ class Layer(object):
         self,
         v_n=784,
         h_n=500,
+        input=None,
         layer_type='AE',
         nonlinearity='sigmoid',
         h_reg='xent',
         W_reg='L2',
+        np_rng=None,
+        theano_rng=None,
         W=None,
         b=None,
         b2=None,
@@ -51,6 +60,9 @@ class Layer(object):
         
         :type h_n: int
         :param h_n: number of hidden units
+        
+        :type input: theano.tensor.TensorType
+        :param input: input to layer
         
         :type layer_type: string
         :param layer_type: what kind of machine layer we desire to build
@@ -110,6 +122,16 @@ class Layer(object):
             b2 = theano.shared(value=initial_b2, name='b2', borrow=True)
             self.b2 = b2
             self.W_prime = self.W.T
+        elif layer_type == 'DAE':
+            initial_b2 = np.zeros(shape=(v_n), dtype=theano.config.floatX)
+            b2 = theano.shared(value=initial_b2, name='b2', borrow=True)
+            self.b2 = b2
+            self.W_prime = self.W.T
+            # create a Theano random generator that gives symbolic random values
+            if not theano_rng :
+                self.theano_rng = RandomStreams(np_rng.randint(2 ** 30))
+            else:
+                self.theano_rng = theano_rng
             
         self.layer_type = layer_type
         self.nonlinearity = nonlinearity
@@ -119,63 +141,163 @@ class Layer(object):
             self.params = [self.W, self.b, self.b2]
         else:
             self.params = [self.W, self.b]
+            
+        # if no input is given, generate a variable representing the input
+        if input == None:
+            # we use a matrix because we expect a minibatch of several examples,
+            # each example being a row
+            self.x = T.dmatrix(name='input')
+        else:
+            self.x = input   
         
-        
+        '''
         # Define encoding function - we are using different kinds of sigmoid for
         # the moment, but will generalise to more functions later on.
-        x = T.matrix('x',dtype=theano.config.floatX)
+        v = T.matrix('v',dtype=theano.config.floatX)
         if self.nonlinearity == 'sigmoid':
-            encoding_function = Tnet.sigmoid(T.dot(x,self.W) + self.b)
+            encoding_function = Tnet.sigmoid(T.dot(v,self.W) + self.b)
         elif self.nonlinearity == 'ultra_fast_sigmoid':
-            encoding_function = ultra_fast_sigmoid(T.dot(x,self.W) + self.b)
+            encoding_function = ultra_fast_sigmoid(T.dot(v,self.W) + self.b)
         elif self.nonlinearity == 'hard_sigmoid':
-            encoding_function = hard_sigmoid(T.dot(x,self.W) + self.b)
+            encoding_function = hard_sigmoid(T.dot(v,self.W) + self.b)
         elif self.nonlinearity == 'linear':
-            encoding_function = (T.dot(x,self.W) + self.b)
+            encoding_function = (T.dot(v,self.W) + self.b)
         else:
             print("Encoding nonlinearity not supported")
             sys.exit(1)
-        
-        self.enc_fn = theano.function([x], encoding_function)
         
         # Define decoding function - we are using different kinds of sigmoid for
         # the moment, but will generalise to more functions later on. Note that this
         # is only really useful for AEs
         
-        y = T.matrix('y',dtype=theano.config.floatX)
         if self.nonlinearity == 'sigmoid':
-            decoding_function = Tnet.sigmoid(T.dot(y,self.W_prime) + self.b2)
+            decoding_function = Tnet.sigmoid(T.dot(v,self.W_prime) + self.b2)
         elif self.nonlinearity == 'ultra_fast_sigmoid':
-            decoding_function = ultra_fast_sigmoid(T.dot(y,self.W_prime) + self.b2)
+            decoding_function = ultra_fast_sigmoid(T.dot(v,self.W_prime) + self.b2)
         elif self.nonlinearity == 'hard_sigmoid':
-            decoding_function = hard_sigmoid(T.dot(y,self.W_prime) + self.b2)
+            decoding_function = hard_sigmoid(T.dot(v,self.W_prime) + self.b2)
         elif self.nonlinearity == 'linear':
-            decoding_function = (T.dot(y,self.W_prime) + self.b2)
+            decoding_function = (T.dot(v,self.W_prime) + self.b2)
         else:
             print("Decoding nonlinearity not supported")
             sys.exit(1)
         
-        self.enc_fn = theano.function([x], encoding_function)
-        self.dec_fn = theano.function([x], decoding_function)
+        self.enc_fn = theano.function([v], encoding_function)
+        self.dec_fn = theano.function([v], decoding_function)
+        '''
         
+    def init_weights(self, command='Glorot', nonlinearity='sigmoid'):
+        
+        if command == 'None':
+            pass
+        elif command == 'Glorot':
+            W_shape = self.W.get_value(borrow=True, return_internal_type=True).shape
+
+            if nonlinearity == 'sigmoid':
+                r = np.sqrt(6.0/(sum(W_shape)))
+            elif nonlinearity == 'tanh':
+                r = 4.0*np.sqrt(6.0/(sum(W_shape)))
+            else:
+                print 'Invalid nonlinearity'
+                exit(1)
+            
+            np_rng = r*np.random.random_sample(size=W_shape).astype(dtype=theano.config.floatX)
+            self.W.set_value(np_rng)
+            
     
-    def get_enc(self, input):
+    def get_corrupt(self, input, corruption_level):
+       """ We use binary erasure noise """
+       return  self.theano_rng.binomial(size=input.shape, n=1, p=1 - corruption_level) * input
+    
+    
+    
+    def get_enc(self, visible):
         ''' Computes the output of a layer '''
-        return self.enc_fn(input)
+        #return self.enc_fn(visible)
+        return Tnet.sigmoid(T.dot(visible,self.W) + self.b)
 
     
-    def get_dec(self, input):
+    
+    def get_dec(self, hidden):
         ''' Computes the output of a layer '''
-        return self.dec_fn(input)
+        #return self.dec_fn(hidden)
+        return Tnet.sigmoid(T.dot(hidden,self.W_prime) + self.b2)
 
 
-    def get_recon(self, input):
-        ''' Computes AE reconstruction '''
-        return self.dec_fn(self.enc_fn(input))
+   # def get_recon(self, input):
+   #     ''' Computes AE reconstruction '''
+   #     y = self.enc_fn(input)
+   #     return self.dec_fn(y)
 
 
-        
-        
+
+    ### 1 LOAD PARAMETERS
+    def load_train_params(self,
+                    loss_type,
+                    n_train_batches,
+                    batch_size=10,
+                    learning_rate=0.1,
+                    pretrain_epochs=10,
+                    corruption_level=0.2
+                    ):
+        self.loss_type = loss_type
+        self.n_train_batches = n_train_batches
+        self.batch_size = batch_size
+        self.learning_rate = learning_rate
+        self.pretrain_epochs = pretrain_epochs
+        self.corruption_level = corruption_level
+    
+
+
+    ### 2 CONSTRUCT EXPRESSION GRAPH
+
+    def get_cost_updates(self, learning_rate):
+            '''
+            This function is based on the theano example. It computes the costs and
+            a parameter update for a single training step. We consider SGD or the
+            time being.
+            
+            :type layer: Layer object
+            :param layer: current layer to optimise
+            
+            :type learning_rate: theano.config.floatX
+            :param learning_rate: rate at which to perfrom gradient descent
+            
+            :type loss_type: string
+            :param loss_type: loss depends on the machine
+            '''
+            if self.layer_type == 'DAE':
+                x_tilde = self.get_corrupt(self.x, self.corruption_level)
+            else:
+                x_tilde = self.x
+            y = self.get_enc(x_tilde)
+            z = self.get_dec(y)
+            
+            # Define loss
+            if self.loss_type=="AE_SE":
+                L = 0.5*T.sum((z - self.x)**2)
+            elif self.loss_type=="AE_xent":
+                L = - T.sum(self.x * T.log(z) + (1 - self.x) * T.log(1 - z), axis=1)
+            else:
+                print 'Layer loss type not recognised'
+                sys.exit(1)
+            
+            # need to define cost
+            reg = 0
+            cost = T.mean(L + reg)
+            # need to find gradient
+            gparams = T.grad(cost, self.params)
+            
+            # generate the list of updates via SGD learning rule
+            updates = []
+            for param, gparam in zip(self.params, gparams):
+                updates.append((param, param - learning_rate * gparam))
+               
+            return cost, updates
+            
+    
+    
+
         
         
         
