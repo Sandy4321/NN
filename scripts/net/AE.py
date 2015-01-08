@@ -7,94 +7,119 @@ An deep autoencoder script for the deep-net framework
 
 from layer import Layer
 from data_handling import Data_handling
+from deep import Deep
 import numpy as np
 import theano
 import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
 import utils
 import Image
-import time
+import pickle
 
-# Parameters
-learning_rate = 0.1
-training_size = 50000
-batch_size = 50
-n_train_batches = training_size/batch_size
-corruption_level = 0.3
-np_rng = np.random.RandomState(123)
-theano_rng = RandomStreams(np_rng.randint(2 ** 30))
+
+
+
+### 1 DEFINE PARAMETERS ###
+
+# Network parameters
+topology = (784, 361, 196, 361, 784)
+nonlinearities = ('sigmoid','sigmoid','sigmoid','sigmoid')
+layer_types = ('AE','AE','AE','AE')
+regularisation = (('xent','L2'),('xent','L2'),('xent','L2'),('xent','L2'))
+device = 'AE'
 
 # Load dataset
 dh = Data_handling()
 dh.load_data('./data/mnist.pkl.gz')
 
+# Training parameters
+initialisation_regime = 'Glorot'
+optimisation_scheme='SDG'
+learning_rate = 0.1
+training_size = dh.train_set_x.get_value().shape[0]
+batch_size = 50
+n_train_batches = training_size/batch_size
+pretrain_epochs = 10
+corruption_level = 0.
+np_rng = np.random.RandomState(123)
+theano_rng = RandomStreams(np_rng.randint(2 ** 30))
+
+
+### 2 LOAD PARAMETER VALUES ###
 
 
 
+# Build deep network
+AE = Deep(
+    topology=topology,
+    nonlinearities=nonlinearities,
+    layer_types=layer_types,
+    device=device,
+    regularisation=regularisation,
+    data = dh
+)
 
+# Initialise network weights
+AE.initialise_weights(initialisation_regime)
 
-
-
-
-print('Constructing expression graph')
-
-x = T.matrix('x', dtype=theano.config.floatX)
-
-AE = Layer(
-        v_n=784,
-        h_n=500,
-        input=x,
-        layer_type='DAE',
-        nonlinearity='sigmoid',
-        h_reg='xent',
-        W_reg='L2',
-        np_rng=np_rng,
-        theano_rng=theano_rng,
-        W=None,
-        b=None,
-        b2=None,
-        mask=None)
-
-# Do an inference sweep
-#print AE.get_recon(dh.train_set_x.get_value()[30:31,:]).shape
-
-# Now run the layer_train object on our layer
-AE.load_train_params('AE_xent',
+# Load the pretraining parameters
+AE.load_pretrain_params('AE_xent',
                      n_train_batches,
                      batch_size=batch_size,
                      learning_rate=learning_rate,
-                     pretrain_epochs=20,
+                     pretrain_epochs=pretrain_epochs,
                      corruption_level=corruption_level)
 
-AE.init_weights(command='Glorot',
-                nonlinearity='sigmoid')
-        
-### 3 Compile
 
-index = T.lscalar()  # index to a [mini]batch
 
-cost, updates = AE.get_cost_updates(learning_rate=AE.learning_rate)
+### 3 TRAINING ###
 
-train_layer = theano.function([index],
-    cost,
-    updates=updates,
-    givens = {x: dh.train_set_x[index * AE.batch_size: (index + 1) * AE.batch_size]})
+AE.pretrain(optimisation_scheme=optimisation_scheme)
 
-### 4 Train
+print('Pickling machine')
+stream = open('AE.pkl','w')
+AE.data = []    # don't want to resave data
+pickle.dump(AE, stream)
 
-start_time = time.clock()
-
-print('Begining to train')
-for epoch in xrange(AE.pretrain_epochs):
-    # go through training set
-    c = []
-    for batch_index in xrange(AE.n_train_batches):
-        c.append(train_layer(batch_index))
-    
-    end_time = time.clock()
-    print('Training epoch %d, cost %5.3f, elapsed time %5.3f' % (epoch, np.mean(c), (end_time - start_time)))
-
-image = Image.fromarray(utils.tile_raster_images(X=AE.W.get_value(borrow=True).T,
+print('Generating images of weights')
+image = Image.fromarray(utils.tile_raster_images(X=AE.net[0].W.get_value(borrow=True).T,
              img_shape=(28, 28), tile_shape=(10, 10),
              tile_spacing=(1, 1)))
-image.save('filters_corruption_30.png')
+image.save('l0_filters.png')
+
+image2 = Image.fromarray(utils.tile_raster_images(X=AE.net[1].W.get_value(borrow=True).T,
+             img_shape=(19, 19), tile_shape=(10, 10),
+             tile_spacing=(1, 1)))
+image2.save('l1_filters.png')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

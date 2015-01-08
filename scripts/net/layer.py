@@ -142,13 +142,14 @@ class Layer(object):
         else:
             self.params = [self.W, self.b]
             
-        # if no input is given, generate a variable representing the input
+        # declare input and output
         if input == None:
             # we use a matrix because we expect a minibatch of several examples,
             # each example being a row
             self.x = T.dmatrix(name='input')
         else:
-            self.x = input   
+            self.x = input
+        self.output = self.get_enc(self.x)
         
         '''
         # Define encoding function - we are using different kinds of sigmoid for
@@ -186,16 +187,16 @@ class Layer(object):
         self.dec_fn = theano.function([v], decoding_function)
         '''
         
-    def init_weights(self, command='Glorot', nonlinearity='sigmoid'):
+    def init_weights(self, initialisation_regime='Glorot', nonlinearity='sigmoid'):
         
-        if command == 'None':
+        if initialisation_regime == 'None':
             pass
-        elif command == 'Glorot':
+        elif initialisation_regime == 'Glorot':
             W_shape = self.W.get_value(borrow=True, return_internal_type=True).shape
 
-            if nonlinearity == 'sigmoid':
+            if nonlinearity == 'tanh':
                 r = np.sqrt(6.0/(sum(W_shape)))
-            elif nonlinearity == 'tanh':
+            elif nonlinearity == 'sigmoid':
                 r = 4.0*np.sqrt(6.0/(sum(W_shape)))
             else:
                 print 'Invalid nonlinearity'
@@ -232,7 +233,7 @@ class Layer(object):
 
 
     ### 1 LOAD PARAMETERS
-    def load_train_params(self,
+    def load_pretrain_params(self,
                     loss_type,
                     n_train_batches,
                     batch_size=10,
