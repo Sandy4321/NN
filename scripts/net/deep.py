@@ -159,26 +159,28 @@ class Deep(object):
         ### CONSTRUCT EXPRESSION GRAPH ###
         
         #x = T.matrix(name='x', dtype=theano.config.floatX)
+        index = T.lscalar()  # index to a [mini]batch
         
         start_time = time.clock()
         
         if self.device == 'AE':
+            
+            print('Constructing expression graph for layers')
             for i in np.arange(self.num_layers/2):
-                print('Constructing expression graph for layer')
                 layer = self.net[i]
                 cost, updates = layer.get_cost_updates(learning_rate=layer.learning_rate)
-                train_layer = theano.function([index],
+                layer.train_layer = theano.function([index],
                     cost,
                     updates=updates,
                     givens = {self.x: self.data.train_set_x[index * layer.batch_size: (index + 1) * layer.batch_size]})
                 
-                
+            for i in np.arange(self.num_layers/2):
                 ### TRAIN ###
                 for epoch in xrange(layer.pretrain_epochs):
                     # go through training set
                     c = []
                     for batch_index in xrange(layer.n_train_batches):
-                        c.append(train_layer(batch_index))
+                        c.append(layer.train_layer(batch_index))
                     
                     end_time = time.clock()
                     print('Layer %d, Training epoch %d, cost %5.3f, elapsed time %5.3f' \
@@ -194,7 +196,16 @@ class Deep(object):
                 
                 inverse_layer.W.set_value(layer.W.get_value().T)
                 inverse_layer.b.set_value(layer.b2.get_value())
-
+    
+    
+    
+    def unsupervised_fine_tuning(self, optimisation_scheme='SGD'):
+        '''
+        Here we perform a Hinton-Salakhutdinov-esque fine-tuning run
+        '''
+        
+        ### CONSTRUCT EXPRESSION GRAPH ###
+        print('Constructing expression graph')
 
 
 
