@@ -127,9 +127,14 @@ class Layer(object):
             b2 = theano.shared(value=initial_b2, name='b2', borrow=True)
             self.b2 = b2
             self.W_prime = self.W.T
-            # create a Theano random generator that gives symbolic random values
-            if not theano_rng :
-                self.theano_rng = RandomStreams(np_rng.randint(2 ** 30))
+            # create a numpy and Theano random generator that give symbolic random values
+            if np_rng is None:
+                self.np_rng = np.random.RandomState(123)
+            else:
+                self.np_rng = np_rng
+        
+            if theano_rng is None:
+                self.theano_rng = RandomStreams(self.np_rng.randint(2 ** 30))
             else:
                 self.theano_rng = theano_rng
             
@@ -235,16 +240,18 @@ class Layer(object):
     ### 1 LOAD PARAMETERS
     def load_pretrain_params(self,
                     loss_type,
+                    optimisation_scheme,
                     n_train_batches,
                     batch_size=10,
-                    learning_rate=0.1,
+                    pretrain_learning_rate=0.1,
                     pretrain_epochs=10,
                     corruption_level=0.2
                     ):
         self.loss_type = loss_type
+        self.optimisation_scheme = optimisation_scheme
         self.n_train_batches = n_train_batches
         self.batch_size = batch_size
-        self.learning_rate = learning_rate
+        self.pretrain_learning_rate = pretrain_learning_rate
         self.pretrain_epochs = pretrain_epochs
         self.corruption_level = corruption_level
     

@@ -1,8 +1,8 @@
 '''
-An deep autoencoder script for the deep-net framework
+We see if we can construct a way of sampling from the AE
 
 @author: dew
-@date: 6 Jan 2013
+@date: 12 Jan 2013
 '''
 
 from layer import Layer
@@ -31,6 +31,15 @@ index = T.lscalar()  # index to a [mini]batch
 AE_out = theano.function([index],
                     AE.output,
                     givens = {AE.x: AE.data.corrupt_set_x[index: (index + 100)]})
+
+
+
+
+
+
+
+
+
 
 image = Image.fromarray(utils.tile_raster_images(X=AE_out(32),
              img_shape=(28,28), tile_shape=(10, 10),
