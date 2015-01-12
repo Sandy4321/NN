@@ -20,7 +20,7 @@ import pickle
 # Load dataset
 dh = Data_handling()
 dh.load_data('./data/mnist.pkl.gz')
-dh.get_corrupt(corruption_level=0.1)
+dh.get_corrupt(corruption_level=0.2)
 # Unpickle machine
 print('Unpickling machine')
 stream = open('AE.pkl','r')

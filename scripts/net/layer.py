@@ -230,17 +230,13 @@ class Layer(object):
         return Tnet.sigmoid(T.dot(hidden,self.W_prime) + self.b2)
 
 
-   # def get_recon(self, input):
-   #     ''' Computes AE reconstruction '''
-   #     y = self.enc_fn(input)
-   #     return self.dec_fn(y)
-
 
 
     ### 1 LOAD PARAMETERS
     def load_pretrain_params(self,
                     loss_type,
                     optimisation_scheme,
+                    layer_scheme,
                     n_train_batches,
                     batch_size=10,
                     pretrain_learning_rate=0.1,
@@ -249,6 +245,7 @@ class Layer(object):
                     ):
         self.loss_type = loss_type
         self.optimisation_scheme = optimisation_scheme
+        self.layer_scheme = layer_scheme
         self.n_train_batches = n_train_batches
         self.batch_size = batch_size
         self.pretrain_learning_rate = pretrain_learning_rate
@@ -274,7 +271,7 @@ class Layer(object):
             :type loss_type: string
             :param loss_type: loss depends on the machine
             '''
-            if self.layer_type == 'DAE':
+            if self.layer_scheme == 'DAE':
                 x_tilde = self.get_corrupt(self.x, self.corruption_level)
             else:
                 x_tilde = self.x
@@ -303,7 +300,30 @@ class Layer(object):
                
             return cost, updates
             
+            
     
+    def sample_enc(self):
+        '''
+        Sample the encoder i.e. corrupt the input and propagate through
+        '''
+        if self.layer_type == 'DAE':
+            x_tilde = self.get_corrupt(self.x, self.corruption_level)
+        else:
+            x_tilde = self.x
+        y = self.get_enc(x_tilde)
+        
+        return y
+    
+    
+    
+    def switch_to_sample_mode(self):
+        self.output = self.sample_enc(self.x)
+        
+    
+    
+    def switch_to_infer_mode(self):
+        self.output = self.get_enc(self.x)
+
     
 
         

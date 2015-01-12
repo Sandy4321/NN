@@ -144,6 +144,7 @@ class Deep(object):
     def load_pretrain_params(self,
                     loss_type,
                     optimisation_scheme,
+                    layer_scheme,
                     n_train_batches,
                     batch_size=10,
                     pretrain_learning_rate=0.1,
@@ -157,6 +158,7 @@ class Deep(object):
             layer.load_pretrain_params(
                 loss_type,
                 optimisation_scheme,
+                layer_scheme,
                 n_train_batches,
                 batch_size=batch_size,
                 pretrain_learning_rate=pretrain_learning_rate,
@@ -365,18 +367,63 @@ class Deep(object):
 
 
 
-    def sample(self, input, num_samples, burn_in):
+    def sample_AE(self, seed, num_samples, burn_in):
         '''
         The general idea is to Gibbs sample from the joint model implicitly
         defined by the AE by encoding, adding noise and then decoding iteratively.
         We should hopefully reach a period after burn_in where we are sampling
         from the true data distribution.
+        
+        One thing to consider for the future is the possibility of only breaking
+        once and also having a stitch method to return the network to its original
+        state before the break.
+        
+        :type seed: theano.confuig.floatX
+        :param seed: matrix of sampler seeds
+        
+        :type num_samples: int
+        :param num_samples: number of samples after burn-in
+        
+        :type burn_in: int
+        :param burn_in: the burn-in duration
         '''
-        pass
+        position = len(self.topology)/2-1
+        break_size = self.topology[position]
+        
+        # Define symbolic input
+        input = T.matrix(name='input', dtype=theano.config.floatX)
+        break_input = T.matrix(name='break_input', dtype=theano.config.floatX)
+        
+        # Break network
+        self.break_output = self.break_network(position, break_input)
+        self.net[0].switch_to_sample_mode()
+        self.net[position+1].switch_to_sample_mode()
+        
+        # Define functions
+        sample_encoder = theano.function([input], self.break_output)
+        sample_decoder = theano.function([self.break_input], self.output)
+        
+        ### OKAY I HAVE TRIED TO IMPLEMNT TWO DIFFERENT THINGS AT THE SAME TIME AND
+        # SHOULD NOW COME TO A DECISION. EITHER a) BREAK THE NETWORK AND INSERT A
+        # CUSTOM SAMPLER b) DON'T BREAK THE NETWORK AND RELY ON THE AUTOMATIC
+        # CORRUPTION IMPOSED BY Layer.switch_to_sample_mode()
+        
+        # Construct expression graph
+        
+        
+        
+        total_iter = num_samples + burn_in
+        
+        for i in xrange(total_iter):
+            # Sample hidden representation
+            
+            
+            # Sample visible data
+            pass
 
 
 
-    def break_network(self, position):
+    def break_network(self, position, break_input):
         '''
         Break the network into two distinct network objects. The interpretation
         of such an object may be to split an AE into encoder and decoder, such
@@ -389,9 +436,36 @@ class Deep(object):
             print('Break point too large')
             sys.exit(1)
         
-        self.hidden = self.net[len(topology)/2 - 1].output
+        break_output = self.net[position].output
+        self.net[position+1].input = break_input
+        
+        return break_output
+        
+        
 
-
+    def get_corrupt(self, corruption_level):
+            """ We use binary erasure noise """
+            print('Corrupting test set')
+            
+            # Set up random number generators on CPU and GPU
+            np_rng = np.random.RandomState(123)
+            theano_rng = RandomStreams(np_rng.randint(2 ** 30))
+            
+            # Symbolic input
+            input = T.dmatrix(name='input')
+            
+            # Define function
+            corrupt = theano_rng.binomial(size=input.shape, n=1, p=1 - corruption_level) * input
+            
+            # Construct expression graph
+            fn = theano.function([input], corrupt)
+            
+            # Run function
+            self.corrupt_set_x = theano.shared(np.asarray(fn(self.test_set_x.get_value()),
+                                                          dtype=theano.config.floatX),
+                                               borrow=True)
+            
+        
 
 
 

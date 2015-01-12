@@ -38,6 +38,7 @@ l1_filters = 'l1_filters.png'
 # Training parameters
 initialisation_regime = 'Glorot'
 optimisation_scheme='SDG'
+layer_scheme='DAE'
 pretrain_learning_rate = 0.1
 fine_tune_learning_rate = 0.1
 tau = 100    # later I want to figure out tau adaptively
