@@ -68,6 +68,11 @@ class Deep(object):
         self.regularisation = regularisation
         self.data = data
         self.pkl_name = pkl_name
+        self.np_rng = np_rng
+        self.theano_rng = theano_rng
+        
+        # Check random number generators
+        self.init_corrupt()
         
         # We are going to store the layers of the NN in a net object, where
         # net[0] is the input layer etc. This has callable symbolic parameters
@@ -85,7 +90,7 @@ class Deep(object):
         # Now we simply loop through the elements of 'topology' and create a
         # network layer with appropriate bound nonlinearities.
 
-        # Build layers - deal with deafult inputs later
+        # Build layers - deal with default inputs later
         self.x = T.matrix(name='x', dtype=theano.config.floatX)
         
         # The params object contains all network params
@@ -101,8 +106,8 @@ class Deep(object):
                             nonlinearity=nonlinearities[i],
                             h_reg=regularisation[0][0],
                             W_reg=regularisation[0][1],
-                            np_rng=np_rng,
-                            theano_rng=theano_rng,
+                            np_rng=self.np_rng,
+                            theano_rng=self.theano_rng,
                             W=None,
                             b=None,
                             b2=None,
@@ -116,8 +121,8 @@ class Deep(object):
                             nonlinearity=nonlinearities[i],
                             h_reg=regularisation[i][0],
                             W_reg=regularisation[i][1],
-                            np_rng=np_rng,
-                            theano_rng=theano_rng,
+                            np_rng=self.np_rng,
+                            theano_rng=self.theano_rng,
                             W=None,
                             b=None,
                             b2=None,
@@ -128,9 +133,19 @@ class Deep(object):
         self.output = self.net[-1].output
         print('Network built')
         
+        
+        
+    def init_corrupt(self):
+        # Set up random number generators on CPU and GPU
+        if self.np_rng is None:
+            self.np_rng = np.random.RandomState(123)
+            
+        if self.theano_rng is None:
+            self.theano_rng = RandomStreams(self.np_rng.randint(2 ** 30))
+        
     
     
-    def initialise_weights(self, initialisation_regime):
+    def init_weights(self, initialisation_regime):
         '''
         Run through the layers of the network and initialise one by one
         '''
@@ -178,7 +193,7 @@ class Deep(object):
         
         start_time = time.clock()
         
-        if self.device == 'AE':
+        if (self.device == 'AE') or (self.device == 'DAE'):
             
             print('Constructing expression graph for layers')
             
@@ -279,6 +294,7 @@ class Deep(object):
         
         patience = 200
         done_looping = False
+        self.best_params = self.params
         
         while (self.epoch < self.max_epochs) and (not done_looping):
             self.epoch = self.epoch + 1
@@ -303,9 +319,16 @@ class Deep(object):
                 patience = max(patience, self.epoch * self.patience_increase)
                 
                 print('     Best validation score: %5.3f, new patience: %d' % (best_valid_score, patience))
+                
+                # And store the state of the system
+                self.best_params = self.params
+                
+                
             
             if self.epoch >= patience:
                 done_looping = True
+                self.params = self.best_params
+                del self.best_params
                 self.pickle_machine(self.pkl_name)
                 
             if self.epoch % self.pkl_rate == 0:
@@ -331,7 +354,7 @@ class Deep(object):
         lr = learning_rate*self.get_learning_multiplier()
         
         for param, gparam in zip(self.params, gparams):
-            updates.append((param, param - lr * ((1-self.momentum)*gparam + self.momentum*gparam)))
+            updates.append((param, param - lr * ((1-self.momentum)*param + self.momentum*gparam)))
                
         return cost, updates
     
@@ -367,7 +390,7 @@ class Deep(object):
 
 
 
-    def sample_AE(self, seed, num_samples, burn_in):
+    def sample_AE(self, index, num_samples, burn_in, corruption_level):
         '''
         The general idea is to Gibbs sample from the joint model implicitly
         defined by the AE by encoding, adding noise and then decoding iteratively.
@@ -378,8 +401,8 @@ class Deep(object):
         once and also having a stitch method to return the network to its original
         state before the break.
         
-        :type seed: theano.confuig.floatX
-        :param seed: matrix of sampler seeds
+        :type index: theano.config.floatX
+        :param index: indices of sampler seed (one for now)
         
         :type num_samples: int
         :param num_samples: number of samples after burn-in
@@ -387,40 +410,65 @@ class Deep(object):
         :type burn_in: int
         :param burn_in: the burn-in duration
         '''
+        
+        
+        # Define parameters
         position = len(self.topology)/2-1
         break_size = self.topology[position]
         
         # Define symbolic input
-        input = T.matrix(name='input', dtype=theano.config.floatX)
-        break_input = T.matrix(name='break_input', dtype=theano.config.floatX)
+        self.input = T.matrix(name='input', dtype=theano.config.floatX)
+        self.break_input = T.matrix(name='break_input', dtype=theano.config.floatX)
+        seed = []
+        seed.append(self.data.test_set_x[index])
+        sample_index = T.lscalar()
+        new_v = T.matrix(name='new_v', dtype=theano.config.floatX)
         
         # Break network
-        self.break_output = self.break_network(position, break_input)
-        self.net[0].switch_to_sample_mode()
-        self.net[position+1].switch_to_sample_mode()
+        self.break_output = self.break_network(position, self.break_input)
+
+        # Define functions - only need to define the corruptions on the inputs
+        # as the propagation is already covered by the models
+        self.init_corrupt()
         
-        # Define functions
-        sample_encoder = theano.function([input], self.break_output)
-        sample_decoder = theano.function([self.break_input], self.output)
+        x_tilde = self.get_corrupt(self.input, corruption_level)
+        h_tilde = self.get_corrupt(self.break_output, corruption_level)
         
-        ### OKAY I HAVE TRIED TO IMPLEMNT TWO DIFFERENT THINGS AT THE SAME TIME AND
-        # SHOULD NOW COME TO A DECISION. EITHER a) BREAK THE NETWORK AND INSERT A
-        # CUSTOM SAMPLER b) DON'T BREAK THE NETWORK AND RELY ON THE AUTOMATIC
-        # CORRUPTION IMPOSED BY Layer.switch_to_sample_mode()
+        #### PLAY. SO THERE IS A LOT OF FUNNY BUSINESS GOING ON WITH THE INTERACTION OF
+        # SHARED VARIABLES AND THEANO.FUNCTION. I NEED TO UNDERSTAND THIS TO IMPLEMENT THE
+        # CONCATENATION OF THE CORRUPTION PROCESS WITH THE NN
+        
+        corrupt = theano.function([sample_index],
+            x_tilde,
+            givens = {self.input: self.data.test_set_x[sample_index:sample_index+1,:]})
+        
+        print(corrupt(32).shape)
+        
+        fn2 = theano.function([new_v],
+            self.break_output,
+            givens = {self.x: new_v})
+        
+        print(fn2(self.data.test_set_x[32:33,:]).shape)
+        
+        '''
+        
+        fn2 = theano.function([],
+            self.break_output,
+            givens = {self.x: s})
+        print(s)
         
         # Construct expression graph
-        
-        
+        sample = theano.function([sample_index],
+            self.output,
+            givens = {self.input: seed[sample_index]})
         
         total_iter = num_samples + burn_in
         
         for i in xrange(total_iter):
-            # Sample hidden representation
-            
-            
-            # Sample visible data
-            pass
-
+            seed.append(sample(i))
+        
+        return seed.get_value()
+        '''
 
 
     def break_network(self, position, break_input):
@@ -432,7 +480,7 @@ class Deep(object):
         if position < 1:
             print('Break point too small')
             sys.exit(1)
-        elif position > len(self.topology - 2):
+        elif position > len(self.topology) - 2:
             print('Break point too large')
             sys.exit(1)
         
@@ -442,30 +490,14 @@ class Deep(object):
         return break_output
         
         
-
-    def get_corrupt(self, corruption_level):
-            """ We use binary erasure noise """
-            print('Corrupting test set')
-            
-            # Set up random number generators on CPU and GPU
-            np_rng = np.random.RandomState(123)
-            theano_rng = RandomStreams(np_rng.randint(2 ** 30))
-            
-            # Symbolic input
-            input = T.dmatrix(name='input')
-            
-            # Define function
-            corrupt = theano_rng.binomial(size=input.shape, n=1, p=1 - corruption_level) * input
-            
-            # Construct expression graph
-            fn = theano.function([input], corrupt)
-            
-            # Run function
-            self.corrupt_set_x = theano.shared(np.asarray(fn(self.test_set_x.get_value()),
-                                                          dtype=theano.config.floatX),
-                                               borrow=True)
-            
         
+    def get_corrupt(self, input, corruption_level):
+       """ We use binary erasure noise """
+       return  self.theano_rng.binomial(size=input.shape, n=1, p=1 - corruption_level) * input
+    
+
+
+
 
 
 

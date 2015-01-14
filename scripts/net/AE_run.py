@@ -32,6 +32,8 @@ AE_out = theano.function([index],
                     AE.output,
                     givens = {AE.x: AE.data.corrupt_set_x[index: (index + 100)]})
 
+
+
 image = Image.fromarray(utils.tile_raster_images(X=AE_out(32),
              img_shape=(28,28), tile_shape=(10, 10),
              tile_spacing=(1, 1)))

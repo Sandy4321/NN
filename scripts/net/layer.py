@@ -156,41 +156,6 @@ class Layer(object):
             self.x = input
         self.output = self.get_enc(self.x)
         
-        '''
-        # Define encoding function - we are using different kinds of sigmoid for
-        # the moment, but will generalise to more functions later on.
-        v = T.matrix('v',dtype=theano.config.floatX)
-        if self.nonlinearity == 'sigmoid':
-            encoding_function = Tnet.sigmoid(T.dot(v,self.W) + self.b)
-        elif self.nonlinearity == 'ultra_fast_sigmoid':
-            encoding_function = ultra_fast_sigmoid(T.dot(v,self.W) + self.b)
-        elif self.nonlinearity == 'hard_sigmoid':
-            encoding_function = hard_sigmoid(T.dot(v,self.W) + self.b)
-        elif self.nonlinearity == 'linear':
-            encoding_function = (T.dot(v,self.W) + self.b)
-        else:
-            print("Encoding nonlinearity not supported")
-            sys.exit(1)
-        
-        # Define decoding function - we are using different kinds of sigmoid for
-        # the moment, but will generalise to more functions later on. Note that this
-        # is only really useful for AEs
-        
-        if self.nonlinearity == 'sigmoid':
-            decoding_function = Tnet.sigmoid(T.dot(v,self.W_prime) + self.b2)
-        elif self.nonlinearity == 'ultra_fast_sigmoid':
-            decoding_function = ultra_fast_sigmoid(T.dot(v,self.W_prime) + self.b2)
-        elif self.nonlinearity == 'hard_sigmoid':
-            decoding_function = hard_sigmoid(T.dot(v,self.W_prime) + self.b2)
-        elif self.nonlinearity == 'linear':
-            decoding_function = (T.dot(v,self.W_prime) + self.b2)
-        else:
-            print("Decoding nonlinearity not supported")
-            sys.exit(1)
-        
-        self.enc_fn = theano.function([v], encoding_function)
-        self.dec_fn = theano.function([v], decoding_function)
-        '''
         
     def init_weights(self, initialisation_regime='Glorot', nonlinearity='sigmoid'):
         
@@ -299,30 +264,6 @@ class Layer(object):
                 updates.append((param, param - learning_rate * gparam))
                
             return cost, updates
-            
-            
-    
-    def sample_enc(self):
-        '''
-        Sample the encoder i.e. corrupt the input and propagate through
-        '''
-        if self.layer_type == 'DAE':
-            x_tilde = self.get_corrupt(self.x, self.corruption_level)
-        else:
-            x_tilde = self.x
-        y = self.get_enc(x_tilde)
-        
-        return y
-    
-    
-    
-    def switch_to_sample_mode(self):
-        self.output = self.sample_enc(self.x)
-        
-    
-    
-    def switch_to_infer_mode(self):
-        self.output = self.get_enc(self.x)
 
     
 

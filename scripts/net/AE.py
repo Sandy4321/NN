@@ -26,7 +26,8 @@ topology = (784, 361, 196, 361, 784)
 nonlinearities = ('sigmoid','sigmoid','sigmoid','sigmoid')
 layer_types = ('DAE','DAE','DAE','DAE')
 regularisation = (('xent','L2'),('xent','L2'),('xent','L2'),('xent','L2'))
-device = 'AE'
+device = 'DAE'
+layer_scheme='DAE'
 
 # IO
 dh = Data_handling()
@@ -38,19 +39,19 @@ l1_filters = 'l1_filters.png'
 # Training parameters
 initialisation_regime = 'Glorot'
 optimisation_scheme='SDG'
-layer_scheme='DAE'
+#layer_scheme='AE'
 pretrain_learning_rate = 0.1
 fine_tune_learning_rate = 0.1
 tau = 100    # later I want to figure out tau adaptively
-momentum = 0.95
+momentum = 0.999
 training_size = dh.train_set_x.get_value().shape[0]
 batch_size = 50
 n_train_batches = training_size/batch_size
 n_valid_batches = dh.valid_set_x.get_value().shape[0]/batch_size
 pretrain_epochs = 10
-max_epochs = 200
-patience_increase = 1.5
-corruption_level = 0.5
+max_epochs = 250
+patience_increase = 2.0
+corruption_level = 0.4
 np_rng = np.random.RandomState(123)
 theano_rng = RandomStreams(np_rng.randint(2 ** 30))
 pkl_rate = 50
@@ -70,11 +71,12 @@ AE = Deep(
 )
 
 # Initialise network weights
-AE.initialise_weights(initialisation_regime)
+AE.init_weights(initialisation_regime)
 
 # Load the pretraining parameters
 AE.load_pretrain_params('AE_xent',
                         optimisation_scheme,
+                        layer_scheme,
                         n_train_batches,
                         batch_size=batch_size,
                         pretrain_learning_rate=pretrain_learning_rate,
