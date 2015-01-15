@@ -27,7 +27,13 @@ stream = open('AE.pkl','r')
 AE = pickle.load(stream)
 AE.data = dh
 
-AE.sample_AE(32, 50, 50, 0.05)
+seed = np.asarray(dh.test_set_x.get_value()[32:33,:], dtype=theano.config.floatX)
+
+burn_in = 50
+num_samples = 50
+corruption_level = 0.05
+
+AE.sample_AE(seed, num_samples, burn_in, corruption_level)
 
 '''
 

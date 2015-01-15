@@ -15,6 +15,7 @@ import numpy as np
 import theano
 import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
+import theano.sandbox.cuda.basic_ops as sb
 import time
 import pickle
 
@@ -390,7 +391,7 @@ class Deep(object):
 
 
 
-    def sample_AE(self, index, num_samples, burn_in, corruption_level):
+    def sample_AE(self, seed, num_samples, burn_in, corruption_level):
         '''
         The general idea is to Gibbs sample from the joint model implicitly
         defined by the AE by encoding, adding noise and then decoding iteratively.
@@ -401,8 +402,8 @@ class Deep(object):
         once and also having a stitch method to return the network to its original
         state before the break.
         
-        :type index: theano.config.floatX
-        :param index: indices of sampler seed (one for now)
+        :type seed: theano.config.floatX
+        :param index: sampler seed (one for now)
         
         :type num_samples: int
         :param num_samples: number of samples after burn-in
@@ -410,45 +411,42 @@ class Deep(object):
         :type burn_in: int
         :param burn_in: the burn-in duration
         '''
-        
-        
-        # Define parameters
-        position = len(self.topology)/2-1
-        break_size = self.topology[position]
-        
-        # Define symbolic input
-        self.input = T.matrix(name='input', dtype=theano.config.floatX)
-        self.break_input = T.matrix(name='break_input', dtype=theano.config.floatX)
-        seed = []
-        seed.append(self.data.test_set_x[index])
-        sample_index = T.lscalar()
-        new_v = T.matrix(name='new_v', dtype=theano.config.floatX)
-        
-        # Break network
-        self.break_output = self.break_network(position, self.break_input)
-
-        # Define functions - only need to define the corruptions on the inputs
-        # as the propagation is already covered by the models
+        # Need to store seed device-side for GPU stuff to work and setup the
+        # random number generators for MCMC if not already done
+        #seed = theano.shared(seed, 'seed')
         self.init_corrupt()
         
-        x_tilde = self.get_corrupt(self.input, corruption_level)
-        h_tilde = self.get_corrupt(self.break_output, corruption_level)
+        # Define some useful parameters for navigating the broken network
+        position = len(self.topology)/2-1
+        break_size = self.topology[position + 1]
+        sample = theano.shared(np.asarray(seed, dtype=theano.config.floatX))
+        smpl = T.matrix(name='smpl', dtype=theano.config.floatX)
+             
+        # Define symbolic input
+        precorrupt_input = T.matrix(name='precorrupt_input', dtype=theano.config.floatX)
+        precorrupt_break_input = T.matrix(name='precorrupt_break_input', dtype=theano.config.floatX)
         
-        #### PLAY. SO THERE IS A LOT OF FUNNY BUSINESS GOING ON WITH THE INTERACTION OF
-        # SHARED VARIABLES AND THEANO.FUNCTION. I NEED TO UNDERSTAND THIS TO IMPLEMENT THE
-        # CONCATENATION OF THE CORRUPTION PROCESS WITH THE NN
         
-        corrupt = theano.function([sample_index],
-            x_tilde,
-            givens = {self.input: self.data.test_set_x[sample_index:sample_index+1,:]})
+        # Break network
+        break_output = self.break_network(position, precorrupt_break_input)
         
-        print(corrupt(32).shape)
+        # Define functions - only need to define the corruptions on the inputs
+        # as the propagation is already covered by the models
+        x_tilde = self.get_corrupt(precorrupt_input, corruption_level)
+        h_tilde = self.get_corrupt(break_output, corruption_level)
         
-        fn2 = theano.function([new_v],
-            self.break_output,
-            givens = {self.x: new_v})
         
-        print(fn2(self.data.test_set_x[32:33,:]).shape)
+        corrupt = theano.function([],
+            sb.gpu_from_host(x_tilde),
+            givens = {precorrupt_input: sample})
+        
+       
+        
+        fn2 = theano.function([],
+            break_output,
+            givens = {precorrupt_input: sample, self.x: x_tilde})
+        
+        print(fn2().shape)
         
         '''
         
@@ -493,7 +491,8 @@ class Deep(object):
         
     def get_corrupt(self, input, corruption_level):
        """ We use binary erasure noise """
-       return  self.theano_rng.binomial(size=input.shape, n=1, p=1 - corruption_level) * input
+       return  T.cast(self.theano_rng.binomial(size=input.shape, n=1, p=1 - corruption_level) \
+                      * input, dtype=theano.config.floatX)
     
 
 
