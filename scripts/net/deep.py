@@ -429,34 +429,33 @@ class Deep(object):
         sample[:,:,0] = seed
         sample = theano.shared(np.asarray(sample, dtype=theano.config.floatX))
         print(sample)
-        # THE EASIEST THING IS TO REBUILD THE GRAPH
-        
-        smpl = T.matrix(name='smpl', dtype=theano.config.floatX)
+       
              
         # Define symbolic input
         precorrupt_input = T.matrix(name='precorrupt_input', dtype=theano.config.floatX)
-        precorrupt_break_input = T.matrix(name='precorrupt_break_input', dtype=theano.config.floatX)
-        
-        # Break network
-        break_output = self.break_network(position, precorrupt_break_input)
+        index = T.lscalar()
         
         # Define functions - only need to define the corruptions on the inputs
         # as the propagation is already covered by the models
         x_tilde = self.get_corrupt(precorrupt_input, corruption_level)
-        h_tilde = self.get_corrupt(break_output, corruption_level)
+        self.net[0].input = x_tilde
+        break_output = self.net[position].output
         
-        
-        corrupt = theano.function([],
+        corrupt = theano.function([index],
             sb.gpu_from_host(x_tilde),
-            givens = {precorrupt_input: sample})
+            givens = {precorrupt_input: sample[:,:,index]})
         
-       #print(corrupt())
+        print(corrupt(0).shape)
+        print x_tilde
+        print self.net[0].input
+        print break_output
+        #### CHECK CHECK CHECK
         
-        fn2 = theano.function([],
+        fn2 = theano.function([index],
             break_output,
-            givens = {precorrupt_input: sample, self.x: x_tilde})
+            givens = {precorrupt_input: sample[:,:,index]})
         
-        print(fn2().shape)
+        print(fn2(0).shape)
         
         '''
         
