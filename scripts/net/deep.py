@@ -403,7 +403,7 @@ class Deep(object):
         state before the break.
         
         :type seed: theano.config.floatX
-        :param index: sampler seed (one for now)
+        :param index: sampler seed (nparray for now)
         
         :type num_samples: int
         :param num_samples: number of samples after burn-in
@@ -419,13 +419,23 @@ class Deep(object):
         # Define some useful parameters for navigating the broken network
         position = len(self.topology)/2-1
         break_size = self.topology[position + 1]
-        sample = theano.shared(np.asarray(seed, dtype=theano.config.floatX))
+        total_iter = num_samples + burn_in
+        
+        # Setting up the iterable sampling data structure
+        seed_shape = seed.shape
+        seed_shape += (total_iter,)     # NEED TO CHECK LATER THAT I HAVE THE ORIENTATION CORRECT
+        print seed_shape
+        sample = np.zeros(seed_shape, dtype=theano.config.floatX)
+        sample[:,:,0] = seed
+        sample = theano.shared(np.asarray(sample, dtype=theano.config.floatX))
+        print(sample)
+        # THE EASIEST THING IS TO REBUILD THE GRAPH
+        
         smpl = T.matrix(name='smpl', dtype=theano.config.floatX)
              
         # Define symbolic input
         precorrupt_input = T.matrix(name='precorrupt_input', dtype=theano.config.floatX)
         precorrupt_break_input = T.matrix(name='precorrupt_break_input', dtype=theano.config.floatX)
-        
         
         # Break network
         break_output = self.break_network(position, precorrupt_break_input)
@@ -440,7 +450,7 @@ class Deep(object):
             sb.gpu_from_host(x_tilde),
             givens = {precorrupt_input: sample})
         
-       
+       #print(corrupt())
         
         fn2 = theano.function([],
             break_output,

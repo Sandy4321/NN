@@ -2,30 +2,34 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-a = T.lscalar('a')
-b = T.lscalar('b')
+a = T.fscalar('a')
+b = T.fscalar('b')
 
-x = T.lscalar('x')
-y = T.lscalar('y')
+x = T.fscalar('x')
+y = T.fscalar('y')
 
 b = 2*a
 y = 3*x
 
-c = theano.shared(3)
+c = np.asarray([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=theano.config.floatX)
+c = theano.shared(c)
 
 
-bfroma = theano.function([], b, givens = {a: c})
+index = T.lscalar('index')
+
+bfromc = theano.function([index], b, givens = {a: c[index]})
 yfromx = theano.function([x], y)
 
-print(bfroma(), yfromx(4))
+print(bfromc(3), yfromx(4))
 
 #x = b
 
-#y = 3*b
+y = 3*b
 
-yfroma = theano.function([], [y], givens = {x : b, a : c})
+#yfroma = theano.function([index], [y], givens = {x : b, a : c[index]})
+yfromc = theano.function([index], [y], givens = {a : c[index]})
 
-print yfroma()
+print yfromc(5)
 
 '''
 So the synopsis is that you have to rebuild the computational graph when you
