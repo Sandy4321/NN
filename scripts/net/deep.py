@@ -400,8 +400,8 @@ class Deep(object):
         self.init_corrupt()
         
         # Define some useful parameters for navigating the broken network
-        position = len(self.topology)/2-1
-        break_size = self.topology[position + 1]
+        end_position = len(self.topology)-2
+        break_position = (end_position + 1)/2 - 1
         total_iter = num_samples + burn_in
         
         # Setting up the iterable sampling data structure
@@ -411,23 +411,38 @@ class Deep(object):
         sample[:,:,0] = seed
         sample = theano.shared(np.asarray(sample, dtype=theano.config.floatX))
 
-        # Define local corruptiton process
+        # Define local corruption process
         index = T.lscalar('index')
         pre_input = T.matrix(name='pre_input', dtype=theano.config.floatX)
         x_tilde = self.get_corrupt(pre_input, corruption_level)
         
-
-        
-        # Test concatenating the corruption process and NN
-        self.break_network(0, position, x_tilde)
+        # Concatenate the corruption process and encoder
+        self.break_network(0, break_position, x_tilde)
         # CONSIDER USING A DICT
-        encrupt_hidden = theano.function([index],
-            self.part[0][2],
+        encrupt = theano.function([index],
+            sb.gpu_from_host(self.part[0][2]),
             givens = {pre_input: sample[:,:,index]})
         
-        print(encrupt_hidden(0)[:,0:10])
-        print(encrupt_hidden(0)[:,0:10])
-        # NEED TO CHECK RNGS
+        print(encrupt(0)[:,0:10])
+        print(encrupt(0)[:,0:10])
+        
+        # Concatenate the hidden layer sampler and decoder
+        break_input = self.part[0][2]   # OP of corrupted encoder
+        h_tilde = self.get_corrupt(break_input, corruption_level)
+        self.break_network(break_position+1, end_position, h_tilde)
+        
+        decrupt = theano.function([index],
+            sb.gpu_from_host(self.part[1][2]),
+            givens = {pre_input: sample[:,:,index]})
+        
+        print(decrupt(0)[:,0:10])
+        print(decrupt(0)[:,0:10])
+        
+        for i in xrange(total_iter):
+            sample[:,:,i+1].set_value(decrupt(i))
+            
+        
+        
 
         
         
@@ -442,16 +457,6 @@ class Deep(object):
         """
         Split the NN into two parts an completely reconstruct expression graphs
         """
-
-        self.topology 
-        self.nonlinearities 
-        self.layer_types 
-        self.device 
-        self.regularisation 
-        self.data 
-        self.pkl_name 
-        self.np_rng 
-        self.theano_rng 
         
         # We break into an encoder and a decoder. First of all though we
         # need to check that the break position is valid
@@ -507,7 +512,6 @@ class Deep(object):
         
         # We store the new network as an append to the self.part variable
         if hasattr(self, 'part'):
-            self.part.append(net)
             self.part.append((net, params, output))
         else:
             self.part = []
