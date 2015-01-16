@@ -155,7 +155,8 @@ class Deep(object):
         
         print('Layers initialised')
 
-
+    
+    
 
     def load_pretrain_params(self,
                     loss_type,
@@ -414,22 +415,20 @@ class Deep(object):
         index = T.lscalar('index')
         pre_input = T.matrix(name='pre_input', dtype=theano.config.floatX)
         x_tilde = self.get_corrupt(pre_input, corruption_level)
-        corrupt = theano.function([index],
-            x_tilde,
+        
+
+        
+        # Test concatenating the corruption process and NN
+        self.break_network(0, position, x_tilde)
+        # CONSIDER USING A DICT
+        encrupt_hidden = theano.function([index],
+            self.part[0][2],
             givens = {pre_input: sample[:,:,index]})
         
-        print(corrupt(0).shape)
-        
-        # Test input to NN
-        encode = theano.function([index],
-            self.output,
-            givens = {self.x: sample[:,:,index]})
+        print(encrupt_hidden(0)[:,0:10])
+        print(encrupt_hidden(0)[:,0:10])
+        # NEED TO CHECK RNGS
 
-        print(encode(0).shape)
-        
-        # Test changing the output point to the break point
-
-        
         
         
     def get_corrupt(self, input, corruption_level):
@@ -439,9 +438,84 @@ class Deep(object):
     
 
 
+    def break_network(self, position_in, position_out, input):
+        """
+        Split the NN into two parts an completely reconstruct expression graphs
+        """
 
+        self.topology 
+        self.nonlinearities 
+        self.layer_types 
+        self.device 
+        self.regularisation 
+        self.data 
+        self.pkl_name 
+        self.np_rng 
+        self.theano_rng 
+        
+        # We break into an encoder and a decoder. First of all though we
+        # need to check that the break position is valid
+        assert position_in >= 0
+        assert position_out < len(self.nonlinearities)
+        assert position_in != position_out
+        
+        
+        # Now we simply loop through the elements of 'topology' and create
+        # layers for the new network copying from self
+        
+        net = []
+        params = []
+        num_layers = position_out + 1 - position_in
+        
+        for i in xrange(num_layers):
+            
+            position = position_in + i
+            # Have ignored extra bells and whistles for now
+            if i == 0:
+                lyr = Layer(v_n=self.topology[position],
+                            h_n=self.topology[position+1],
+                            input=input,
+                            layer_type=self.layer_types[position],
+                            nonlinearity=self.nonlinearities[position],
+                            h_reg=self.regularisation[position][0],
+                            W_reg=self.regularisation[position][1],
+                            np_rng=self.np_rng,
+                            theano_rng=self.theano_rng,
+                            W=self.net[position].W,
+                            b=self.net[position].b,
+                            b2=None,
+                            mask=None)
+                params.extend(lyr.params)
+            else:
+                lyr = Layer(v_n=self.topology[position],
+                            h_n=self.topology[position+1],
+                            input=net[i-1].output,
+                            layer_type=self.layer_types[position],
+                            nonlinearity=self.nonlinearities[position],
+                            h_reg=self.regularisation[position][0],
+                            W_reg=self.regularisation[position][1],
+                            np_rng=self.np_rng,
+                            theano_rng=self.theano_rng,
+                            W=self.net[position].W,
+                            b=self.net[position].b,
+                            b2=None,
+                            mask=None)
+                params.extend(lyr.params)
+            net.append(lyr)
 
-
+        output = net[-1].output
+        
+        # We store the new network as an append to the self.part variable
+        if hasattr(self, 'part'):
+            self.part.append(net)
+            self.part.append((net, params, output))
+        else:
+            self.part = []
+            self.part.append((net, params, output))
+        
+        print('Network partition built')
+        
+        
 
 
 
