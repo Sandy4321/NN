@@ -392,25 +392,7 @@ class Deep(object):
 
 
     def sample_AE(self, seed, num_samples, burn_in, corruption_level):
-        '''
-        The general idea is to Gibbs sample from the joint model implicitly
-        defined by the AE by encoding, adding noise and then decoding iteratively.
-        We should hopefully reach a period after burn_in where we are sampling
-        from the true data distribution.
-        
-        One thing to consider for the future is the possibility of only breaking
-        once and also having a stitch method to return the network to its original
-        state before the break.
-        
-        :type seed: theano.config.floatX
-        :param index: sampler seed (nparray for now)
-        
-        :type num_samples: int
-        :param num_samples: number of samples after burn-in
-        
-        :type burn_in: int
-        :param burn_in: the burn-in duration
-        '''
+
         # Need to store seed device-side for GPU stuff to work and setup the
         # random number generators for MCMC if not already done
         #seed = theano.shared(seed, 'seed')
@@ -424,77 +406,29 @@ class Deep(object):
         # Setting up the iterable sampling data structure
         seed_shape = seed.shape
         seed_shape += (total_iter,)     # NEED TO CHECK LATER THAT I HAVE THE ORIENTATION CORRECT
-        print seed_shape
         sample = np.zeros(seed_shape, dtype=theano.config.floatX)
         sample[:,:,0] = seed
         sample = theano.shared(np.asarray(sample, dtype=theano.config.floatX))
-        print(sample)
-       
-             
-        # Define symbolic input
-        precorrupt_input = T.matrix(name='precorrupt_input', dtype=theano.config.floatX)
-        index = T.lscalar()
-        
-        # Define functions - only need to define the corruptions on the inputs
-        # as the propagation is already covered by the models
-        x_tilde = self.get_corrupt(precorrupt_input, corruption_level)
-        self.net[0].input = x_tilde
-        break_output = self.net[position].output
-        
+
+        # Define local corruptiton process
+        index = T.lscalar('index')
+        pre_input = T.matrix(name='pre_input', dtype=theano.config.floatX)
+        x_tilde = self.get_corrupt(pre_input, corruption_level)
         corrupt = theano.function([index],
-            sb.gpu_from_host(x_tilde),
-            givens = {precorrupt_input: sample[:,:,index]})
+            x_tilde,
+            givens = {pre_input: sample[:,:,index]})
         
         print(corrupt(0).shape)
-        print x_tilde
-        print self.net[0].input
-        print break_output
-        #### CHECK CHECK CHECK
         
-        fn2 = theano.function([index],
-            break_output,
-            givens = {precorrupt_input: sample[:,:,index]})
-        
-        print(fn2(0).shape)
-        
-        '''
-        
-        fn2 = theano.function([],
-            self.break_output,
-            givens = {self.x: s})
-        print(s)
-        
-        # Construct expression graph
-        sample = theano.function([sample_index],
+        # Test input to NN
+        encode = theano.function([index],
             self.output,
-            givens = {self.input: seed[sample_index]})
-        
-        total_iter = num_samples + burn_in
-        
-        for i in xrange(total_iter):
-            seed.append(sample(i))
-        
-        return seed.get_value()
-        '''
+            givens = {self.x: sample[:,:,index]})
 
+        print(encode(0).shape)
+        
+        # Test changing the output point to the break point
 
-    def break_network(self, position, break_input):
-        '''
-        Break the network into two distinct network objects. The interpretation
-        of such an object may be to split an AE into encoder and decoder, such
-        that we can inject noise for sampling.
-        '''
-        if position < 1:
-            print('Break point too small')
-            sys.exit(1)
-        elif position > len(self.topology) - 2:
-            print('Break point too large')
-            sys.exit(1)
-        
-        break_output = self.net[position].output
-        self.net[position+1].input = break_input
-        
-        return break_output
         
         
         
