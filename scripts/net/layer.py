@@ -168,6 +168,12 @@ class Layer(object):
                 r = np.sqrt(6.0/(sum(W_shape)))
             elif nonlinearity == 'sigmoid':
                 r = 4.0*np.sqrt(6.0/(sum(W_shape)))
+            elif nonlinearity == 'split_continuous':
+                #NEED TO CHANGE THIS
+                r = 4.0*np.sqrt(6.0/(sum(W_shape)))
+            elif nonlinearity == 'linear':
+                #NEED TO CHANGE THIS
+                r = 4.0*np.sqrt(6.0/(sum(W_shape)))
             else:
                 print 'Invalid nonlinearity'
                 exit(1)
@@ -184,15 +190,34 @@ class Layer(object):
     
     def get_enc(self, visible):
         ''' Computes the output of a layer '''
-        #return self.enc_fn(visible)
-        return Tnet.sigmoid(T.dot(visible,self.W) + self.b)
+        
+        if self.nonlinearity == 'sigmoid':
+            output = Tnet.sigmoid(T.dot(visible,self.W) + self.b)
+        elif self.nonlinearity == 'linear':
+            output = T.dot(visible,self.W) + self.b
+            #output = Tnet.sigmoid(T.dot(visible,self.W) + self.b)
+        elif self.nonlinearity == 'split_continuous':
+            output = Tnet.sigmoid(T.dot(visible,self.W) + self.b)
+            #print output.type
+        
+        return output
 
     
     
     def get_dec(self, hidden):
         ''' Computes the output of a layer '''
-        #return self.dec_fn(hidden)
-        return Tnet.sigmoid(T.dot(hidden,self.W_prime) + self.b2)
+        
+        if self.nonlinearity == 'sigmoid':
+            output = Tnet.sigmoid(T.dot(hidden,self.W_prime) + self.b2)
+        elif self.nonlinearity == 'linear':
+            #output = T.dot(hidden,self.W_prime) + self.b2
+            output = Tnet.sigmoid(T.dot(hidden,self.W_prime) + self.b2)
+        elif self.nonlinearity == 'split_continuous':
+            output = T.dot(hidden,self.W_prime) + self.b2
+            
+            
+        
+        return output
 
 
 
@@ -245,7 +270,7 @@ class Layer(object):
             
             # Define loss
             if self.loss_type=="AE_SE":
-                L = 0.5*T.sum((z - self.x)**2)
+                L = 0.5*T.sum((z - self.x)**2, axis=1)
             elif self.loss_type=="AE_xent":
                 L = - T.sum(self.x * T.log(z) + (1 - self.x) * T.log(1 - z), axis=1)
             else:

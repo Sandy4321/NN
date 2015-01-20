@@ -255,6 +255,10 @@ class Deep(object):
                                 n_valid_batches,
                                 batch_size,
                                 momentum,
+                                regularisation_weight=0.01,
+                                h_track=0.995,
+                                sparsity_target=0.05,
+                                activation_weight = 0.01,
                                 tau=50,
                                 pkl_rate=50):
         self.loss_type = loss_type
@@ -266,11 +270,21 @@ class Deep(object):
         self.n_valid_batches = n_valid_batches
         self.batch_size = batch_size
         self.momentum = momentum
-        self.tau=tau
+        self.regularisation_weight = regularisation_weight
+        self.h_track = h_track
+        self.sparsity_target = sparsity_target
+        self.activation_weight = activation_weight
+        self.tau = tau
         self.pkl_rate = pkl_rate
         
         # Some globally defined variables for synchronous updates
         self.epoch = 0
+        self.training_size = batch_size*n_train_batches
+        self.num_h = 0
+        for i in self.topology:
+            self.num_h += i
+        self.num_h -= (self.topology[0] + self.topology[-1])
+        self.avg_h = 0.0
     
     
     def unsupervised_fine_tuning(self):
@@ -304,6 +318,7 @@ class Deep(object):
             c = []
             for batch_index in xrange(self.n_train_batches):
                 c.append(train_all(batch_index))
+
             
             # Cross validate
             valid_score = self.cross_validate()
@@ -346,17 +361,44 @@ class Deep(object):
         z = self.net[-1].output
         
         if self.loss_type == 'L2':
-            L = 0.5*T.sum((z - self.x)**2)
+            L = 0.5*T.sum((z - self.x)**2, axis=1)
         
-        cost = T.mean(L)
+        loss = T.mean(L)
+        regularisation = 0
+        activation_grad = 0
+        
+        current_avg_h = 0
+        for i, layer in enumerate(self.net):
+            # Weight decay
+            if layer.W_reg == 'L1':
+                regularisation += np.abs(layer.W.get_value()).sum()
+            elif self.regularisation == 'L2':
+                regularisation += (layer.W.get_value()**2).sum()
             
+            # Activation sparsity - apply to hidden neurons only
+            if (layer.h_reg == 'xent') and (i < (self.num_layers - 1)):
+                current_avg_h += layer.output.sum()/self.num_h
+ 
+        
+        # Here we update the tracked hidden activation mean and compute the associated
+        # activation cost gradient. Due to the non-self-evident relation of the average
+        # hidden activation wrt the parameters, we hard code it in.
+        if self.activation_weight > 0.0:
+            self.avg_h = self.h_track*self.avg_h + (1-self.h_track)*current_avg_h
+            activation_grad = (self.avg_h - self.sparsity_target)/(self.avg_h*(1-self.avg_h))
+   
+        
+        # Define cost equation
+        cost = loss + (self.regularisation_weight*regularisation/self.training_size)
+        act = (self.activation_weight*activation_grad/self.training_size).astype(theano.config.floatX)
+     
         # Gradient wrt parameters
         gparams = T.grad(cost, self.params)
         updates = []
         lr = learning_rate*self.get_learning_multiplier()
-        
+
         for param, gparam in zip(self.params, gparams):
-            updates.append((param, param - lr * ((1-self.momentum)*param + self.momentum*gparam)))
+            updates.append((param, param - lr * ((1-self.momentum)*param + self.momentum*gparam*(1+act))))
                
         return cost, updates
     
@@ -372,7 +414,7 @@ class Deep(object):
         
         valid_score = theano.function([index],
             self.cost,
-            givens = {self.x: self.data.valid_set_x[index * self.batch_size: (index + 1) * self.batch_size]})
+            givens = {self.x: self.data.valid_set_x[index * self.batch_size:(index + 1) * self.batch_size]})
         
         return [valid_score(i) for i in xrange(self.n_valid_batches)]
     
@@ -406,7 +448,7 @@ class Deep(object):
         
         # Setting up the iterable sampling data structure
         seed_shape = seed.shape
-        seed_shape += (total_iter,)     # NEED TO CHECK LATER THAT I HAVE THE ORIENTATION CORRECT
+        seed_shape += (total_iter+1,)     # NEED TO CHECK LATER THAT I HAVE THE ORIENTATION CORRECT
         sample = np.zeros(seed_shape, dtype=theano.config.floatX)
         sample[:,:,0] = seed
         sample = theano.shared(np.asarray(sample, dtype=theano.config.floatX))
@@ -422,25 +464,26 @@ class Deep(object):
         encrupt = theano.function([index],
             sb.gpu_from_host(self.part[0][2]),
             givens = {pre_input: sample[:,:,index]})
-        
-        print(encrupt(0)[:,0:10])
-        print(encrupt(0)[:,0:10])
+
         
         # Concatenate the hidden layer sampler and decoder
         break_input = self.part[0][2]   # OP of corrupted encoder
         h_tilde = self.get_corrupt(break_input, corruption_level)
         self.break_network(break_position+1, end_position, h_tilde)
+        # Need to work on a dict for the part labels
+        sample_update = (sample, T.set_subtensor(sample[:,:,index+1], self.part[1][2]))
         
         decrupt = theano.function([index],
-            sb.gpu_from_host(self.part[1][2]),
-            givens = {pre_input: sample[:,:,index]})
-        
-        print(decrupt(0)[:,0:10])
-        print(decrupt(0)[:,0:10])
+            (self.part[1][2]),
+            givens = {pre_input: sample[:,:,index]},
+            updates = [sample_update])
+
         
         for i in xrange(total_iter):
-            sample[:,:,i+1].set_value(decrupt(i))
-            
+            decrupt(i)
+        print('Sampling complete')
+        
+        return sample.get_value()           
         
         
 
@@ -461,8 +504,8 @@ class Deep(object):
         # We break into an encoder and a decoder. First of all though we
         # need to check that the break position is valid
         assert position_in >= 0
-        assert position_out < len(self.nonlinearities)
-        assert position_in != position_out
+        assert position_out < self.num_layers
+        #assert position_in != position_out
         
         
         # Now we simply loop through the elements of 'topology' and create

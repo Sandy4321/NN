@@ -27,26 +27,27 @@ stream = open('AE.pkl','r')
 AE = pickle.load(stream)
 AE.data = dh
 
-seed = np.asarray(dh.test_set_x.get_value()[32:33,:], dtype=theano.config.floatX)
+seed = np.asarray(dh.test_set_x.get_value()[383:384,:], dtype=theano.config.floatX)
 
-burn_in = 50
-num_samples = 50
-corruption_level = 0.05
+burn_in = 500
+num_samples = 500
+corruption_level = 0.1
+total_iter = burn_in+num_samples
+vector_length = 28*28
 
-AE.sample_AE(seed, num_samples, burn_in, corruption_level)
+AE_out = AE.sample_AE(seed, num_samples, burn_in, corruption_level)
 
-'''
 
-img = dh.test_set_x.get_value(borrow=True)[32:33,:]
+img = seed
 image = Image.fromarray(utils.tile_raster_images(X=img,
              img_shape=(28,28), tile_shape=(1, 1),
              tile_spacing=(1, 1)))
 image.save('sample_seed.png')
 
+img = np.reshape(AE_out, (vector_length, total_iter+1), order='F')
+grid_size = np.floor(np.sqrt(total_iter)).astype(int)
 
-image = Image.fromarray(utils.tile_raster_images(X=AE_out,
-             img_shape=(28,28), tile_shape=(10, 10),
+image = Image.fromarray(utils.tile_raster_images(X=img.T,
+             img_shape=(28,28), tile_shape=(grid_size,grid_size),
              tile_spacing=(1, 1)))
 image.save('sample_out.png')
-
-'''

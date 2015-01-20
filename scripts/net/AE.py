@@ -22,12 +22,12 @@ import pickle
 ### 1 DEFINE PARAMETERS ###
 
 # Network parameters
-topology = (784, 361, 196, 361, 784)
+topology = (784, 400, 400, 400, 784)
 nonlinearities = ('sigmoid','sigmoid','sigmoid','sigmoid')
 layer_types = ('DAE','DAE','DAE','DAE')
 regularisation = (('xent','L2'),('xent','L2'),('xent','L2'),('xent','L2'))
 device = 'DAE'
-layer_scheme='DAE'
+layer_scheme='AE'
 
 # IO
 dh = Data_handling()
@@ -37,24 +37,35 @@ l0_filters = 'l0_filters.png'
 l1_filters = 'l1_filters.png'
 
 # Training parameters
+#Shared
 initialisation_regime = 'Glorot'
-optimisation_scheme='SDG'
-#layer_scheme='AE'
-pretrain_learning_rate = 0.1
-fine_tune_learning_rate = 0.1
-tau = 100    # later I want to figure out tau adaptively
-momentum = 0.999
+np_rng = np.random.RandomState(123)
+theano_rng = RandomStreams(np_rng.randint(2 ** 30))
+pkl_rate = 50
 training_size = dh.train_set_x.get_value().shape[0]
 batch_size = 50
 n_train_batches = training_size/batch_size
 n_valid_batches = dh.valid_set_x.get_value().shape[0]/batch_size
+
+# Pretrain
+pretrain_optimisation_scheme='SDG'
+pretrain_loss_type = 'AE_xent'
+pretrain_learning_rate = 0.1
 pretrain_epochs = 10
-max_epochs = 250
+corruption_level = 0.05
+
+#Fine tune
+fine_tune_optimisation_scheme='SDG'
+fine_tune_loss_type = 'L2'
+fine_tune_learning_rate = 0.1
+tau = 100    # later I want to figure out tau adaptively
+momentum = 0.999
+regularisation_weight = 0.0001
+h_track=0.99
+sparsity_target = 0.05
+activation_weight = 0.1
 patience_increase = 2.0
-corruption_level = 0.4
-np_rng = np.random.RandomState(123)
-theano_rng = RandomStreams(np_rng.randint(2 ** 30))
-pkl_rate = 50
+max_epochs = 1000
 
 
 ### 2 LOAD PARAMETER VALUES ###
@@ -74,8 +85,8 @@ AE = Deep(
 AE.init_weights(initialisation_regime)
 
 # Load the pretraining parameters
-AE.load_pretrain_params('AE_xent',
-                        optimisation_scheme,
+AE.load_pretrain_params(pretrain_loss_type,
+                        pretrain_optimisation_scheme,
                         layer_scheme,
                         n_train_batches,
                         batch_size=batch_size,
@@ -83,8 +94,8 @@ AE.load_pretrain_params('AE_xent',
                         pretrain_epochs=pretrain_epochs,
                         corruption_level=corruption_level)
 
-AE.load_fine_tuning_params('L2',
-                           'SGD',
+AE.load_fine_tuning_params(fine_tune_loss_type,
+                           fine_tune_optimisation_scheme,
                            fine_tune_learning_rate=fine_tune_learning_rate,
                            max_epochs=max_epochs,
                            patience_increase=patience_increase,
@@ -92,6 +103,10 @@ AE.load_fine_tuning_params('L2',
                            n_valid_batches=n_valid_batches,
                            batch_size=batch_size,
                            momentum=momentum,
+                           regularisation_weight=regularisation_weight,
+                           h_track=h_track,
+                           sparsity_target=sparsity_target,
+                           activation_weight=activation_weight,
                            tau=tau,
                            pkl_rate=pkl_rate)
 
@@ -121,8 +136,10 @@ image = Image.fromarray(utils.tile_raster_images(X=AE.net[0].W.get_value(borrow=
              tile_spacing=(1, 1)))
 image.save('l0_filters.png')
 
+weight_size = np.floor(np.sqrt(topology[1])).astype(int)
+
 image2 = Image.fromarray(utils.tile_raster_images(X=AE.net[1].W.get_value(borrow=True).T,
-             img_shape=(19, 19), tile_shape=(10, 10),
+             img_shape=(weight_size, weight_size), tile_shape=(10, 10),
              tile_spacing=(1, 1)))
 image2.save('l1_filters.png')
 
