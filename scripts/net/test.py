@@ -20,4 +20,4 @@ best = fmin(objective,
     max_evals=50,
     trials=trials)
 
-print best, trials.results
+print best, trials.results 
