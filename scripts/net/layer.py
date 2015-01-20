@@ -195,10 +195,8 @@ class Layer(object):
             output = Tnet.sigmoid(T.dot(visible,self.W) + self.b)
         elif self.nonlinearity == 'linear':
             output = T.dot(visible,self.W) + self.b
-            #output = Tnet.sigmoid(T.dot(visible,self.W) + self.b)
         elif self.nonlinearity == 'split_continuous':
             output = Tnet.sigmoid(T.dot(visible,self.W) + self.b)
-            #print output.type
         
         return output
 
@@ -210,13 +208,10 @@ class Layer(object):
         if self.nonlinearity == 'sigmoid':
             output = Tnet.sigmoid(T.dot(hidden,self.W_prime) + self.b2)
         elif self.nonlinearity == 'linear':
-            #output = T.dot(hidden,self.W_prime) + self.b2
-            output = Tnet.sigmoid(T.dot(hidden,self.W_prime) + self.b2)
+            output = T.dot(hidden,self.W_prime) + self.b2
         elif self.nonlinearity == 'split_continuous':
             output = T.dot(hidden,self.W_prime) + self.b2
             
-            
-        
         return output
 
 

@@ -27,11 +27,11 @@ stream = open('AE.pkl','r')
 AE = pickle.load(stream)
 AE.data = dh
 
-seed = np.asarray(dh.test_set_x.get_value()[383:384,:], dtype=theano.config.floatX)
+seed = np.asarray(dh.test_set_x.get_value()[370:371,:], dtype=theano.config.floatX)
 
 burn_in = 500
 num_samples = 500
-corruption_level = 0.1
+corruption_level = 0.01
 total_iter = burn_in+num_samples
 vector_length = 28*28
 

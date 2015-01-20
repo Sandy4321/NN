@@ -206,7 +206,7 @@ class Deep(object):
                 train_layer = theano.function([index],
                     cost,
                     updates=updates,
-                    givens = {self.x: self.data.train_set_x[index * layer.batch_size: (index + 1) * layer.batch_size]})
+                    givens = {self.x: self.data.train_set_x[index * layer.batch_size: (index + 1) * layer.batch_size,:]})
                 pretrain_fns.append(train_layer)
                 
             for i in np.arange(self.num_layers/2):
@@ -301,7 +301,7 @@ class Deep(object):
         train_all = theano.function([index],
             self.cost,
             updates=updates,
-            givens = {self.x: self.data.train_set_x[index * self.batch_size: (index + 1) * self.batch_size]})
+            givens = {self.x: self.data.train_set_x[index * self.batch_size: (index + 1) * self.batch_size,:]})
         
         print('Fine_tuning')
         start_time = time.clock()
@@ -357,16 +357,23 @@ class Deep(object):
     
     def get_cost_updates(self, learning_rate):
         ### DEFINE COST FUNCTIONS AND UPDATES ###
+        
         # For now we only use the standard SGD scheme
         z = self.net[-1].output
+        self.velocities = []
+        for param in self.params:
+            self.velocities.append(theano.shared(np.zeros(param.get_value().shape, \
+                                                   dtype=theano.config.floatX)))
+        updates = []
         
+        # LOSS
         if self.loss_type == 'L2':
             L = 0.5*T.sum((z - self.x)**2, axis=1)
-        
         loss = T.mean(L)
+        
+        # REGULARISATION
         regularisation = 0
         activation_grad = 0
-        
         current_avg_h = 0
         for i, layer in enumerate(self.net):
             # Weight decay
@@ -378,8 +385,7 @@ class Deep(object):
             # Activation sparsity - apply to hidden neurons only
             if (layer.h_reg == 'xent') and (i < (self.num_layers - 1)):
                 current_avg_h += layer.output.sum()/self.num_h
- 
-        
+   
         # Here we update the tracked hidden activation mean and compute the associated
         # activation cost gradient. Due to the non-self-evident relation of the average
         # hidden activation wrt the parameters, we hard code it in.
@@ -388,18 +394,20 @@ class Deep(object):
             activation_grad = (self.avg_h - self.sparsity_target)/(self.avg_h*(1-self.avg_h))
    
         
-        # Define cost equation
+        # COST = LOSS + REGULARISATION
         cost = loss + (self.regularisation_weight*regularisation/self.training_size)
         act = (self.activation_weight*activation_grad/self.training_size).astype(theano.config.floatX)
      
         # Gradient wrt parameters
         gparams = T.grad(cost, self.params)
-        updates = []
+        
         lr = learning_rate*self.get_learning_multiplier()
 
-        for param, gparam in zip(self.params, gparams):
-            updates.append((param, param - lr * ((1-self.momentum)*param + self.momentum*gparam*(1+act))))
-               
+        for param, gparam, velocity in zip(self.params, gparams, self.velocities):
+            updates.append((velocity, self.momentum*velocity + lr*gparam*(1+act)))
+            updates.append((param, param - velocity))
+            pass
+        
         return cost, updates
     
     

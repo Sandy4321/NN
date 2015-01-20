@@ -22,8 +22,8 @@ import pickle
 ### 1 DEFINE PARAMETERS ###
 
 # Network parameters
-topology = (784, 400, 400, 400, 784)
-nonlinearities = ('sigmoid','sigmoid','sigmoid','sigmoid')
+topology = (784, 400, 196, 400, 784)
+nonlinearities = ('split_continuous','split_continuous','linear','linear')
 layer_types = ('DAE','DAE','DAE','DAE')
 regularisation = (('xent','L2'),('xent','L2'),('xent','L2'),('xent','L2'))
 device = 'DAE'
@@ -49,17 +49,17 @@ n_valid_batches = dh.valid_set_x.get_value().shape[0]/batch_size
 
 # Pretrain
 pretrain_optimisation_scheme='SDG'
-pretrain_loss_type = 'AE_xent'
-pretrain_learning_rate = 0.1
+pretrain_loss_type = 'AE_SE'
+pretrain_learning_rate = 0.001
 pretrain_epochs = 10
-corruption_level = 0.05
+corruption_level = 0.2
 
 #Fine tune
 fine_tune_optimisation_scheme='SDG'
 fine_tune_loss_type = 'L2'
-fine_tune_learning_rate = 0.1
+fine_tune_learning_rate = 0.001 # Need to implement the code which fits this well
 tau = 100    # later I want to figure out tau adaptively
-momentum = 0.999
+momentum = 0.8
 regularisation_weight = 0.0001
 h_track=0.99
 sparsity_target = 0.05

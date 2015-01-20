@@ -1,32 +1,23 @@
-import numpy as np
-import theano
-import theano.tensor as T
+import pickle
+import time
+from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
 
-a = T.fscalar('a')
-#b = T.fscalar('b')
+def objective(x):
+    return {
+        'loss': x ** 2,
+        'status': STATUS_OK,
+        # -- store other results like this
+        'eval_time': time.time(),
+        'other_stuff': {'type': None, 'value': [0, 1, 2]},
+        # -- attachments are handled differently
+        'attachments':
+            {'time_module': pickle.dumps(time.time)}
+        }
+trials = Trials()
+best = fmin(objective,
+    space=hp.uniform('x', -10, 10),
+    algo=tpe.suggest,
+    max_evals=50,
+    trials=trials)
 
-x = T.fscalar('x')
-#y = T.fscalar('y')
-
-b = 2*a
-y = 3*x
-
-
-c = np.asarray([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=theano.config.floatX)
-c = theano.shared(c)
-
-
-index = T.lscalar('index')
-
-bfromc = theano.function([index], b, givens = {a: c[index]})
-yfromx = theano.function([x], y)
-
-print(bfromc(3), yfromx(10))
-
-x = b
-y = 3*x
-
-yfromc = theano.function([index], y, givens = {a: c[index]})
-
-print (yfromc(2))
-
+print best, trials.results
