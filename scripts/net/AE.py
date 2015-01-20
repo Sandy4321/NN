@@ -22,12 +22,12 @@ import pickle
 ### 1 DEFINE PARAMETERS ###
 
 # Network parameters
-topology = (784, 400, 196, 400, 784)
-nonlinearities = ('split_continuous','split_continuous','linear','linear')
+topology = (784, 1225, 2000, 1225, 784)
+nonlinearities = ('sigmoid','sigmoid','sigmoid','sigmoid')
 layer_types = ('DAE','DAE','DAE','DAE')
-regularisation = (('xent','L2'),('xent','L2'),('xent','L2'),('xent','L2'))
+regularisation = (('None','L2'),('None','L2'),('None','L2'),('None','L2'))
 device = 'DAE'
-layer_scheme='AE'
+layer_scheme='DAE'
 
 # IO
 dh = Data_handling()
@@ -43,29 +43,29 @@ np_rng = np.random.RandomState(123)
 theano_rng = RandomStreams(np_rng.randint(2 ** 30))
 pkl_rate = 50
 training_size = dh.train_set_x.get_value().shape[0]
-batch_size = 50
+batch_size = 32
 n_train_batches = training_size/batch_size
 n_valid_batches = dh.valid_set_x.get_value().shape[0]/batch_size
 
 # Pretrain
 pretrain_optimisation_scheme='SDG'
-pretrain_loss_type = 'AE_SE'
-pretrain_learning_rate = 0.001
-pretrain_epochs = 10
+pretrain_loss_type = 'AE_xent'
+pretrain_learning_rate = 0.1
+pretrain_epochs = 15
 corruption_level = 0.2
 
 #Fine tune
 fine_tune_optimisation_scheme='SDG'
 fine_tune_loss_type = 'L2'
-fine_tune_learning_rate = 0.001 # Need to implement the code which fits this well
+fine_tune_learning_rate = 0.1 # Need to implement the code which fits this well
 tau = 100    # later I want to figure out tau adaptively
-momentum = 0.8
+momentum = 0.9
 regularisation_weight = 0.0001
-h_track=0.99
+h_track=0.95
 sparsity_target = 0.05
-activation_weight = 0.1
+activation_weight = 0.001
 patience_increase = 2.0
-max_epochs = 1000
+max_epochs = 500
 
 
 ### 2 LOAD PARAMETER VALUES ###

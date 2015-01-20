@@ -70,7 +70,7 @@ print('Plotting weights histogram')
 #----------------------------------------------------------------------
 # Plot a 1D density example
 
-bin_edges = np.linspace(-0.4, 0.4, 100)
+bin_edges = np.linspace(-0.6, 0.6, 100)
 for i in xrange(AE.num_layers/2):
     W = AE.net[i].W.get_value(borrow=True).flatten()
     plt.hist(W, bin_edges)

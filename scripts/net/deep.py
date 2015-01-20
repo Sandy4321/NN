@@ -194,55 +194,53 @@ class Deep(object):
         index = T.lscalar()  # index to a [mini]batch
         
         start_time = time.clock()
+        num_pretrain_layers = self.num_layers
         
         if (self.device == 'AE') or (self.device == 'DAE'):
+            num_pretrain_layers /= 2   
             
-            print('Constructing expression graph for layers')
+        print('Constructing expression graph for layers')
+        pretrain_fns = []
+        for i in np.arange(num_pretrain_layers):
+            layer = self.net[i]
+            cost, updates = layer.get_cost_updates(learning_rate=layer.pretrain_learning_rate)
+            train_layer = theano.function([index],
+                cost,
+                updates=updates,
+                givens = {self.x: self.data.train_set_x[index * layer.batch_size: (index + 1) * layer.batch_size,:]})
+            pretrain_fns.append(train_layer)
+        
+        print('Training')    
+        for i in np.arange(num_pretrain_layers):
+            layer = self.net[i]
+            for epoch in xrange(layer.pretrain_epochs):
+                c = []
+                for batch_index in xrange(layer.n_train_batches):
+                    c.append(pretrain_fns[i](batch_index))
+                end_time = time.clock()
+                print('Layer %d, Training epoch %d, cost %5.3f, elapsed time %5.3f' \
+                      % (i, epoch, np.mean(c), (end_time - start_time)))
+            self.pickle_machine(self.pkl_name)
             
-            pretrain_fns = []
-            for i in np.arange(self.num_layers/2):
+        print('Pretraining complete: wrapping up')
+        
+        if (self.device == 'AE') or (self.device == 'DAE'):
+            for i in np.arange(num_pretrain_layers):
                 layer = self.net[i]
-                cost, updates = layer.get_cost_updates(learning_rate=layer.pretrain_learning_rate)
-                train_layer = theano.function([index],
-                    cost,
-                    updates=updates,
-                    givens = {self.x: self.data.train_set_x[index * layer.batch_size: (index + 1) * layer.batch_size,:]})
-                pretrain_fns.append(train_layer)
-                
-            for i in np.arange(self.num_layers/2):
-                ### TRAIN ###
-                layer = self.net[i]
-                for epoch in xrange(layer.pretrain_epochs):
-                    # go through training set
-                    c = []
-                    for batch_index in xrange(layer.n_train_batches):
-                        c.append(pretrain_fns[i](batch_index))
-                    
-                    end_time = time.clock()
-                    print('Layer %d, Training epoch %d, cost %5.3f, elapsed time %5.3f' \
-                          % (i, epoch, np.mean(c), (end_time - start_time)))
-                
-                self.pickle_machine(self.pkl_name)
-            
-            
-            print('Pretraining complete: wrapping up')
-            
-            for i in np.arange(self.num_layers/2):
-                
-                layer = self.net[i]
-                inverse_layer = self.net[self.num_layers-i-1]
-                
+                inverse_layer = self.net[self.num_layers-i-1] 
                 inverse_layer.W.set_value(layer.W.get_value().T)
                 inverse_layer.b.set_value(layer.b2.get_value())
+        
+        # Now to rewrite the self.params variable to reflect the topological differences
+        # between training and general inference
+        self.params = []
+        for layer in self.net:
+            self.params.append(layer.W)
+            self.params.append(layer.b)
             
-            # Now to rewrite the self.params variable to reflect the topological differences
-            # between training and general inference
-            self.params = []
-            for layer in self.net:
-                self.params.append(layer.W)
-                self.params.append(layer.b)
-                
-            self.pickle_machine(self.pkl_name)
+        self.pickle_machine(self.pkl_name)
+            
+            
     
     
     def load_fine_tuning_params(self,
@@ -305,43 +303,32 @@ class Deep(object):
         
         print('Fine_tuning')
         start_time = time.clock()
-        
         best_valid_score = np.inf
-        
         patience = 200
         done_looping = False
         self.best_params = self.params
         
         while (self.epoch < self.max_epochs) and (not done_looping):
             self.epoch = self.epoch + 1
-            
             c = []
             for batch_index in xrange(self.n_train_batches):
                 c.append(train_all(batch_index))
-
-            
             # Cross validate
             valid_score = self.cross_validate()
             valid_score = np.mean(valid_score)
-            
             end_time = time.clock()
             print('Training epoch %d, cost %5.3f, elapsed time %5.3f' \
                   % (self.epoch, np.mean(c), (end_time - start_time)))
-            
             
             # In future I wish to leverage the second GPU to perform validation
             if valid_score < best_valid_score:
                 best_valid_score = valid_score
                 # If we encounter a new best, increase patience
                 patience = max(patience, self.epoch * self.patience_increase)
-                
                 print('     Best validation score: %5.3f, new patience: %d' % (best_valid_score, patience))
-                
                 # And store the state of the system
                 self.best_params = self.params
                 
-                
-            
             if self.epoch >= patience:
                 done_looping = True
                 self.params = self.best_params
@@ -360,12 +347,12 @@ class Deep(object):
         
         # For now we only use the standard SGD scheme
         z = self.net[-1].output
+        updates = []
         self.velocities = []
         for param in self.params:
             self.velocities.append(theano.shared(np.zeros(param.get_value().shape, \
                                                    dtype=theano.config.floatX)))
-        updates = []
-        
+
         # LOSS
         if self.loss_type == 'L2':
             L = 0.5*T.sum((z - self.x)**2, axis=1)
@@ -378,35 +365,34 @@ class Deep(object):
         for i, layer in enumerate(self.net):
             # Weight decay
             if layer.W_reg == 'L1':
-                regularisation += np.abs(layer.W.get_value()).sum()
+                regularisation += np.abs(layer.W.get_value(borrow=True)).sum()
             elif self.regularisation == 'L2':
-                regularisation += (layer.W.get_value()**2).sum()
+                regularisation += (layer.W.get_value(borrow=True)**2).sum()
             
             # Activation sparsity - apply to hidden neurons only
-            if (layer.h_reg == 'xent') and (i < (self.num_layers - 1)):
+            if (layer.h_reg == 'KL') and (i < (self.num_layers - 1)) and (self.activation_weight != 0.0):
                 current_avg_h += layer.output.sum()/self.num_h
    
         # Here we update the tracked hidden activation mean and compute the associated
         # activation cost gradient. Due to the non-self-evident relation of the average
         # hidden activation wrt the parameters, we hard code it in.
-        if self.activation_weight > 0.0:
+        if self.activation_weight != 0.0:
             self.avg_h = self.h_track*self.avg_h + (1-self.h_track)*current_avg_h
             activation_grad = (self.avg_h - self.sparsity_target)/(self.avg_h*(1-self.avg_h))
+            act = (self.activation_weight*activation_grad/self.training_size).astype(theano.config.floatX)
+        else:
+            act = 0
    
-        
         # COST = LOSS + REGULARISATION
         cost = loss + (self.regularisation_weight*regularisation/self.training_size)
-        act = (self.activation_weight*activation_grad/self.training_size).astype(theano.config.floatX)
-     
+        
         # Gradient wrt parameters
         gparams = T.grad(cost, self.params)
-        
         lr = learning_rate*self.get_learning_multiplier()
 
         for param, gparam, velocity in zip(self.params, gparams, self.velocities):
             updates.append((velocity, self.momentum*velocity + lr*gparam*(1+act)))
             updates.append((param, param - velocity))
-            pass
         
         return cost, updates
     
@@ -419,7 +405,6 @@ class Deep(object):
     
     def cross_validate(self):
         index = T.lscalar()
-        
         valid_score = theano.function([index],
             self.cost,
             givens = {self.x: self.data.valid_set_x[index * self.batch_size:(index + 1) * self.batch_size]})

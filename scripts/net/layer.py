@@ -142,6 +142,7 @@ class Layer(object):
         self.nonlinearity = nonlinearity
         self.h_reg = h_reg
         self.W_reg = W_reg
+        
         if b2 is not None:
             self.params = [self.W, self.b, self.b2]
         else:
@@ -171,7 +172,7 @@ class Layer(object):
             elif nonlinearity == 'split_continuous':
                 #NEED TO CHANGE THIS
                 r = 4.0*np.sqrt(6.0/(sum(W_shape)))
-            elif nonlinearity == 'linear':
+            elif (nonlinearity == 'linear') or (nonlinearity == 'softplus'):
                 #NEED TO CHANGE THIS
                 r = 4.0*np.sqrt(6.0/(sum(W_shape)))
             else:
@@ -182,6 +183,7 @@ class Layer(object):
             self.W.set_value(np_rng)
             
     
+    
     def get_corrupt(self, input, corruption_level):
        """ We use binary erasure noise """
        return  self.theano_rng.binomial(size=input.shape, n=1, p=1 - corruption_level) * input
@@ -190,30 +192,29 @@ class Layer(object):
     
     def get_enc(self, visible):
         ''' Computes the output of a layer '''
-        
         if self.nonlinearity == 'sigmoid':
             output = Tnet.sigmoid(T.dot(visible,self.W) + self.b)
         elif self.nonlinearity == 'linear':
             output = T.dot(visible,self.W) + self.b
         elif self.nonlinearity == 'split_continuous':
             output = Tnet.sigmoid(T.dot(visible,self.W) + self.b)
-        
+        elif self.nonlinearity == 'softplus':
+            output = Tnet.softplus(T.dot(visible,self.W) + self.b)
         return output
 
     
     
     def get_dec(self, hidden):
         ''' Computes the output of a layer '''
-        
         if self.nonlinearity == 'sigmoid':
             output = Tnet.sigmoid(T.dot(hidden,self.W_prime) + self.b2)
         elif self.nonlinearity == 'linear':
             output = T.dot(hidden,self.W_prime) + self.b2
         elif self.nonlinearity == 'split_continuous':
             output = T.dot(hidden,self.W_prime) + self.b2
-            
+        elif self.nonlinearity == 'softplus':
+            output = Tnet.softplus(T.dot(hidden,self.W_prime) + self.b2)
         return output
-
 
 
 
