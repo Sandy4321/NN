@@ -3,6 +3,7 @@ Data_handling deals with all the IO issues, nonspecific to the NN model
 '''
 
 import gzip
+import pickle
 import cPickle
 import numpy as np
 import theano
@@ -42,8 +43,7 @@ class Data_handling:
         self.test_set_x, self.test_set_y = shared_dataset(test_set)
         self.valid_set_x, self.valid_set_y = shared_dataset(valid_set)
         self.train_set_x, self.train_set_y = shared_dataset(train_set)
-    
-    
+
 
 
     def get_corrupt(self, corruption_level):
@@ -58,7 +58,7 @@ class Data_handling:
         input = T.dmatrix(name='input')
         
         # Define function
-        corrupt = theano_rng.binomial(size=input.shape, n=1, p=1 - corruption_level) * input
+        corrupt = theano_rng.normal(size=input.shape, avg=0.0, std=corruption_level) + input
         
         # Construct expression graph
         fn = theano.function([input], corrupt)
@@ -70,8 +70,14 @@ class Data_handling:
         
         
     
-
-        
+if __name__ == '__main__':
+    dh = Data_handling()
+    dh.load_data('./data/mnist.pkl.gz')
+    dh.get_corrupt(corruption_level=0.2)
+    print('Pickling data')
+    stream = open('data.pkl','w')
+    pickle.dump(dh, stream)
+    stream.close()
         
         
         

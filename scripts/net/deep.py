@@ -19,6 +19,7 @@ import theano.sandbox.cuda.basic_ops as sb
 import time
 import pickle
 
+class DivergenceError(Exception): pass
 
 class Deep(object):
     
@@ -166,7 +167,8 @@ class Deep(object):
                     batch_size=10,
                     pretrain_learning_rate=0.1,
                     pretrain_epochs=10,
-                    corruption_level=0.2
+                    noise_type='mask',
+                    corruption_level=0.1
                     ):
         '''
         Run through the layers of the network and load parameters
@@ -180,6 +182,7 @@ class Deep(object):
                 batch_size=batch_size,
                 pretrain_learning_rate=pretrain_learning_rate,
                 pretrain_epochs=pretrain_epochs,
+                noise_type=noise_type,
                 corruption_level=corruption_level)
         
         print('Pretrain parameters loaded')
@@ -218,8 +221,13 @@ class Deep(object):
                 for batch_index in xrange(layer.n_train_batches):
                     c.append(pretrain_fns[i](batch_index))
                 end_time = time.clock()
+                
+                mc = np.mean(c)
+                if np.isnan(mc): raise DivergenceError('nan')
+                elif np.isinf(mc): raise DivergenceError('mc')
+                
                 print('Layer %d, Training epoch %d, cost %5.3f, elapsed time %5.3f' \
-                      % (i, epoch, np.mean(c), (end_time - start_time)))
+                      % (i, epoch, mc, (end_time - start_time)))
             self.pickle_machine(self.pkl_name)
             
         print('Pretraining complete: wrapping up')
@@ -252,7 +260,7 @@ class Deep(object):
                                 n_train_batches,
                                 n_valid_batches,
                                 batch_size,
-                                momentum,
+                                momentum=0.0,
                                 regularisation_weight=0.01,
                                 h_track=0.995,
                                 sparsity_target=0.05,
@@ -317,8 +325,13 @@ class Deep(object):
             valid_score = self.cross_validate()
             valid_score = np.mean(valid_score)
             end_time = time.clock()
+                            
+            mc = np.mean(c)
+            if np.isnan(mc): raise DivergenceError('nan')
+            elif np.isinf(mc): raise DivergenceError('mc')
+                
             print('Training epoch %d, cost %5.3f, elapsed time %5.3f' \
-                  % (self.epoch, np.mean(c), (end_time - start_time)))
+                  % (self.epoch, mc, (end_time - start_time)))
             
             # In future I wish to leverage the second GPU to perform validation
             if valid_score < best_valid_score:
@@ -366,7 +379,7 @@ class Deep(object):
             # Weight decay
             if layer.W_reg == 'L1':
                 regularisation += np.abs(layer.W.get_value(borrow=True)).sum()
-            elif self.regularisation == 'L2':
+            elif layer.W_reg == 'L2':
                 regularisation += (layer.W.get_value(borrow=True)**2).sum()
             
             # Activation sparsity - apply to hidden neurons only
@@ -378,10 +391,11 @@ class Deep(object):
         # hidden activation wrt the parameters, we hard code it in.
         if self.activation_weight != 0.0:
             self.avg_h = self.h_track*self.avg_h + (1-self.h_track)*current_avg_h
-            activation_grad = (self.avg_h - self.sparsity_target)/(self.avg_h*(1-self.avg_h))
-            act = (self.activation_weight*activation_grad/self.training_size).astype(theano.config.floatX)
+            activation_grad = (self.avg_h - self.sparsity_target)/(self.avg_h*(1-self.avg_h) + 0.001)   # 0.001 regularisation
+            act = (self.activation_weight*activation_grad/self.training_size)
         else:
             act = 0
+        act = T.cast(act, dtype=theano.config.floatX)
    
         # COST = LOSS + REGULARISATION
         cost = loss + (self.regularisation_weight*regularisation/self.training_size)

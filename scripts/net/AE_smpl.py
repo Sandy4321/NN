@@ -39,11 +39,6 @@ AE_out = AE.sample_AE(seed, num_samples, burn_in, corruption_level)
 
 
 img = seed
-image = Image.fromarray(utils.tile_raster_images(X=img,
-             img_shape=(28,28), tile_shape=(1, 1),
-             tile_spacing=(1, 1)))
-image.save('sample_seed.png')
-
 img = np.reshape(AE_out, (vector_length, total_iter+1), order='F')
 grid_size = np.floor(np.sqrt(total_iter)).astype(int)
 

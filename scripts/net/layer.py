@@ -185,9 +185,14 @@ class Layer(object):
     
     
     def get_corrupt(self, input, corruption_level):
-       """ We use binary erasure noise """
-       return  self.theano_rng.binomial(size=input.shape, n=1, p=1 - corruption_level) * input
-    
+        """ We use binary erasure noise """
+        if self.noise_type == 'mask':
+            return  self.theano_rng.binomial(size=input.shape, n=1, p=1 - corruption_level) * input
+        elif self.noise_type == 'gaussian':
+            return self.theano_rng.normal(size=input.shape, avg=0.0, std=corruption_level) + input
+        else:
+            print('Invalid noise type')
+            sys.exit(1)
     
     
     def get_enc(self, visible):
@@ -200,6 +205,9 @@ class Layer(object):
             output = Tnet.sigmoid(T.dot(visible,self.W) + self.b)
         elif self.nonlinearity == 'softplus':
             output = Tnet.softplus(T.dot(visible,self.W) + self.b)
+        else:
+            print('Invalid encoding nonlinearity')
+            sys.exit(1)
         return output
 
     
@@ -214,6 +222,9 @@ class Layer(object):
             output = T.dot(hidden,self.W_prime) + self.b2
         elif self.nonlinearity == 'softplus':
             output = Tnet.softplus(T.dot(hidden,self.W_prime) + self.b2)
+        else:
+            print('Invalid decoding nonlinearity')
+            sys.exit(1)
         return output
 
 
@@ -227,7 +238,8 @@ class Layer(object):
                     batch_size=10,
                     pretrain_learning_rate=0.1,
                     pretrain_epochs=10,
-                    corruption_level=0.2
+                    noise_type='mask',
+                    corruption_level=0.1
                     ):
         self.loss_type = loss_type
         self.optimisation_scheme = optimisation_scheme
@@ -236,6 +248,7 @@ class Layer(object):
         self.batch_size = batch_size
         self.pretrain_learning_rate = pretrain_learning_rate
         self.pretrain_epochs = pretrain_epochs
+        self.noise_type = noise_type
         self.corruption_level = corruption_level
     
 
@@ -286,15 +299,7 @@ class Layer(object):
                
             return cost, updates
 
-    
-
-        
-        
-        
-        
-        
-        
-        
+   
         
         
         

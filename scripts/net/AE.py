@@ -22,17 +22,21 @@ import pickle
 ### 1 DEFINE PARAMETERS ###
 
 # Network parameters
-topology = (784, 1225, 2000, 1225, 784)
-nonlinearities = ('sigmoid','sigmoid','sigmoid','sigmoid')
+topology = (784, 400, 196, 400, 784)
+nonlinearities = ('split_continuous','split_continuous','linear','linear')
 layer_types = ('DAE','DAE','DAE','DAE')
 regularisation = (('None','L2'),('None','L2'),('None','L2'),('None','L2'))
 device = 'DAE'
 layer_scheme='DAE'
 
 # IO
-dh = Data_handling()
-dh.load_data('./data/mnist.pkl.gz')
+stream = open('ZCA_data.pkl','r')
+dh = pickle.load(stream)
+#dh = Data_handling()
+#dh.load_data('./data/mnist.pkl.gz')
 pkl_name = 'AE.pkl'
+
+
 l0_filters = 'l0_filters.png'
 l1_filters = 'l1_filters.png'
 
@@ -43,29 +47,30 @@ np_rng = np.random.RandomState(123)
 theano_rng = RandomStreams(np_rng.randint(2 ** 30))
 pkl_rate = 50
 training_size = dh.train_set_x.get_value().shape[0]
-batch_size = 32
+batch_size = 50
 n_train_batches = training_size/batch_size
 n_valid_batches = dh.valid_set_x.get_value().shape[0]/batch_size
 
 # Pretrain
 pretrain_optimisation_scheme='SDG'
-pretrain_loss_type = 'AE_xent'
-pretrain_learning_rate = 0.1
-pretrain_epochs = 15
-corruption_level = 0.2
+pretrain_loss_type = 'AE_SE'
+pretrain_learning_rate = 0.0003
+pretrain_epochs = 50
+noise_type = 'gaussian'
+corruption_level = 0.3
 
 #Fine tune
 fine_tune_optimisation_scheme='SDG'
 fine_tune_loss_type = 'L2'
-fine_tune_learning_rate = 0.1 # Need to implement the code which fits this well
+fine_tune_learning_rate = 0.00001 # Need to implement the code which fits this well
 tau = 100    # later I want to figure out tau adaptively
-momentum = 0.9
+momentum = 0.5
 regularisation_weight = 0.0001
 h_track=0.95
 sparsity_target = 0.05
-activation_weight = 0.001
+activation_weight = 0.01
 patience_increase = 2.0
-max_epochs = 500
+max_epochs = 1000
 
 
 ### 2 LOAD PARAMETER VALUES ###
@@ -92,6 +97,7 @@ AE.load_pretrain_params(pretrain_loss_type,
                         batch_size=batch_size,
                         pretrain_learning_rate=pretrain_learning_rate,
                         pretrain_epochs=pretrain_epochs,
+                        noise_type=noise_type,
                         corruption_level=corruption_level)
 
 AE.load_fine_tuning_params(fine_tune_loss_type,

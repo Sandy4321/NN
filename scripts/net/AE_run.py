@@ -61,7 +61,9 @@ image = Image.fromarray(utils.tile_raster_images(X=img,
              tile_spacing=(1, 1)))
 image.save('original.png')
 
-
+AE_out2 = theano.function([],
+                    AE.output,
+                    givens = {AE.x: AE.data.corrupt_set_x})
 
 
 
