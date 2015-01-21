@@ -24,13 +24,12 @@ def whiten(variant, epsilon):
     
     mx = np.mean(X, axis=1)[:,np.newaxis]
     X -= mx   # relying on broadcasting here
-  
-    Sx = np.dot(X.T,X)/N
-    print Sx.shape
-    imsave('cov.png', Sx, cmap=cm.binary)
-    grid(True)
 
+    Sx = np.dot(X.T,X)/X.shape[0]
     
+    plt.imshow(Sx)
+
+
     
 if __name__ == '__main__':
     whiten(2,3)
