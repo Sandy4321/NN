@@ -24,15 +24,10 @@ def whiten(variant, epsilon):
     
     mx = np.mean(X, axis=1)[:,np.newaxis]
     X -= mx   # relying on broadcasting here
-    Sx = np.cov(X)
+    Sx = np.dot(X.T,X)/X.shape[0]
     
-    image = Image.fromarray(utils.tile_raster_images(X=Sx[0:10,0:10],
-             img_shape=(11, 11), tile_shape=(1, 1),
-             tile_spacing=(1, 1)))
-    image.save('cov.png')
+    plt.imshow(Sx)
 
-    print('done')
-    
     
 if __name__ == '__main__':
     whiten(2,3)
