@@ -27,7 +27,6 @@ def whiten(variant, epsilon):
 
     Sx = np.dot(X.T,X)/X.shape[0]
     
-    
     plt.imshow(Sx)
 
 
