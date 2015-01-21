@@ -7,7 +7,7 @@ from data_handling import Data_handling
 import matplotlib.pyplot as plt
 import utils
 from PIL import Image
-
+from pylab import *
 
 dh = Data_handling()
 dh.load_data('./data/mnist.pkl.gz')
@@ -24,14 +24,12 @@ def whiten(variant, epsilon):
     
     mx = np.mean(X, axis=1)[:,np.newaxis]
     X -= mx   # relying on broadcasting here
-    Sx = np.cov(X)
-    
-    image = Image.fromarray(utils.tile_raster_images(X=Sx[0:10,0:10],
-             img_shape=(11, 11), tile_shape=(1, 1),
-             tile_spacing=(1, 1)))
-    image.save('cov.png')
+  
+    Sx = np.dot(X.T,X)/N
+    print Sx.shape
+    imsave('cov.png', Sx, cmap=cm.binary)
+    grid(True)
 
-    print('done')
     
     
 if __name__ == '__main__':
