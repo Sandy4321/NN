@@ -185,18 +185,36 @@ class Layer(object):
     
     
     def get_corrupt(self, input, corruption_level):
-        """ We use binary erasure noise """
+        """
+        This corresponds to noise inhjected at the input to the network
+        
+        :type input: theano.config.floatX
+        :param input: the matrix of inputs to corrupt
+        
+        :type corruption_level: float in [0,1]
+        :param corruption_level: discrete corruption probability/continuous noise standard deviation 
+        """
         if self.noise_type == 'mask':
             return  self.theano_rng.binomial(size=input.shape, n=1, p=1 - corruption_level) * input
         elif self.noise_type == 'gaussian':
             return self.theano_rng.normal(size=input.shape, avg=0.0, std=corruption_level) + input
+        elif self.noise_type == 'salt_and_pepper':
+            a = self.theano_rng.binomial(size=input.shape, n=1, p=1 - corruption_level)
+            b = self.theano_rng.binomial(size=input.shape, n=1, p=0.5)
+            c = T.eq(a,0) * b
+            return (input*a) + c
         else:
             print('Invalid noise type')
             sys.exit(1)
     
     
     def get_enc(self, visible):
-        ''' Computes the output of a layer '''
+        '''
+        Computes the output of a hidden layer
+        
+        :type visible: theano.config.floatX
+        :param visible: the input to the layer
+        '''
         if self.nonlinearity == 'logistic':
             output = Tnet.sigmoid(T.dot(visible,self.W) + self.b)
         elif self.nonlinearity == 'linear':
@@ -217,7 +235,12 @@ class Layer(object):
     
     
     def get_dec(self, hidden):
-        ''' Computes the output of a layer '''
+        '''
+        Computes the output of a layer given a hidden layer input
+        
+        :type hidden: theano.config.floatX
+        :param hidden: the hidden layer input
+        '''
         if self.nonlinearity == 'logistic':
             output = Tnet.sigmoid(T.dot(hidden,self.W_prime) + self.b2)
         elif self.nonlinearity == 'linear':
@@ -266,17 +289,11 @@ class Layer(object):
     def get_cost_updates(self, learning_rate):
             '''
             This function is based on the theano example. It computes the costs and
-            a parameter update for a single training step. We consider SGD or the
+            a parameter update for a single training step. We consider SGD for the
             time being.
-            
-            :type layer: Layer object
-            :param layer: current layer to optimise
             
             :type learning_rate: theano.config.floatX
             :param learning_rate: rate at which to perfrom gradient descent
-            
-            :type loss_type: string
-            :param loss_type: loss depends on the machine
             '''
             if self.layer_scheme == 'DAE':
                 x_tilde = self.get_corrupt(self.x, self.corruption_level)

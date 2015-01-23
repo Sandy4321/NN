@@ -69,7 +69,7 @@ def objective(args):
         pretrain_loss_type = 'AE_SE'
         pretrain_learning_rate = pretrain_learning_rate
         pretrain_epochs = np.int_(pretrain_epochs)
-        noise_type = 'gaussian'
+        noise_type = 'salt_and_pepper'
         corruption_level = corruption_level
         
         #Fine tune
