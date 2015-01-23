@@ -1,23 +1,42 @@
-import pickle
-import time
-from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
+import numpy as np
+import numpy.random as rand
+import theano
+import theano.tensor as T
 
-def objective(x):
-    return {
-        'loss': x ** 2,
-        'status': STATUS_OK,
-        # -- store other results like this
-        'eval_time': time.time(),
-        'other_stuff': {'type': None, 'value': [0, 1, 2]},
-        # -- attachments are handled differently
-        'attachments':
-            {'time_module': pickle.dumps(time.time)}
-        }
-trials = Trials()
-best = fmin(objective,
-    space=hp.uniform('x', -10, 10),
-    algo=tpe.suggest,
-    max_evals=50,
-    trials=trials)
+'''
+p=0.2
 
-print best, trials.results 
+# Generate out data matrix
+M = 100
+N = 102
+D = rand.randn(N,N)
+v = rand.randn(N)
+
+Q = 100000
+S = 0
+# Generate our random mask
+for i in xrange(Q):
+    R = rand.random_sample(v.shape)
+    R = (R>(1-p))*1
+    R2 = rand.random_sample(v.shape)
+    R2 = (R2>(1-p))*1
+    S += np.dot(R*v,np.dot(D,R*v))
+    
+S/=Q
+print S/np.dot(v,np.dot(D,v))
+'''
+
+def salt_and_pepper(IN, p = 0.2):
+        # salt and pepper noise
+        print 'DAE uses salt and pepper noise'
+        a = (rand.random_sample(IN.shape)>(1-p))*1
+        b = (rand.random_sample(IN.shape)>0.5)*1
+        c = ((a==0) * b)
+        print a
+        print b
+        print c
+        print IN * a + c
+        
+if __name__ == '__main__':
+    IN = 0.5*np.ones((5,5))
+    salt_and_pepper(IN)

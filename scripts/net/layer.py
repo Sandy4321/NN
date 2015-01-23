@@ -165,7 +165,7 @@ class Layer(object):
         elif initialisation_regime == 'Glorot':
             W_shape = self.W.get_value(borrow=True, return_internal_type=True).shape
 
-            if nonlinearity == 'tanh':
+            if (nonlinearity == 'tanh') or (nonlinearity == 'tanh_linear'):
                 r = np.sqrt(6.0/(sum(W_shape)))
             elif nonlinearity == 'sigmoid':
                 r = 4.0*np.sqrt(6.0/(sum(W_shape)))
@@ -197,14 +197,18 @@ class Layer(object):
     
     def get_enc(self, visible):
         ''' Computes the output of a layer '''
-        if self.nonlinearity == 'sigmoid':
+        if self.nonlinearity == 'logistic':
             output = Tnet.sigmoid(T.dot(visible,self.W) + self.b)
         elif self.nonlinearity == 'linear':
             output = T.dot(visible,self.W) + self.b
-        elif self.nonlinearity == 'split_continuous':
+        elif self.nonlinearity == 'logistic_linear':
             output = Tnet.sigmoid(T.dot(visible,self.W) + self.b)
         elif self.nonlinearity == 'softplus':
             output = Tnet.softplus(T.dot(visible,self.W) + self.b)
+        elif self.nonlinearity == 'tanh':
+            output = T.tanh(T.dot(visible,self.W) + self.b)
+        elif self.nonlinearity == 'tanh_linear':
+            output = T.tanh(T.dot(visible,self.W) + self.b)
         else:
             print('Invalid encoding nonlinearity')
             sys.exit(1)
@@ -214,14 +218,18 @@ class Layer(object):
     
     def get_dec(self, hidden):
         ''' Computes the output of a layer '''
-        if self.nonlinearity == 'sigmoid':
+        if self.nonlinearity == 'logistic':
             output = Tnet.sigmoid(T.dot(hidden,self.W_prime) + self.b2)
         elif self.nonlinearity == 'linear':
             output = T.dot(hidden,self.W_prime) + self.b2
-        elif self.nonlinearity == 'split_continuous':
+        elif self.nonlinearity == 'logistic_linear':
             output = T.dot(hidden,self.W_prime) + self.b2
         elif self.nonlinearity == 'softplus':
             output = Tnet.softplus(T.dot(hidden,self.W_prime) + self.b2)
+        elif self.nonlinearity == 'tanh':
+            output = T.tanh(T.dot(hidden,self.W_prime) + self.b2)
+        elif self.nonlinearity == 'tanh_linear':
+            output = T.dot(hidden,self.W_prime) + self.b2
         else:
             print('Invalid decoding nonlinearity')
             sys.exit(1)

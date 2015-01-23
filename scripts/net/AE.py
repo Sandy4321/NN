@@ -54,21 +54,21 @@ n_valid_batches = dh.valid_set_x.get_value().shape[0]/batch_size
 # Pretrain
 pretrain_optimisation_scheme='SDG'
 pretrain_loss_type = 'AE_SE'
-pretrain_learning_rate = 0.0003
-pretrain_epochs = 50
+pretrain_learning_rate = 3.39008126363606e-06
+pretrain_epochs = 11
 noise_type = 'gaussian'
-corruption_level = 0.3
+corruption_level = 2.890043484644745
 
 #Fine tune
 fine_tune_optimisation_scheme='SDG'
 fine_tune_loss_type = 'L2'
-fine_tune_learning_rate = 0.00001 # Need to implement the code which fits this well
-tau = 100    # later I want to figure out tau adaptively
-momentum = 0.5
-regularisation_weight = 0.0001
-h_track=0.95
-sparsity_target = 0.05
-activation_weight = 0.01
+fine_tune_learning_rate = 4.480271215145136e-05 # Need to implement the code which fits this well
+tau = 33    # later I want to figure out tau adaptively
+momentum = 0.8731264040909384
+regularisation_weight = 0.001373725401855339
+h_track = 0.8761648416240407
+sparsity_target = 0.029707816888876776
+activation_weight = 0.0002759764654105294
 patience_increase = 2.0
 max_epochs = 1000
 

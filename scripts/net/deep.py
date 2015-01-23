@@ -223,8 +223,12 @@ class Deep(object):
                 end_time = time.clock()
                 
                 mc = np.mean(c)
-                if np.isnan(mc): raise DivergenceError('nan')
-                elif np.isinf(mc): raise DivergenceError('mc')
+                if np.isnan(mc):
+                    print('NaN error')
+                    raise DivergenceError('nan')
+                elif np.isinf(mc):
+                    print('INF error')
+                    raise DivergenceError('mc')
                 
                 print('Layer %d, Training epoch %d, cost %5.3f, elapsed time %5.3f' \
                       % (i, epoch, mc, (end_time - start_time)))
@@ -327,8 +331,12 @@ class Deep(object):
             end_time = time.clock()
                             
             mc = np.mean(c)
-            if np.isnan(mc): raise DivergenceError('nan')
-            elif np.isinf(mc): raise DivergenceError('mc')
+            if np.isnan(mc):
+                print('NaN error')
+                raise DivergenceError('nan')
+            elif np.isinf(mc):
+                print('INF error')
+                raise DivergenceError('mc')
                 
             print('Training epoch %d, cost %5.3f, elapsed time %5.3f' \
                   % (self.epoch, mc, (end_time - start_time)))
