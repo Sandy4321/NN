@@ -22,18 +22,21 @@ import pickle
 ### 1 DEFINE PARAMETERS ###
 
 # Network parameters
-topology = (784, 400, 196, 400, 784)
-nonlinearities = ('split_continuous','split_continuous','linear','linear')
-layer_types = ('DAE','DAE','DAE','DAE')
-regularisation = (('None','L2'),('None','L2'),('None','L2'),('None','L2'))
+topology = (784, 2000, 784)
+nonlinearities = ('tanh','logistic')
+layer_types = ('DAE','DAE')
+regularisation = (('None','L2'),('None','L2'))
 device = 'DAE'
 layer_scheme='DAE'
 
 # IO
-stream = open('ZCA_data.pkl','r')
-dh = pickle.load(stream)
+#stream = open('ZCA_data.pkl','r')
+#dh = pickle.load(stream)
 #dh = Data_handling()
 #dh.load_data('./data/mnist.pkl.gz')
+stream = open('data.pkl','r')
+dh = pickle.load(stream)
+stream.close()
 pkl_name = 'AE.pkl'
 
 
@@ -47,30 +50,64 @@ np_rng = np.random.RandomState(123)
 theano_rng = RandomStreams(np_rng.randint(2 ** 30))
 pkl_rate = 50
 training_size = dh.train_set_x.get_value().shape[0]
+batch_size = 10
+n_train_batches = training_size/batch_size
+n_valid_batches = dh.valid_set_x.get_value().shape[0]/batch_size
+
+# Pretrain
+pretrain_optimisation_scheme='SDG'
+pretrain_loss_type = 'AE_xent'
+pretrain_learning_rate = 0.01956108056218411
+pretrain_epochs = 20
+noise_type = 'salt_and_pepper'
+corruption_level = 0.5
+
+#Fine tune
+fine_tune_optimisation_scheme='SDG'
+fine_tune_loss_type = 'L2'
+fine_tune_learning_rate = 0.0009809116890516754 # Need to implement the code which fits this well
+tau = 74    # later I want to figure out tau adaptively
+momentum = 0.9300199541883959
+regularisation_weight = 0.0013763480766471013
+h_track = 0.9272058492736217
+sparsity_target = 0.22443435817872545
+activation_weight = 1.5588947200921514e-06
+patience_increase = 2.0
+max_epochs = 35
+
+'''
+# Training parameters
+#Shared
+initialisation_regime = 'Glorot'
+np_rng = np.random.RandomState(123)
+theano_rng = RandomStreams(np_rng.randint(2 ** 30))
+pkl_rate = 50
+training_size = dh.train_set_x.get_value().shape[0]
 batch_size = 50
 n_train_batches = training_size/batch_size
 n_valid_batches = dh.valid_set_x.get_value().shape[0]/batch_size
 
 # Pretrain
 pretrain_optimisation_scheme='SDG'
-pretrain_loss_type = 'AE_SE'
-pretrain_learning_rate = 3.39008126363606e-06
-pretrain_epochs = 11
-noise_type = 'gaussian'
-corruption_level = 2.890043484644745
+pretrain_loss_type = 'AE_xent'
+pretrain_learning_rate = 0.0001
+pretrain_epochs = 20
+noise_type = 'salt_and_pepper'
+corruption_level = 0.5
 
 #Fine tune
 fine_tune_optimisation_scheme='SDG'
 fine_tune_loss_type = 'L2'
-fine_tune_learning_rate = 4.480271215145136e-05 # Need to implement the code which fits this well
-tau = 33    # later I want to figure out tau adaptively
-momentum = 0.8731264040909384
-regularisation_weight = 0.001373725401855339
-h_track = 0.8761648416240407
-sparsity_target = 0.029707816888876776
-activation_weight = 0.0002759764654105294
+fine_tune_learning_rate = 0.000755 # Need to implement the code which fits this well
+tau = 100    # later I want to figure out tau adaptively
+momentum = 0.85
+regularisation_weight = 0.0001
+h_track = 0.95
+sparsity_target = 0.05
+activation_weight = 0.01
 patience_increase = 2.0
-max_epochs = 1000
+max_epochs = 200
+'''
 
 
 ### 2 LOAD PARAMETER VALUES ###
@@ -86,9 +123,6 @@ AE = Deep(
     pkl_name = pkl_name
 )
 
-# Initialise network weights
-AE.init_weights(initialisation_regime)
-
 # Load the pretraining parameters
 AE.load_pretrain_params(pretrain_loss_type,
                         pretrain_optimisation_scheme,
@@ -97,6 +131,7 @@ AE.load_pretrain_params(pretrain_loss_type,
                         batch_size=batch_size,
                         pretrain_learning_rate=pretrain_learning_rate,
                         pretrain_epochs=pretrain_epochs,
+                        initialisation_regime=initialisation_regime,
                         noise_type=noise_type,
                         corruption_level=corruption_level)
 

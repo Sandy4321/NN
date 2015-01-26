@@ -1,42 +1,144 @@
-import numpy as np
-import numpy.random as rand
-import theano
+from theano import function, config, shared, sandbox
 import theano.tensor as T
+import numpy
+import time
+import numpy as np
+import theano
+from theano.tensor.shared_randomstreams import RandomStreams
 
-'''
-p=0.2
+N = 100
+iters = 1000
+rng = numpy.random.RandomState(22)
+R = theano.shared(np.asarray(rng.rand(N,N), dtype=theano.config.floatX))
 
-# Generate out data matrix
-M = 100
-N = 102
-D = rand.randn(N,N)
-v = rand.randn(N)
 
-Q = 100000
-S = 0
-# Generate our random mask
-for i in xrange(Q):
-    R = rand.random_sample(v.shape)
-    R = (R>(1-p))*1
-    R2 = rand.random_sample(v.shape)
-    R2 = (R2>(1-p))*1
-    S += np.dot(R*v,np.dot(D,R*v))
-    
-S/=Q
-print S/np.dot(v,np.dot(D,v))
-'''
 
-def salt_and_pepper(IN, p = 0.2):
-        # salt and pepper noise
-        print 'DAE uses salt and pepper noise'
-        a = (rand.random_sample(IN.shape)>(1-p))*1
-        b = (rand.random_sample(IN.shape)>0.5)*1
-        c = ((a==0) * b)
-        print a
-        print b
-        print c
-        print IN * a + c
-        
-if __name__ == '__main__':
-    IN = 0.5*np.ones((5,5))
-    salt_and_pepper(IN)
+
+theano_rng = RandomStreams(seed=32)
+rn = theano_rng.binomial(size=(N,N), n=1, p=0.5).astype(theano.config.floatX)
+f = function([], rn)
+t0 = time.time()
+for i in xrange(iters):
+    r = f()
+t1 = time.time()
+
+print(t1-t0)
+
+
+
+
+theano_rng = RandomStreams(seed=32)
+rn = theano_rng.binomial(size=(N,N), n=1, p=0.5).astype(theano.config.floatX)
+f = function([], sandbox.cuda.basic_ops.gpu_from_host(rn))
+t0 = time.time()
+for i in xrange(iters):
+    r = f()
+t1 = time.time()
+
+print(t1-t0)
+
+
+
+rng = numpy.random.RandomState(22)
+x = shared(numpy.asarray(rng.rand(N,N), config.floatX))
+f = function([], x)
+t0 = time.time()
+for i in xrange(iters):
+    r = f()
+t1 = time.time()
+
+print(t1-t0)
+
+
+rng = numpy.random.RandomState(22)
+x = shared(numpy.asarray(rng.rand(N,N), config.floatX))
+f = function([], sandbox.cuda.basic_ops.gpu_from_host(T.exp(x)))
+t0 = time.time()
+for i in xrange(iters):
+    r = f()
+t1 = time.time()
+
+print(t1-t0)
+
+
+
+rng = numpy.random.RandomState(22)
+t0 = time.time()
+for i in xrange(iters):
+    r = rng.rand(N,N)
+t1 = time.time()
+
+print(t1-t0)
+
+
+
+
+rng = numpy.random.RandomState(22)
+x = shared(numpy.asarray(rng.rand(N,N), config.floatX))
+f = function([], sandbox.cuda.basic_ops.gpu_from_host(x*R))
+t0 = time.time()
+for i in xrange(iters):
+    r = f()
+t1 = time.time()
+
+print(t1-t0)
+
+
+rng = numpy.random.RandomState(22)
+x = shared(numpy.asarray(rng.rand(N,N), config.floatX))
+f = function([], sandbox.cuda.basic_ops.gpu_from_host(T.mul(x,R)))
+t0 = time.time()
+for i in xrange(iters):
+    r = f()
+t1 = time.time()
+
+print(t1-t0)
+
+
+
+rng = numpy.random.RandomState(22)
+x = shared(numpy.asarray(rng.randint(0,2,(N,N)), config.floatX))
+f = function([], x)
+t0 = time.time()
+for i in xrange(iters):
+    r = f()
+t1 = time.time()
+
+print(t1-t0)
+print(x.get_value())
+
+
+theano_rng
+t0 = time.time()
+for i in xrange(iters):
+    r = theano_rng.uniform(size=(N,N))
+t1 = time.time()
+
+print(t1-t0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

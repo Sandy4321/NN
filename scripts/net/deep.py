@@ -167,6 +167,7 @@ class Deep(object):
                     batch_size=10,
                     pretrain_learning_rate=0.1,
                     pretrain_epochs=10,
+                    initialisation_regime='Glorot',
                     noise_type='mask',
                     corruption_level=0.1
                     ):
@@ -182,6 +183,7 @@ class Deep(object):
                 batch_size=batch_size,
                 pretrain_learning_rate=pretrain_learning_rate,
                 pretrain_epochs=pretrain_epochs,
+                initialisation_regime=initialisation_regime,
                 noise_type=noise_type,
                 corruption_level=corruption_level)
         
@@ -377,6 +379,8 @@ class Deep(object):
         # LOSS
         if self.loss_type == 'L2':
             L = 0.5*T.sum((z - self.x)**2, axis=1)
+        elif self.loss_type == 'xent':
+            L = - T.sum(self.x * T.log(z) + (1 - self.x) * T.log(1 - z), axis=1)
         loss = T.mean(L)
         
         # REGULARISATION

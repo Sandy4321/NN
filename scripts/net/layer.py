@@ -142,6 +142,8 @@ class Layer(object):
         self.nonlinearity = nonlinearity
         self.h_reg = h_reg
         self.W_reg = W_reg
+        self.h_n = h_n
+        self.v_n = v_n
         
         if b2 is not None:
             self.params = [self.W, self.b, self.b2]
@@ -158,7 +160,7 @@ class Layer(object):
         self.output = self.get_enc(self.x)
         
         
-    def init_weights(self, initialisation_regime='Glorot', nonlinearity='sigmoid'):
+    def init_weights(self, initialisation_regime, nonlinearity):
         
         if initialisation_regime == 'None':
             pass
@@ -167,21 +169,41 @@ class Layer(object):
 
             if (nonlinearity == 'tanh') or (nonlinearity == 'tanh_linear'):
                 r = np.sqrt(6.0/(sum(W_shape)))
-            elif nonlinearity == 'sigmoid':
-                r = 4.0*np.sqrt(6.0/(sum(W_shape)))
-            elif nonlinearity == 'split_continuous':
-                #NEED TO CHANGE THIS
+            elif (nonlinearity == 'logistic') or (nonlinearity == 'logistic_linear'):
                 r = 4.0*np.sqrt(6.0/(sum(W_shape)))
             elif (nonlinearity == 'linear') or (nonlinearity == 'softplus'):
                 #NEED TO CHANGE THIS
                 r = 4.0*np.sqrt(6.0/(sum(W_shape)))
             else:
-                print 'Invalid nonlinearity'
+                print 'Invalid nonlinearity to initialise'
                 exit(1)
             
             np_rng = r*np.random.random_sample(size=W_shape).astype(dtype=theano.config.floatX)
             self.W.set_value(np_rng)
-            
+        else:
+            print('Invalid initalisation regime')
+            sys.exit(1)
+    
+    def init_random_numbers(self, mode, shape):
+        """
+        DEepite all the lovely things about theano the random number generation
+        is one of frustrating sticking points. Not only are they harder to use
+        but they are also very buggy. It appears that we need to create a numpy
+        rng object and pass that through to a theano shared variable, which will
+        presumeably be shipped to the GPU during graph construction. The various
+        rng objects supplied by thenano run at speeds differing by orders of magnitude
+        so the solution found here is really just an empirical hack to speed things.
+        """
+        if (mode == 'bernoulli'):
+            self.rng = theano.shared(np.asarray(self.np_rng.randint(0,2,shape)), theano.config.floatX).astype(theano.config.floatX)
+        elif (mode == 'salt_and_pepper'):
+            self.rnga = theano.shared(np.asarray(self.np_rng.random_sample(shape)), theano.config.floatX).astype(theano.config.floatX)
+            self.rngb = theano.shared(np.asarray(self.np_rng.random_sample(shape)), theano.config.floatX).astype(theano.config.floatX)
+        elif mode == 'gaussian':
+            self.rng = theano.shared(np.asarray(self.np_rng.randn(shape)), theano.config.floatX).astype(theano.config.floatX)
+        else:
+            print('Invalid noise type for initialisation')
+            sys.exit(1)
     
     
     def get_corrupt(self, input, corruption_level):
@@ -199,8 +221,10 @@ class Layer(object):
         elif self.noise_type == 'gaussian':
             return self.theano_rng.normal(size=input.shape, avg=0.0, std=corruption_level) + input
         elif self.noise_type == 'salt_and_pepper':
-            a = self.theano_rng.binomial(size=input.shape, n=1, p=1 - corruption_level)
-            b = self.theano_rng.binomial(size=input.shape, n=1, p=0.5)
+            #a = self.theano_rng.binomial(size=input.shape, n=1, p=1 - corruption_level)
+            #b = self.theano_rng.binomial(size=input.shape, n=1, p=0.5)
+            a = (self.rnga>corruption_level)*1
+            b = (self.rngb>0.5)*1
             c = T.eq(a,0) * b
             return (input*a) + c
         else:
@@ -250,7 +274,7 @@ class Layer(object):
         elif self.nonlinearity == 'softplus':
             output = Tnet.softplus(T.dot(hidden,self.W_prime) + self.b2)
         elif self.nonlinearity == 'tanh':
-            output = T.tanh(T.dot(hidden,self.W_prime) + self.b2)
+            output = Tnet.sigmoid(T.dot(hidden,self.W_prime) + self.b2)
         elif self.nonlinearity == 'tanh_linear':
             output = T.dot(hidden,self.W_prime) + self.b2
         else:
@@ -269,7 +293,8 @@ class Layer(object):
                     batch_size=10,
                     pretrain_learning_rate=0.1,
                     pretrain_epochs=10,
-                    noise_type='mask',
+                    initialisation_regime='Glorot',
+                    noise_type='bernoulli',
                     corruption_level=0.1
                     ):
         self.loss_type = loss_type
@@ -279,8 +304,12 @@ class Layer(object):
         self.batch_size = batch_size
         self.pretrain_learning_rate = pretrain_learning_rate
         self.pretrain_epochs = pretrain_epochs
+        self.initialisation_regime = initialisation_regime
         self.noise_type = noise_type
         self.corruption_level = corruption_level
+        
+        self.init_weights(initialisation_regime, self.nonlinearity)
+        self.init_random_numbers(mode=noise_type, shape=(batch_size,self.v_n))
     
 
 
@@ -324,9 +353,6 @@ class Layer(object):
                
             return cost, updates
 
-   
-        
-        
         
         
         

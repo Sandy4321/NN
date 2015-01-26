@@ -23,7 +23,7 @@ import time
 def objective(args):
     try:
         fine_tune_learning_rate, pretrain_learning_rate, momentum, \
-        pretrain_epochs, corruption_level, tau, regularisation_weight, \
+        pretrain_epochs, tau, regularisation_weight, \
         activation_weight, h_track, sparsity_target, batch_size = args
         for i in args:
             print(i)
@@ -32,7 +32,7 @@ def objective(args):
         
         # Network parameters
         topology = (784, 2000, 784)
-        nonlinearities = ('tanh','tanh')
+        nonlinearities = ('tanh','logistic')
         layer_types = ('DAE','DAE')
         regularisation = (('None','L2'),('None','L2'))
         device = 'DAE'
@@ -66,15 +66,19 @@ def objective(args):
         
         # Pretrain
         pretrain_optimisation_scheme='SDG'
-        pretrain_loss_type = 'AE_SE'
+        pretrain_loss_type = 'AE_xent'
+        noise_type = 'salt_and_pepper'
+        corruption_level = 0.5
+        
         pretrain_learning_rate = pretrain_learning_rate
         pretrain_epochs = np.int_(pretrain_epochs)
-        noise_type = 'salt_and_pepper'
-        corruption_level = corruption_level
         
         #Fine tune
         fine_tune_optimisation_scheme='SDG'
-        fine_tune_loss_type = 'L2'
+        fine_tune_loss_type = 'xent'
+        patience_increase = 2.0
+        max_epochs = 200
+        
         fine_tune_learning_rate = fine_tune_learning_rate
         tau = tau    # later I want to figure out tau adaptively
         momentum = momentum 
@@ -82,8 +86,7 @@ def objective(args):
         h_track=h_track
         sparsity_target = sparsity_target
         activation_weight = activation_weight
-        patience_increase = 2.0
-        max_epochs = 200
+        
         
         
         ### 2 LOAD PARAMETER VALUES ###
@@ -99,9 +102,6 @@ def objective(args):
             pkl_name = pkl_name
         )
         
-        # Initialise network weights
-        AE.init_weights(initialisation_regime)
-        
         # Load the pretraining parameters
         AE.load_pretrain_params(pretrain_loss_type,
                                 pretrain_optimisation_scheme,
@@ -110,6 +110,7 @@ def objective(args):
                                 batch_size=batch_size,
                                 pretrain_learning_rate=pretrain_learning_rate,
                                 pretrain_epochs=pretrain_epochs,
+                                initialisation_regime=initialisation_regime,
                                 noise_type=noise_type,
                                 corruption_level=corruption_level)
         
@@ -155,17 +156,16 @@ def objective(args):
 if __name__ == '__main__':
     
     trials = Trials()
-    space = (hp.loguniform('fine_tune_learning_rate', np.log(1e-6), np.log(1e-2)),
-             hp.loguniform('pretrain_learning_rate', np.log(1e-6), np.log(1e-2)),
+    space = (hp.loguniform('fine_tune_learning_rate', np.log(1e-7), np.log(1e-1)),
+             hp.loguniform('pretrain_learning_rate', np.log(1e-7), np.log(1e-1)),
              hp.uniform('momentum', 0.4, 1.0),
              hp.quniform('pretrain_epochs', 5, 50, 1),
-             hp.uniform('corruption_level', 0.0, 5.0),
-             hp.qloguniform('tau', np.log(1), np.log(1e3), 1),
+             hp.qloguniform('tau', np.log(1), np.log(200), 1),
              hp.loguniform('regularisation_weight', np.log(1e-6), np.log(1e-1)),
              hp.loguniform('activation_weight', np.log(1e-6), np.log(1e-1)),
              hp.uniform('h_track', 0.75, 0.999),
              hp.uniform('sparsity_target', 0.001, 0.5),
-             hp.qloguniform('batch_size', np.log(5), np.log(500), 5))
+             hp.qloguniform('batch_size', np.log(5), np.log(250), 5))
     best = fmin(objective,
         space=space,
         algo=tpe.suggest,
