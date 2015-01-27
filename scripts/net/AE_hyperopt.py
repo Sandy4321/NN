@@ -17,7 +17,7 @@ import utils
 import Image
 import pickle
 import time
-
+import os
 
 
 def objective(args):
@@ -141,7 +141,22 @@ def objective(args):
         score = theano.function([],
             AE.output,
             givens = {AE.x: AE.data.test_set_x})
-        cost = 0.5*np.mean((score() - AE.data.test_set_x.get_value())**2)
+        z = score()
+        x = AE.data.test_set_x.get_value()
+        cost = - np.mean(np.sum(x * np.log(z) + (1 - x) * np.log(1 - z), axis=1))
+        
+        
+        ### 5 Store results ###
+        fp = '/home/daniel/Code/NN/scripts/net/AE_hyp'
+        res = '/hyp'
+        pkl = '.pkl'
+        i = 0
+        file_name = fp + res + str(i) + pkl
+        while os.path.isfile(file_name):
+            i += 1
+            file_name = fp + res + str(i) + pkl
+        
+        AE.pickle_machine(file_name)
         
         return {'loss': cost,
                 'status': STATUS_OK,
@@ -156,20 +171,20 @@ def objective(args):
 if __name__ == '__main__':
     
     trials = Trials()
-    space = (hp.loguniform('fine_tune_learning_rate', np.log(1e-7), np.log(1e-1)),
-             hp.loguniform('pretrain_learning_rate', np.log(1e-7), np.log(1e-1)),
-             hp.uniform('momentum', 0.4, 1.0),
-             hp.quniform('pretrain_epochs', 5, 50, 1),
-             hp.qloguniform('tau', np.log(1), np.log(200), 1),
-             hp.loguniform('regularisation_weight', np.log(1e-6), np.log(1e-1)),
-             hp.loguniform('activation_weight', np.log(1e-6), np.log(1e-1)),
-             hp.uniform('h_track', 0.75, 0.999),
-             hp.uniform('sparsity_target', 0.001, 0.5),
-             hp.qloguniform('batch_size', np.log(5), np.log(250), 5))
+    space = (hp.loguniform('fine_tune_learning_rate', np.log(1e-3), np.log(1e-1)),
+             hp.loguniform('pretrain_learning_rate', np.log(1e-3), np.log(1e-1)),
+             hp.uniform('momentum', 0.75, 0.95),
+             hp.quniform('pretrain_epochs', 35, 55, 1),
+             hp.qloguniform('tau', np.log(10), np.log(80), 1),
+             hp.loguniform('regularisation_weight', np.log(1e-8), np.log(1e-5)),
+             hp.loguniform('activation_weight', np.log(1e-8), np.log(1e-5)),
+             hp.uniform('h_track', 0.8, 0.95),
+             hp.uniform('sparsity_target', 0.1, 0.2), # Perhaps loguniform
+             hp.choice('batch_size', (25, 40, 50)))
     best = fmin(objective,
         space=space,
         algo=tpe.suggest,
-        max_evals=15,
+        max_evals=30,
         trials=trials)
     
     print best

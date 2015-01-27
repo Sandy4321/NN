@@ -138,12 +138,12 @@ class Layer(object):
             else:
                 self.theano_rng = theano_rng
             
-        self.layer_type = layer_type
-        self.nonlinearity = nonlinearity
-        self.h_reg = h_reg
-        self.W_reg = W_reg
-        self.h_n = h_n
-        self.v_n = v_n
+        self.layer_type     = layer_type
+        self.nonlinearity   = nonlinearity
+        self.h_reg          = h_reg
+        self.W_reg          = W_reg
+        self.h_n            = h_n
+        self.v_n            = v_n
         
         if b2 is not None:
             self.params = [self.W, self.b, self.b2]
@@ -221,8 +221,6 @@ class Layer(object):
         elif self.noise_type == 'gaussian':
             return self.theano_rng.normal(size=input.shape, avg=0.0, std=corruption_level) + input
         elif self.noise_type == 'salt_and_pepper':
-            #a = self.theano_rng.binomial(size=input.shape, n=1, p=1 - corruption_level)
-            #b = self.theano_rng.binomial(size=input.shape, n=1, p=0.5)
             a = (self.rnga>corruption_level)*1
             b = (self.rngb>0.5)*1
             c = T.eq(a,0) * b
@@ -297,16 +295,16 @@ class Layer(object):
                     noise_type='bernoulli',
                     corruption_level=0.1
                     ):
-        self.loss_type = loss_type
-        self.optimisation_scheme = optimisation_scheme
-        self.layer_scheme = layer_scheme
-        self.n_train_batches = n_train_batches
-        self.batch_size = batch_size
+        self.loss_type              = loss_type
+        self.optimisation_scheme    = optimisation_scheme
+        self.layer_scheme           = layer_scheme
+        self.n_train_batches        = n_train_batches
+        self.batch_size             = batch_size
         self.pretrain_learning_rate = pretrain_learning_rate
-        self.pretrain_epochs = pretrain_epochs
-        self.initialisation_regime = initialisation_regime
-        self.noise_type = noise_type
-        self.corruption_level = corruption_level
+        self.pretrain_epochs        = pretrain_epochs
+        self.initialisation_regime  = initialisation_regime
+        self.noise_type             = noise_type
+        self.corruption_level       = corruption_level
         
         self.init_weights(initialisation_regime, self.nonlinearity)
         self.init_random_numbers(mode=noise_type, shape=(batch_size,self.v_n))

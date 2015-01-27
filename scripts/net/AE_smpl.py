@@ -25,17 +25,17 @@ dh.load_data('./data/mnist.pkl.gz')
 #dh.get_corrupt(corruption_level=0.1)
 # Unpickle machine
 print('Unpickling machine')
-stream = open('AE.pkl','r')
+stream = open('AE_hyp/hyp23.pkl','r')
 AE = pickle.load(stream)
 AE.data = dh
 
 burn_in = 50
-num_samples = 50
-corruption_level = 0.08
+num_samples = 250
+corruption_level = 0.03
 total_iter = burn_in+num_samples
 vector_length = 28*28
-num_to_print = 10
-stride = 1
+num_to_print = 30
+stride = 10
 batch_size = 10
 
 start_point = 340
@@ -47,18 +47,19 @@ if num_to_print*stride > burn_in+num_samples+1:
 
 print('Sampling')
 
-AE_out = AE.sample_AE(seed, num_samples, burn_in, corruption_level)
+AE_out = AE.sample_AE(seed, num_samples, burn_in, noise_type, corruption_level)
 
 print('Reshaping')
 
-img = np.asarray([AE_out[:,:,i*stride] for i in xrange(num_to_print)])
-print img.shape
-img = np.reshape(img, (num_to_print*batch_size, vector_length), order='F')
-print img.shape
-grid_size = np.floor(np.sqrt(total_iter)).astype(int)
+img = np.zeros((batch_size*num_to_print,vector_length))
+for i in xrange(batch_size):
+    for j in xrange(num_to_print):
+        img[(i*num_to_print)+j,:] = AE_out[i,:,j*stride]
 
-image = Image.fromarray(utils.tile_raster_images(X=img.T,
-             img_shape=(28,28), tile_shape=(grid_size,grid_size),
+
+
+image = Image.fromarray(utils.tile_raster_images(X=img,
+             img_shape=(28,28), tile_shape=(batch_size, num_to_print),
              tile_spacing=(1, 1)))
 image.save('sample_out.png')
 

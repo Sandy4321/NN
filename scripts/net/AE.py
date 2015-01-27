@@ -37,7 +37,7 @@ layer_scheme='DAE'
 stream = open('data.pkl','r')
 dh = pickle.load(stream)
 stream.close()
-pkl_name = 'AE.pkl'
+pkl_name = 'examples/AE2.pkl'
 
 
 l0_filters = 'l0_filters.png'
@@ -50,64 +50,30 @@ np_rng = np.random.RandomState(123)
 theano_rng = RandomStreams(np_rng.randint(2 ** 30))
 pkl_rate = 50
 training_size = dh.train_set_x.get_value().shape[0]
-batch_size = 10
+batch_size = 100
 n_train_batches = training_size/batch_size
 n_valid_batches = dh.valid_set_x.get_value().shape[0]/batch_size
 
 # Pretrain
 pretrain_optimisation_scheme='SDG'
 pretrain_loss_type = 'AE_xent'
-pretrain_learning_rate = 0.01956108056218411
-pretrain_epochs = 20
+pretrain_learning_rate = 0.015062389723830663
+pretrain_epochs = 40
 noise_type = 'salt_and_pepper'
 corruption_level = 0.5
 
 #Fine tune
 fine_tune_optimisation_scheme='SDG'
-fine_tune_loss_type = 'L2'
-fine_tune_learning_rate = 0.0009809116890516754 # Need to implement the code which fits this well
-tau = 74    # later I want to figure out tau adaptively
-momentum = 0.9300199541883959
-regularisation_weight = 0.0013763480766471013
-h_track = 0.9272058492736217
-sparsity_target = 0.22443435817872545
-activation_weight = 1.5588947200921514e-06
-patience_increase = 2.0
-max_epochs = 35
-
-'''
-# Training parameters
-#Shared
-initialisation_regime = 'Glorot'
-np_rng = np.random.RandomState(123)
-theano_rng = RandomStreams(np_rng.randint(2 ** 30))
-pkl_rate = 50
-training_size = dh.train_set_x.get_value().shape[0]
-batch_size = 50
-n_train_batches = training_size/batch_size
-n_valid_batches = dh.valid_set_x.get_value().shape[0]/batch_size
-
-# Pretrain
-pretrain_optimisation_scheme='SDG'
-pretrain_loss_type = 'AE_xent'
-pretrain_learning_rate = 0.0001
-pretrain_epochs = 20
-noise_type = 'salt_and_pepper'
-corruption_level = 0.5
-
-#Fine tune
-fine_tune_optimisation_scheme='SDG'
-fine_tune_loss_type = 'L2'
-fine_tune_learning_rate = 0.000755 # Need to implement the code which fits this well
-tau = 100    # later I want to figure out tau adaptively
-momentum = 0.85
-regularisation_weight = 0.0001
-h_track = 0.95
-sparsity_target = 0.05
-activation_weight = 0.01
+fine_tune_loss_type = 'xent'
+fine_tune_learning_rate = 0.06603559201252239 
+tau = 33   
+momentum = 0.7893854999695049
+regularisation_weight = 9.4839854289419e-06
+h_track = 0.879630813575219
+sparsity_target = 0.16451965545002675
+activation_weight = 2.3836078880048033e-06
 patience_increase = 2.0
 max_epochs = 200
-'''
 
 
 ### 2 LOAD PARAMETER VALUES ###
@@ -167,22 +133,11 @@ AE.unsupervised_fine_tuning()
 ### WRAP UP AND TEST ###
 
 print('Pickling machine')
-stream = open('AE.pkl','w')
+stream = open(pkl_name,'w')
 AE.data = []    # don't want to resave data
 pickle.dump(AE, stream)
 
-print('Generating images of weights')
-image = Image.fromarray(utils.tile_raster_images(X=AE.net[0].W.get_value(borrow=True).T,
-             img_shape=(28, 28), tile_shape=(10, 10),
-             tile_spacing=(1, 1)))
-image.save('l0_filters.png')
 
-weight_size = np.floor(np.sqrt(topology[1])).astype(int)
-
-image2 = Image.fromarray(utils.tile_raster_images(X=AE.net[1].W.get_value(borrow=True).T,
-             img_shape=(weight_size, weight_size), tile_shape=(10, 10),
-             tile_spacing=(1, 1)))
-image2.save('l1_filters.png')
 
 
 

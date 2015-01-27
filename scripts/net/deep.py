@@ -63,15 +63,15 @@ class Deep(object):
         :param input_bias: NOT FINISHED
         
         '''
-        self.topology = topology
+        self.topology       = topology
         self.nonlinearities = nonlinearities
-        self.layer_types = layer_types
-        self.device = device
+        self.layer_types    = layer_types
+        self.device         = device
         self.regularisation = regularisation
-        self.data = data
-        self.pkl_name = pkl_name
-        self.np_rng = np_rng
-        self.theano_rng = theano_rng
+        self.data           = data
+        self.pkl_name       = pkl_name
+        self.np_rng         = np_rng
+        self.theano_rng     = theano_rng
         
         # Check random number generators
         self.init_corrupt()
@@ -101,34 +101,34 @@ class Deep(object):
         for i in np.arange(len(topology)-1):
             # Have ignored input_bias for now
             if i == 0:
-                lyr = Layer(v_n=topology[i],
-                            h_n=topology[i+1],
-                            input=self.x,
-                            layer_type=layer_types[i],
-                            nonlinearity=nonlinearities[i],
-                            h_reg=regularisation[0][0],
-                            W_reg=regularisation[0][1],
-                            np_rng=self.np_rng,
-                            theano_rng=self.theano_rng,
-                            W=None,
-                            b=None,
-                            b2=None,
-                            mask=None)
+                lyr = Layer(v_n         = topology[i],
+                            h_n         = topology[i+1],
+                            input       = self.x,
+                            layer_type  = layer_types[i],
+                            nonlinearity= nonlinearities[i],
+                            h_reg       = regularisation[0][0],
+                            W_reg       = regularisation[0][1],
+                            np_rng      = self.np_rng,
+                            theano_rng  = self.theano_rng,
+                            W           = None,
+                            b           = None,
+                            b2          = None,
+                            mask        = None)
                 self.params.extend(lyr.params)
             else:
-                lyr = Layer(v_n=topology[i],
-                            h_n=topology[i+1],
-                            input=self.net[i-1].output,
-                            layer_type=layer_types[i],
-                            nonlinearity=nonlinearities[i],
-                            h_reg=regularisation[i][0],
-                            W_reg=regularisation[i][1],
-                            np_rng=self.np_rng,
-                            theano_rng=self.theano_rng,
-                            W=None,
-                            b=None,
-                            b2=None,
-                            mask=None)
+                lyr = Layer(v_n         = topology[i],
+                            h_n         = topology[i+1],
+                            input       = self.net[i-1].output,
+                            layer_type  = layer_types[i],
+                            nonlinearity= nonlinearities[i],
+                            h_reg       = regularisation[i][0],
+                            W_reg       = regularisation[i][1],
+                            np_rng      = self.np_rng,
+                            theano_rng  = self.theano_rng,
+                            W           = None,
+                            b           = None,
+                            b2          = None,
+                            mask        = None)
                 self.params.extend(lyr.params)
             self.net.append(lyr)
 
@@ -140,10 +140,33 @@ class Deep(object):
     def init_corrupt(self):
         # Set up random number generators on CPU and GPU
         if self.np_rng is None:
-            self.np_rng = np.random.RandomState(123)
+            self.np_rng     = np.random.RandomState(123)
             
         if self.theano_rng is None:
             self.theano_rng = RandomStreams(self.np_rng.randint(2 ** 30))
+            
+            
+    def init_random_numbers(self, mode, shape):
+        """
+        Despite all the lovely things about theano the random number generation
+        is one of frustrating sticking points. Not only are they harder to use
+        but they are also very buggy. It appears that we need to create a numpy
+        rng object and pass that through to a theano shared variable, which will
+        presumeably be shipped to the GPU during graph construction. The various
+        rng objects supplied by thenano run at speeds differing by orders of magnitude
+        so the solution found here is really just an empirical hack to speed things.
+        """
+        if (mode == 'bernoulli'):
+            self.rng    = theano.shared(np.asarray(self.np_rng.randint(0,2,shape)), theano.config.floatX).astype(theano.config.floatX)
+        elif (mode == 'salt_and_pepper'):
+            self.rnga   = theano.shared(np.asarray(self.np_rng.random_sample(shape)), theano.config.floatX).astype(theano.config.floatX)
+            self.rngb   = theano.shared(np.asarray(self.np_rng.random_sample(shape)), theano.config.floatX).astype(theano.config.floatX)
+        elif mode == 'gaussian':
+            self.rng    = theano.shared(np.asarray(self.np_rng.randn(shape)), theano.config.floatX).astype(theano.config.floatX)
+        else:
+            print('Invalid noise type for initialisation')
+            sys.exit(1)
+    
         
     
     
@@ -164,12 +187,12 @@ class Deep(object):
                     optimisation_scheme,
                     layer_scheme,
                     n_train_batches,
-                    batch_size=10,
-                    pretrain_learning_rate=0.1,
-                    pretrain_epochs=10,
-                    initialisation_regime='Glorot',
-                    noise_type='mask',
-                    corruption_level=0.1
+                    batch_size              = 10,
+                    pretrain_learning_rate  = 0.1,
+                    pretrain_epochs         = 10,
+                    initialisation_regime   = 'Glorot',
+                    noise_type              = 'mask',
+                    corruption_level        = 0.1
                     ):
         '''
         Run through the layers of the network and load parameters
@@ -209,10 +232,12 @@ class Deep(object):
         for i in np.arange(num_pretrain_layers):
             layer = self.net[i]
             cost, updates = layer.get_cost_updates(learning_rate=layer.pretrain_learning_rate)
+            
             train_layer = theano.function([index],
                 cost,
-                updates=updates,
-                givens = {self.x: self.data.train_set_x[index * layer.batch_size: (index + 1) * layer.batch_size,:]})
+                updates = updates,
+                givens  = {self.x: self.data.train_set_x[index * layer.batch_size: (index + 1) * layer.batch_size,:]})
+            
             pretrain_fns.append(train_layer)
         
         print('Training')    
@@ -273,30 +298,30 @@ class Deep(object):
                                 activation_weight = 0.01,
                                 tau=50,
                                 pkl_rate=50):
-        self.loss_type = loss_type
-        self.optimisation_scheme = optimisation_scheme
-        self.fine_tune_learning_rate = fine_tune_learning_rate
-        self.max_epochs = max_epochs
-        self.patience_increase = patience_increase
-        self.n_train_batches = n_train_batches
-        self.n_valid_batches = n_valid_batches
-        self.batch_size = batch_size
-        self.momentum = momentum
-        self.regularisation_weight = regularisation_weight
-        self.h_track = h_track
-        self.sparsity_target = sparsity_target
-        self.activation_weight = activation_weight
-        self.tau = tau
-        self.pkl_rate = pkl_rate
+        self.loss_type                  = loss_type
+        self.optimisation_scheme        = optimisation_scheme
+        self.fine_tune_learning_rate    = fine_tune_learning_rate
+        self.max_epochs                 = max_epochs
+        self.patience_increase          = patience_increase
+        self.n_train_batches            = n_train_batches
+        self.n_valid_batches            = n_valid_batches
+        self.batch_size                 = batch_size
+        self.momentum                   = momentum
+        self.regularisation_weight      = regularisation_weight
+        self.h_track                    = h_track
+        self.sparsity_target            = sparsity_target
+        self.activation_weight          = activation_weight
+        self.tau                        = tau
+        self.pkl_rate                   = pkl_rate
         
         # Some globally defined variables for synchronous updates
-        self.epoch = 0
-        self.training_size = batch_size*n_train_batches
-        self.num_h = 0
+        self.epoch          = 0
+        self.training_size  = batch_size*n_train_batches
+        self.num_h          = 0
         for i in self.topology:
             self.num_h += i
         self.num_h -= (self.topology[0] + self.topology[-1])
-        self.avg_h = 0.0
+        self.avg_h  = 0.0
     
     
     def unsupervised_fine_tuning(self):
@@ -370,23 +395,24 @@ class Deep(object):
         
         # For now we only use the standard SGD scheme
         z = self.net[-1].output
-        updates = []
+        updates         = []
         self.velocities = []
         for param in self.params:
             self.velocities.append(theano.shared(np.zeros(param.get_value().shape, \
                                                    dtype=theano.config.floatX)))
 
         # LOSS
-        if self.loss_type == 'L2':
+        if self.loss_type   == 'L2':
             L = 0.5*T.sum((z - self.x)**2, axis=1)
         elif self.loss_type == 'xent':
             L = - T.sum(self.x * T.log(z) + (1 - self.x) * T.log(1 - z), axis=1)
+        
         loss = T.mean(L)
         
         # REGULARISATION
-        regularisation = 0
+        regularisation  = 0
         activation_grad = 0
-        current_avg_h = 0
+        current_avg_h   = 0
         for i, layer in enumerate(self.net):
             # Weight decay
             if layer.W_reg == 'L1':
@@ -453,12 +479,13 @@ class Deep(object):
 
 
 
-    def sample_AE(self, seed, num_samples, burn_in, corruption_level):
+    def sample_AE(self, seed, num_samples, burn_in, noise_type, corruption_level):
 
         # Need to store seed device-side for GPU stuff to work and setup the
         # random number generators for MCMC if not already done
         #seed = theano.shared(seed, 'seed')
         self.init_corrupt()
+        self.init_random_numbers(noise_type, ########) NEED TO CREATE TWO, ONE FOR INPUT ONE FOR BREAK
         
         # Define some useful parameters for navigating the broken network
         end_position = len(self.topology)-2
@@ -475,7 +502,7 @@ class Deep(object):
         # Define local corruption process
         index = T.lscalar('index')
         pre_input = T.matrix(name='pre_input', dtype=theano.config.floatX)
-        x_tilde = self.get_corrupt(pre_input, corruption_level)
+        x_tilde = self.get_corrupt(pre_input, noise_type, corruption_level)
         
         # Concatenate the corruption process and encoder
         self.break_network(0, break_position, x_tilde)
@@ -487,7 +514,7 @@ class Deep(object):
         
         # Concatenate the hidden layer sampler and decoder
         break_input = self.part[0][2]   # OP of corrupted encoder
-        h_tilde = self.get_corrupt(break_input, corruption_level)
+        h_tilde = self.get_corrupt(break_input, noise_type, corruption_level)
         self.break_network(break_position+1, end_position, h_tilde)
         # Need to work on a dict for the part labels
         sample_update = (sample, T.set_subtensor(sample[:,:,index+1], self.part[1][2]))
@@ -508,10 +535,17 @@ class Deep(object):
 
         
         
-    def get_corrupt(self, input, corruption_level):
-       """ We use binary erasure noise """
-       return  T.cast(self.theano_rng.binomial(size=input.shape, n=1, p=1 - corruption_level) \
-                      * input, dtype=theano.config.floatX)
+    def get_corrupt(self, input, noise_type, corruption_level):
+        """
+        Corrupt input
+        """
+        if noise_type == "bernoulli":
+            return  self.rng * input
+        elif noise_type == "salt_and_pepper":
+            a = (self.rnga>corruption_level)*1
+            b = (self.rngb>0.5)*1
+            c = T.eq(a,0) * b
+            return (input*a) + c
     
 
 
