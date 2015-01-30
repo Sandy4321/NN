@@ -415,9 +415,10 @@ class Deep(object):
         if self.device == 'DAE':
             self.init_random_numbers(self.noise_type, (self.batch_size, self.topology[0]))
             input = self.get_corrupt(self.x, self.noise_type, self.corruption_level)
+            print('Using fine-tune corruption')
         else:
             input = self.x
-        
+        # So the input is not being corrupted!!!!!
         
         # For now we only use the standard SGD scheme
         z = self.net[-1].output
@@ -429,13 +430,14 @@ class Deep(object):
 
         # LOSS
         if self.loss_type   == 'L2':
-            L = 0.5*T.sum((z - input)**2, axis=1)
+            L = 0.5*T.sum((z - self.x)**2, axis=1)
         elif self.loss_type == 'xent':
-            L = - T.sum(input * T.log(z) + (1 - input) * T.log(1 - z), axis=1)
+            L = - T.sum(self.x * T.log(z) + (1 - self.x) * T.log(1 - z), axis=1)
             #L = T.sum(T.nnet.binary_crossentropy(z, self.x), axis=1)
         
         loss = T.mean(L)
         
+        '''
         # REGULARISATION
         regularisation  = 0
         activation_grad = 0
@@ -461,23 +463,29 @@ class Deep(object):
         else:
             act = 0
         act     = T.cast(act, dtype=theano.config.floatX)
-   
+        '''
         # COST = LOSS + REGULARISATION
-        cost    = loss + (self.regularisation_weight*regularisation/self.training_size)
+        cost    = loss #+ (self.regularisation_weight*regularisation/self.training_size)
         
         # Gradient wrt parameters
         gparams = T.grad(cost, self.params)
-        lr      = learning_rate*self.get_learning_multiplier()
-
+        lr      = learning_rate*self.anneal()
+        
+        '''
         for param, gparam, velocity in zip(self.params, gparams, self.velocities):
             updates.append((velocity, self.momentum*velocity + lr*gparam*(1+act)))
             updates.append((param, param - velocity))
+        '''
+        for param, gparam in zip(self.params, gparams):
+            updates.append((param, param - lr*gparam))
+        
         
         return cost, updates
     
     
     
-    def get_learning_multiplier(self):
+    
+    def anneal(self):
         return self.tau/float(max(self.tau,self.epoch))
 
 

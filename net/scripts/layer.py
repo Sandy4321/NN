@@ -288,12 +288,12 @@ class Layer(object):
                     optimisation_scheme,
                     layer_scheme,
                     n_train_batches,
-                    batch_size=10,
-                    pretrain_learning_rate=0.1,
-                    pretrain_epochs=10,
-                    initialisation_regime='Glorot',
-                    noise_type='bernoulli',
-                    corruption_level=0.1
+                    batch_size              = 10,
+                    pretrain_learning_rate  = 0.1,
+                    pretrain_epochs         = 10,
+                    initialisation_regime   = 'Glorot',
+                    noise_type              = 'bernoulli',
+                    corruption_level        = 0.1
                     ):
         self.loss_type              = loss_type
         self.optimisation_scheme    = optimisation_scheme

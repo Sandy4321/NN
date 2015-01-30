@@ -27,7 +27,7 @@ nonlinearities  = ('tanh','logistic')
 layer_types     = ('DAE','DAE')
 regularisation  = (('None','L2'),('None','L2'))
 device          = 'DAE'
-layer_scheme    ='DAE'
+layer_scheme    = 'DAE'
 
 # IO
 #stream     = open('ZCA_data.pkl','r')
@@ -37,7 +37,7 @@ layer_scheme    ='DAE'
 stream      = open('data.pkl','r')
 dh          = pickle.load(stream)
 stream.close()
-pkl_name    = '../examples/AE1.pkl'
+pkl_name    = '../temp/AE1.pkl'
 
 
 l0_filters = 'l0_filters.png'
@@ -59,13 +59,13 @@ corruption_level                = 0.4
 # Pretrain
 pretrain_optimisation_scheme    = 'SDG'
 pretrain_loss_type              = 'AE_xent'
-pretrain_learning_rate          = 0.015062389723830663
-pretrain_epochs                 = 0  #4
+pretrain_learning_rate          = 0.015
+pretrain_epochs                 = 2  #4
 
 #Fine tune
 fine_tune_optimisation_scheme   = 'SDG'
 fine_tune_loss_type             = 'xent'
-fine_tune_learning_rate         = 10 #0.06603559201252239 
+fine_tune_learning_rate         = 0.015
 tau                             = 1  #33   
 momentum                        = 0. #0.7893854999695049
 regularisation_weight           = 0. #9.4839854289419e-06
@@ -73,7 +73,7 @@ h_track                         = 0. #0.879630813575219
 sparsity_target                 = 0. #0.16451965545002675
 activation_weight               = 0. #2.3836078880048033e-06
 patience_increase               = 2.0
-max_epochs                      = 200
+max_epochs                      = 200 - pretrain_epochs
 
 
 ### 2 LOAD PARAMETER VALUES ###

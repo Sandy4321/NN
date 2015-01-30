@@ -26,7 +26,7 @@ stream.close()
 
 # Unpickle machine
 print('Unpickling machine')
-stream = open('examples/AE1.pkl','r')
+stream = open('../temp/AE2.pkl','r')
 AE = pickle.load(stream)
 AE.data = dh
 AE.data.get_corrupt('salt_and_pepper', 0.4)
@@ -38,7 +38,7 @@ print('Visualising weights')
 image = Image.fromarray(utils.tile_raster_images(X=AE.net[0].W.get_value().T,
              img_shape=(28, 28), tile_shape=(10, 10),
              tile_spacing=(1, 1)))
-image.save('l0_filters.png')
+image.save('../temp/l0_filters.png')
 
 #----------------------------------------------------------------------
 # Denoising passes
@@ -53,14 +53,14 @@ AE_out = theano.function([index],
 image = Image.fromarray(utils.tile_raster_images(X=AE_out(32),
              img_shape=(28,28), tile_shape=(10, 10),
              tile_spacing=(1, 1)))
-image.save('denoise.png')
+image.save('../temp/denoise.png')
 
 # Print input
 img = AE.data.snp_set_x.get_value()[32:133,:]
 image = Image.fromarray(utils.tile_raster_images(X=img,
              img_shape=(28,28), tile_shape=(10, 10),
              tile_spacing=(1, 1)))
-image.save('original.png')
+image.save('../temp/original.png')
 
 
 
@@ -94,7 +94,7 @@ img = fn(32)
 image = Image.fromarray(utils.tile_raster_images(X=img,
              img_shape=(28,28), tile_shape=(10, 10),
              tile_spacing=(1, 1)))
-image.save('get_corrt.png')
+image.save('../temp/get_corrt.png')
 
 
 

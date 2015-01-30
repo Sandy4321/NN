@@ -24,7 +24,7 @@ dh = Data_handling()
 dh.load_data('./data/mnist.pkl.gz')
 # Unpickle machine
 print('Unpickling machine')
-stream = open('AE_hyp/hyp123.pkl','r')
+stream = open('../temp/AE.pkl','r')
 AE = pickle.load(stream)
 AE.data = dh
 
