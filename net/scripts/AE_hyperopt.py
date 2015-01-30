@@ -68,7 +68,7 @@ def objective(args):
         pretrain_optimisation_scheme='SDG'
         pretrain_loss_type          = 'AE_xent'
         noise_type                  = 'salt_and_pepper'
-        corruption_level            = 0.5
+        corruption_level            = 0.4
         
         pretrain_learning_rate  = pretrain_learning_rate
         pretrain_epochs         = np.int_(pretrain_epochs)

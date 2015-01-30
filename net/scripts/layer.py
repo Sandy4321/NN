@@ -330,7 +330,7 @@ class Layer(object):
             z = self.get_dec(y)
             
             # Define loss
-            if self.loss_type=="AE_SE":
+            if self.loss_type=="L2":
                 L = 0.5*T.sum((z - self.x)**2, axis=1)
             elif self.loss_type=="AE_xent":
                 L = - T.sum(self.x * T.log(z) + (1 - self.x) * T.log(1 - z), axis=1)

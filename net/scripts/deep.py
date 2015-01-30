@@ -414,11 +414,10 @@ class Deep(object):
         ### DEFINE COST FUNCTIONS AND UPDATES ###
         if self.device == 'DAE':
             self.init_random_numbers(self.noise_type, (self.batch_size, self.topology[0]))
-            input = self.get_corrupt(self.x, self.noise_type, self.corruption_level)
+            # Define input corruption process and concatenate
+            x_tilde = self.get_corrupt(self.x, self.noise_type, self.corruption_level)
+            self.break_network(0, self.num_layers-1, x_tilde)
             print('Using fine-tune corruption')
-        else:
-            input = self.x
-        # So the input is not being corrupted!!!!!
         
         # For now we only use the standard SGD scheme
         z = self.net[-1].output
@@ -437,7 +436,7 @@ class Deep(object):
         
         loss = T.mean(L)
         
-        '''
+        
         # REGULARISATION
         regularisation  = 0
         activation_grad = 0
@@ -463,22 +462,18 @@ class Deep(object):
         else:
             act = 0
         act     = T.cast(act, dtype=theano.config.floatX)
-        '''
+        
         # COST = LOSS + REGULARISATION
-        cost    = loss #+ (self.regularisation_weight*regularisation/self.training_size)
+        cost    = loss + (self.regularisation_weight*regularisation/self.training_size)
         
         # Gradient wrt parameters
         gparams = T.grad(cost, self.params)
         lr      = learning_rate*self.anneal()
         
-        '''
+        
         for param, gparam, velocity in zip(self.params, gparams, self.velocities):
             updates.append((velocity, self.momentum*velocity + lr*gparam*(1+act)))
             updates.append((param, param - velocity))
-        '''
-        for param, gparam in zip(self.params, gparams):
-            updates.append((param, param - lr*gparam))
-        
         
         return cost, updates
     
@@ -514,7 +509,7 @@ class Deep(object):
 
 
 
-    def sample_AE(self, seed, num_samples, burn_in, noise_type, corruption_level):
+    def sample_AE(self, seed, num_samples, noise_type, corruption_level):
 
         # Need to store seed device-side for GPU stuff to work and setup the
         # random number generators for MCMC if not already done
@@ -527,11 +522,10 @@ class Deep(object):
         end_position    = self.num_layers - 1
         #break_position= (end_position + 1)/2 - 1
         break_position  = end_position
-        total_iter      = num_samples + burn_in
         
         # Setting up the iterable sampling data structure
         seed_shape      = seed.shape
-        seed_shape     += (total_iter+1,)    
+        seed_shape     += (num_samples+1,)    
         sample          = np.zeros(seed_shape, dtype=theano.config.floatX)
         sample[:,:,0]   = seed
         sample          = theano.shared(np.asarray(sample, dtype=theano.config.floatX))
@@ -544,15 +538,6 @@ class Deep(object):
         # Concatenate the corruption process and encoder
         self.break_network(0, break_position, x_tilde)
         
-        '''
-        # Concatenate the hidden layer sampler and decoder
-        break_input     = self.part[0][2]   # OP of corrupted encoder
-        self.init_random_numbers2(noise_type, (10, 2000))
-        # IS THIS EVEN NECESSARY
-        h_tilde         = self.get_corrupt2(break_input, noise_type, 0) 
-        #h_tilde        = break_input
-        self.break_network(break_position+1, end_position, h_tilde)
-        '''
         # Need to work on a dict for the part labels
         sample_update   = (sample, T.set_subtensor(sample[:,:,index+1], self.part[0][2]))
         
@@ -562,7 +547,7 @@ class Deep(object):
             updates     = [sample_update])
 
         
-        for i in xrange(total_iter):
+        for i in xrange(num_samples):
             decrupt(i)
         print('Sampling complete')
         

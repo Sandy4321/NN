@@ -59,13 +59,13 @@ corruption_level                = 0.4
 # Pretrain
 pretrain_optimisation_scheme    = 'SDG'
 pretrain_loss_type              = 'AE_xent'
-pretrain_learning_rate          = 0.015
+pretrain_learning_rate          = 1.0
 pretrain_epochs                 = 2  #4
 
 #Fine tune
 fine_tune_optimisation_scheme   = 'SDG'
-fine_tune_loss_type             = 'xent'
-fine_tune_learning_rate         = 0.015
+fine_tune_loss_type             = 'L2'
+fine_tune_learning_rate         = 1.0
 tau                             = 1  #33   
 momentum                        = 0. #0.7893854999695049
 regularisation_weight           = 0. #9.4839854289419e-06

@@ -21,17 +21,15 @@ import sys
 
 # Load dataset
 dh = Data_handling()
-dh.load_data('./data/mnist.pkl.gz')
+dh.load_data('../data/mnist.pkl.gz')
 # Unpickle machine
 print('Unpickling machine')
-stream = open('../temp/AE.pkl','r')
+stream = open('../temp/AE1.pkl','r')
 AE = pickle.load(stream)
 AE.data = dh
 
-burn_in         = 50
-num_samples     = 250
+num_samples     = 300
 corruption_level= 0.1
-total_iter      = burn_in+num_samples
 vector_length   = 28*28
 num_to_print    = 30
 stride          = 10
@@ -41,13 +39,13 @@ noise_type      = 'salt_and_pepper'
 start_point     = 30
 seed            = np.asarray(dh.test_set_x.get_value()[start_point:start_point+batch_size,:], dtype=theano.config.floatX)
 
-if num_to_print*stride > burn_in+num_samples+1:
+if num_to_print*stride > num_samples+1:
     print('Sample range out of bounds')
     sys.exit(1)
 
 print('Sampling')
 
-AE_out = AE.sample_AE(seed, num_samples, burn_in, noise_type, corruption_level)
+AE_out = AE.sample_AE(seed, num_samples, noise_type, corruption_level)
 
 print('Reshaping')
 
@@ -61,7 +59,7 @@ for i in xrange(batch_size):
 image = Image.fromarray(utils.tile_raster_images(X=img,
              img_shape=(28,28), tile_shape=(batch_size, num_to_print),
              tile_spacing=(1, 1)))
-image.save('sample_out.png')
+image.save('../temp/sample_out.png')
 
 
 
