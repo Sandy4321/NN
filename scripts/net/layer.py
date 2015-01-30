@@ -186,7 +186,7 @@ class Layer(object):
     
     def init_random_numbers(self, mode, shape):
         """
-        DEepite all the lovely things about theano the random number generation
+        Despite all the lovely things about theano the random number generation
         is one of frustrating sticking points. Not only are they harder to use
         but they are also very buggy. It appears that we need to create a numpy
         rng object and pass that through to a theano shared variable, which will
@@ -334,6 +334,7 @@ class Layer(object):
                 L = 0.5*T.sum((z - self.x)**2, axis=1)
             elif self.loss_type=="AE_xent":
                 L = - T.sum(self.x * T.log(z) + (1 - self.x) * T.log(1 - z), axis=1)
+                #L = T.sum(T.nnet.binary_crossentropy(z, self.x), axis=1)
             else:
                 print 'Layer loss type not recognised'
                 sys.exit(1)

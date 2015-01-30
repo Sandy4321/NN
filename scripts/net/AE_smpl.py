@@ -22,24 +22,24 @@ import sys
 # Load dataset
 dh = Data_handling()
 dh.load_data('./data/mnist.pkl.gz')
-#dh.get_corrupt(corruption_level=0.1)
 # Unpickle machine
 print('Unpickling machine')
-stream = open('AE_hyp/hyp23.pkl','r')
+stream = open('AE_hyp/hyp123.pkl','r')
 AE = pickle.load(stream)
 AE.data = dh
 
-burn_in = 50
-num_samples = 250
-corruption_level = 0.03
-total_iter = burn_in+num_samples
-vector_length = 28*28
-num_to_print = 30
-stride = 10
-batch_size = 10
+burn_in         = 50
+num_samples     = 250
+corruption_level= 0.1
+total_iter      = burn_in+num_samples
+vector_length   = 28*28
+num_to_print    = 30
+stride          = 10
+batch_size      = 10
+noise_type      = 'salt_and_pepper'
 
-start_point = 340
-seed = np.asarray(dh.test_set_x.get_value()[start_point:start_point+batch_size,:], dtype=theano.config.floatX)
+start_point     = 30
+seed            = np.asarray(dh.test_set_x.get_value()[start_point:start_point+batch_size,:], dtype=theano.config.floatX)
 
 if num_to_print*stride > burn_in+num_samples+1:
     print('Sample range out of bounds')

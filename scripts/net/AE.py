@@ -37,7 +37,7 @@ layer_scheme='DAE'
 stream = open('data.pkl','r')
 dh = pickle.load(stream)
 stream.close()
-pkl_name = 'examples/AE2.pkl'
+pkl_name = 'examples/AE1.pkl'
 
 
 l0_filters = 'l0_filters.png'
@@ -55,25 +55,25 @@ n_train_batches = training_size/batch_size
 n_valid_batches = dh.valid_set_x.get_value().shape[0]/batch_size
 
 # Pretrain
-pretrain_optimisation_scheme='SDG'
-pretrain_loss_type = 'AE_xent'
-pretrain_learning_rate = 0.015062389723830663
-pretrain_epochs = 40
-noise_type = 'salt_and_pepper'
-corruption_level = 0.5
+pretrain_optimisation_scheme    ='SDG'
+pretrain_loss_type              = 'AE_xent'
+pretrain_learning_rate          = 0.015062389723830663
+pretrain_epochs                 = 40
+noise_type                      = 'salt_and_pepper'
+corruption_level                = 0.5
 
 #Fine tune
-fine_tune_optimisation_scheme='SDG'
-fine_tune_loss_type = 'xent'
-fine_tune_learning_rate = 0.06603559201252239 
-tau = 33   
-momentum = 0.7893854999695049
-regularisation_weight = 9.4839854289419e-06
-h_track = 0.879630813575219
-sparsity_target = 0.16451965545002675
-activation_weight = 2.3836078880048033e-06
-patience_increase = 2.0
-max_epochs = 200
+fine_tune_optimisation_scheme   ='SDG'
+fine_tune_loss_type             = 'xent'
+fine_tune_learning_rate         = 0.06603559201252239 
+tau                             = 33   
+momentum                        = 0.7893854999695049
+regularisation_weight           = 9.4839854289419e-06
+h_track                         = 0.879630813575219
+sparsity_target                 = 0.16451965545002675
+activation_weight               = 2.3836078880048033e-06
+patience_increase               = 2.0
+max_epochs                      = 200
 
 
 ### 2 LOAD PARAMETER VALUES ###

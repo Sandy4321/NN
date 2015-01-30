@@ -19,17 +19,17 @@ import matplotlib.pyplot as plt
 
 
 # Load dataset
-dh = Data_handling()
-dh.load_data('./data/mnist.pkl.gz')
-dh.get_corrupt(corruption_level=0.2)
-
+stream = open('data.pkl','r')
+dh = pickle.load(stream)
+stream.close()
 
 
 # Unpickle machine
 print('Unpickling machine')
-stream = open('AE_hyp/hyp23.pkl','r')
+stream = open('AE_hyp/hyp123.pkl','r')
 AE = pickle.load(stream)
 AE.data = dh
+AE.data.get_corrupt('salt_and_pepper', 0.4)
 
 #----------------------------------------------------------------------
 # WEIGHTS
@@ -47,23 +47,20 @@ print('Bottom-up pass')
 index = T.lscalar()  # index to a [mini]batch
 AE_out = theano.function([index],
                     AE.output,
-                    givens = {AE.x: AE.data.corrupt_set_x[index: (index + 100)]})
+                    givens = {AE.x: AE.data.snp_set_x[index: (index + 100)]})
 
+# Print output
 image = Image.fromarray(utils.tile_raster_images(X=AE_out(32),
              img_shape=(28,28), tile_shape=(10, 10),
              tile_spacing=(1, 1)))
 image.save('denoise.png')
 
-img = dh.corrupt_set_x.get_value()[32:133,:]
+# Print input
+img = AE.data.snp_set_x.get_value()[32:133,:]
 image = Image.fromarray(utils.tile_raster_images(X=img,
              img_shape=(28,28), tile_shape=(10, 10),
              tile_spacing=(1, 1)))
 image.save('original.png')
-
-AE_out2 = theano.function([],
-                    AE.output,
-                    givens = {AE.x: AE.data.corrupt_set_x})
-
 
 
 
@@ -84,6 +81,20 @@ for i in xrange(AE.num_layers/2):
 
 plt.show()
 
+
+# does the layer corrupt work?
+ip = T.matrix('ip')
+corr = AE.net[0].get_corrupt(ip,0.2)
+
+fn = theano.function([index],
+                    corr,
+                    givens = {ip: AE.data.test_set_x[index:(index+100), :]})
+
+img = fn(32)
+image = Image.fromarray(utils.tile_raster_images(X=img,
+             img_shape=(28,28), tile_shape=(10, 10),
+             tile_spacing=(1, 1)))
+image.save('get_corrt.png')
 
 
 

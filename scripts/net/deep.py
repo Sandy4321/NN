@@ -166,6 +166,22 @@ class Deep(object):
         else:
             print('Invalid noise type for initialisation')
             sys.exit(1)
+            
+    
+    def init_random_numbers2(self, mode, shape):
+        """
+        Need to wrapp all these up into a single list
+        """
+        if (mode == 'bernoulli'):
+            self.rng2    = theano.shared(np.asarray(self.np_rng.randint(0,2,shape)), theano.config.floatX).astype(theano.config.floatX)
+        elif (mode == 'salt_and_pepper'):
+            self.rng2a   = theano.shared(np.asarray(self.np_rng.random_sample(shape)), theano.config.floatX).astype(theano.config.floatX)
+            self.rng2b   = theano.shared(np.asarray(self.np_rng.random_sample(shape)), theano.config.floatX).astype(theano.config.floatX)
+        elif mode == 'gaussian':
+            self.rng2    = theano.shared(np.asarray(self.np_rng.randn(shape)), theano.config.floatX).astype(theano.config.floatX)
+        else:
+            print('Invalid noise type for initialisation')
+            sys.exit(1)
     
         
     
@@ -221,7 +237,7 @@ class Deep(object):
         #x = T.matrix(name='x', dtype=theano.config.floatX)
         index = T.lscalar()  # index to a [mini]batch
         
-        start_time = time.clock()
+        start_time  = time.clock()
         num_pretrain_layers = self.num_layers
         
         if (self.device == 'AE') or (self.device == 'DAE'):
@@ -230,13 +246,13 @@ class Deep(object):
         print('Constructing expression graph for layers')
         pretrain_fns = []
         for i in np.arange(num_pretrain_layers):
-            layer = self.net[i]
-            cost, updates = layer.get_cost_updates(learning_rate=layer.pretrain_learning_rate)
+            layer           = self.net[i]
+            cost, updates   = layer.get_cost_updates(learning_rate=layer.pretrain_learning_rate)
             
-            train_layer = theano.function([index],
+            train_layer     = theano.function([index],
                 cost,
-                updates = updates,
-                givens  = {self.x: self.data.train_set_x[index * layer.batch_size: (index + 1) * layer.batch_size,:]})
+                updates     = updates,
+                givens      = {self.x: self.data.train_set_x[index * layer.batch_size: (index + 1) * layer.batch_size,:]})
             
             pretrain_fns.append(train_layer)
         
@@ -406,6 +422,7 @@ class Deep(object):
             L = 0.5*T.sum((z - self.x)**2, axis=1)
         elif self.loss_type == 'xent':
             L = - T.sum(self.x * T.log(z) + (1 - self.x) * T.log(1 - z), axis=1)
+            #L = T.sum(T.nnet.binary_crossentropy(z, self.x), axis=1)
         
         loss = T.mean(L)
         
@@ -485,44 +502,46 @@ class Deep(object):
         # random number generators for MCMC if not already done
         #seed = theano.shared(seed, 'seed')
         self.init_corrupt()
-        self.init_random_numbers(noise_type, ########) NEED TO CREATE TWO, ONE FOR INPUT ONE FOR BREAK
+        self.init_random_numbers(noise_type, seed.shape)
+       
         
         # Define some useful parameters for navigating the broken network
-        end_position = len(self.topology)-2
-        break_position = (end_position + 1)/2 - 1
-        total_iter = num_samples + burn_in
+        end_position    = self.num_layers - 1
+        #break_position= (end_position + 1)/2 - 1
+        break_position  = end_position
+        total_iter      = num_samples + burn_in
         
         # Setting up the iterable sampling data structure
-        seed_shape = seed.shape
-        seed_shape += (total_iter+1,)     # NEED TO CHECK LATER THAT I HAVE THE ORIENTATION CORRECT
-        sample = np.zeros(seed_shape, dtype=theano.config.floatX)
-        sample[:,:,0] = seed
-        sample = theano.shared(np.asarray(sample, dtype=theano.config.floatX))
+        seed_shape      = seed.shape
+        seed_shape     += (total_iter+1,)    
+        sample          = np.zeros(seed_shape, dtype=theano.config.floatX)
+        sample[:,:,0]   = seed
+        sample          = theano.shared(np.asarray(sample, dtype=theano.config.floatX))
 
         # Define local corruption process
         index = T.lscalar('index')
-        pre_input = T.matrix(name='pre_input', dtype=theano.config.floatX)
-        x_tilde = self.get_corrupt(pre_input, noise_type, corruption_level)
+        pre_input       = T.matrix(name='pre_input', dtype=theano.config.floatX)
+        x_tilde         = self.get_corrupt(pre_input, noise_type, corruption_level)
         
         # Concatenate the corruption process and encoder
         self.break_network(0, break_position, x_tilde)
-        # CONSIDER USING A DICT
-        encrupt = theano.function([index],
-            sb.gpu_from_host(self.part[0][2]),
-            givens = {pre_input: sample[:,:,index]})
-
         
+        '''
         # Concatenate the hidden layer sampler and decoder
-        break_input = self.part[0][2]   # OP of corrupted encoder
-        h_tilde = self.get_corrupt(break_input, noise_type, corruption_level)
+        break_input     = self.part[0][2]   # OP of corrupted encoder
+        self.init_random_numbers2(noise_type, (10, 2000))
+        # IS THIS EVEN NECESSARY
+        h_tilde         = self.get_corrupt2(break_input, noise_type, 0) 
+        #h_tilde         = break_input
         self.break_network(break_position+1, end_position, h_tilde)
+        '''
         # Need to work on a dict for the part labels
-        sample_update = (sample, T.set_subtensor(sample[:,:,index+1], self.part[1][2]))
+        sample_update   = (sample, T.set_subtensor(sample[:,:,index+1], self.part[0][2]))
         
         decrupt = theano.function([index],
-            (self.part[1][2]),
-            givens = {pre_input: sample[:,:,index]},
-            updates = [sample_update])
+            sb.gpu_from_host(self.part[0][2]),
+            givens      = {pre_input: sample[:,:,index]},
+            updates     = [sample_update])
 
         
         for i in xrange(total_iter):
@@ -532,8 +551,6 @@ class Deep(object):
         return sample.get_value()           
         
         
-
-        
         
     def get_corrupt(self, input, noise_type, corruption_level):
         """
@@ -542,10 +559,27 @@ class Deep(object):
         if noise_type == "bernoulli":
             return  self.rng * input
         elif noise_type == "salt_and_pepper":
-            a = (self.rnga>corruption_level)*1
-            b = (self.rngb>0.5)*1
+            a = (self.rnga>corruption_level)*1.0
+            b = (self.rngb>0.5)*1.0
             c = T.eq(a,0) * b
             return (input*a) + c
+        elif noise_type == "gaussian":
+            return self.rng * input
+        
+    
+    def get_corrupt2(self, input, noise_type, corruption_level):
+        """
+        Corrupt input
+        """
+        if noise_type == "bernoulli":
+            return  self.rng2 * input
+        elif noise_type == "salt_and_pepper":
+            a = (self.rng2a>corruption_level)*1.0
+            b = (self.rng2b>0.5)*1.0
+            c = T.eq(a,0) * b
+            return (input*a) + (2*c - 1.0)
+        elif noise_type == "gaussian":
+            return self.rng2 * input
     
 
 
@@ -573,34 +607,34 @@ class Deep(object):
             position = position_in + i
             # Have ignored extra bells and whistles for now
             if i == 0:
-                lyr = Layer(v_n=self.topology[position],
-                            h_n=self.topology[position+1],
-                            input=input,
-                            layer_type=self.layer_types[position],
-                            nonlinearity=self.nonlinearities[position],
-                            h_reg=self.regularisation[position][0],
-                            W_reg=self.regularisation[position][1],
-                            np_rng=self.np_rng,
-                            theano_rng=self.theano_rng,
-                            W=self.net[position].W,
-                            b=self.net[position].b,
-                            b2=None,
-                            mask=None)
+                lyr = Layer(v_n         = self.topology[position],
+                            h_n         = self.topology[position+1],
+                            input       = input,
+                            layer_type  = self.layer_types[position],
+                            nonlinearity= self.nonlinearities[position],
+                            h_reg       = self.regularisation[position][0],
+                            W_reg       = self.regularisation[position][1],
+                            np_rng      = self.np_rng,
+                            theano_rng  = self.theano_rng,
+                            W           = self.net[position].W,
+                            b           = self.net[position].b,
+                            b2          = None,
+                            mask        = None)
                 params.extend(lyr.params)
             else:
-                lyr = Layer(v_n=self.topology[position],
-                            h_n=self.topology[position+1],
-                            input=net[i-1].output,
-                            layer_type=self.layer_types[position],
-                            nonlinearity=self.nonlinearities[position],
-                            h_reg=self.regularisation[position][0],
-                            W_reg=self.regularisation[position][1],
-                            np_rng=self.np_rng,
-                            theano_rng=self.theano_rng,
-                            W=self.net[position].W,
-                            b=self.net[position].b,
-                            b2=None,
-                            mask=None)
+                lyr = Layer(v_n         = self.topology[position],
+                            h_n         = self.topology[position+1],
+                            input       = net[i-1].output,
+                            layer_type  = self.layer_types[position],
+                            nonlinearity= self.nonlinearities[position],
+                            h_reg       = self.regularisation[position][0],
+                            W_reg       = self.regularisation[position][1],
+                            np_rng      = self.np_rng,
+                            theano_rng  = self.theano_rng,
+                            W           = self.net[position].W,
+                            b           = self.net[position].b,
+                            b2          = None,
+                            mask        = None)
                 params.extend(lyr.params)
             net.append(lyr)
 
