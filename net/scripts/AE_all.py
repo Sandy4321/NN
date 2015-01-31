@@ -25,7 +25,7 @@ stream = open('data.pkl','r')
 dh = pickle.load(stream)
 stream.close()
 
-dir = 'AE_hyp'
+dir = '../AE_hyp'
 hyp = '/hyp'
 i = 0
 pkl = '.pkl'
@@ -45,9 +45,10 @@ while os.path.isfile(file_name):
     # Cost on unseen data
     z = theano.function([],
         AE.output,
-        givens = {AE.x: AE.data.test_set_x})
+        givens = {AE.x: AE.data.snp_set_x})
     x = AE.data.test_set_x.get_value()
-    cost = - np.mean(np.sum(x * np.log(z()+1e-6) + (1 - x) * np.log(1 - z()+1e-6), axis=1))
+    #cost = - np.mean(np.sum(x * np.log(z()+1e-9) + (1 - x) * np.log(1 - z()+1e-9), axis=1))
+    cost = np.mean(0.5*np.sum((z() - x)**2, axis=1))
     
     print('Cost = %g, ' % cost)
     

@@ -18,6 +18,7 @@ from theano.tensor.shared_randomstreams import RandomStreams
 import theano.sandbox.cuda.basic_ops as sb
 import time
 import pickle
+import sys
 
 class DivergenceError(Exception): pass
 
@@ -32,9 +33,9 @@ class Deep(object):
         regularisation,
         data,
         pkl_name,
-        np_rng=None,
-        theano_rng=None,
-        input_bias=None):
+        np_rng		= None,
+        theano_rng	= None,
+        input_bias	= None):
         
 
         '''
@@ -59,6 +60,12 @@ class Deep(object):
         :type pkl_name: string
         :param pkl_name: name of file to pickle data to
         
+	:type np_rng: numpy random number generator
+	:param np_rng: the numpy random number generator object for DAES etc.
+
+	:type theano_rng: theano random number generator 
+	:param theano_rng: theano random number generator object for DAES etc
+ 
         :type input_bias: boolean
         :param input_bias: NOT FINISHED
         
@@ -157,12 +164,16 @@ class Deep(object):
         so the solution found here is really just an empirical hack to speed things.
         """
         if (mode == 'bernoulli'):
-            self.rng    = theano.shared(np.asarray(self.np_rng.randint(0,2,shape)), theano.config.floatX).astype(theano.config.floatX)
+            self.rng    = theano.shared(np.asarray(self.np_rng.randint(0,2,shape)), \
+                                        theano.config.floatX).astype(theano.config.floatX)
         elif (mode == 'salt_and_pepper'):
-            self.rnga   = theano.shared(np.asarray(self.np_rng.random_sample(shape)), theano.config.floatX).astype(theano.config.floatX)
-            self.rngb   = theano.shared(np.asarray(self.np_rng.random_sample(shape)), theano.config.floatX).astype(theano.config.floatX)
+            self.rnga   = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
+                                        theano.config.floatX).astype(theano.config.floatX)
+            self.rngb   = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
+                                        theano.config.floatX).astype(theano.config.floatX)
         elif mode == 'gaussian':
-            self.rng    = theano.shared(np.asarray(self.np_rng.randn(shape)), theano.config.floatX).astype(theano.config.floatX)
+            self.rng    = theano.shared(np.asarray(self.np_rng.randn(shape)), \
+                                        theano.config.floatX).astype(theano.config.floatX)
         else:
             print('Invalid noise type for initialisation')
             sys.exit(1)
@@ -173,12 +184,16 @@ class Deep(object):
         Need to wrapp all these up into a single list
         """
         if (mode == 'bernoulli'):
-            self.rng2    = theano.shared(np.asarray(self.np_rng.randint(0,2,shape)), theano.config.floatX).astype(theano.config.floatX)
+            self.rng2    = theano.shared(np.asarray(self.np_rng.randint(0,2,shape)), \
+                                         theano.config.floatX).astype(theano.config.floatX)
         elif (mode == 'salt_and_pepper'):
-            self.rng2a   = theano.shared(np.asarray(self.np_rng.random_sample(shape)), theano.config.floatX).astype(theano.config.floatX)
-            self.rng2b   = theano.shared(np.asarray(self.np_rng.random_sample(shape)), theano.config.floatX).astype(theano.config.floatX)
+            self.rng2a   = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
+                                         theano.config.floatX).astype(theano.config.floatX)
+            self.rng2b   = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
+                                         theano.config.floatX).astype(theano.config.floatX)
         elif mode == 'gaussian':
-            self.rng2    = theano.shared(np.asarray(self.np_rng.randn(shape)), theano.config.floatX).astype(theano.config.floatX)
+            self.rng2    = theano.shared(np.asarray(self.np_rng.randn(shape)), \
+                                         theano.config.floatX).astype(theano.config.floatX)
         else:
             print('Invalid noise type for initialisation')
             sys.exit(1)
@@ -191,7 +206,8 @@ class Deep(object):
         Run through the layers of the network and initialise one by one
         '''
         for layer in self.net:
-            layer.init_weights(initialisation_regime=initialisation_regime, nonlinearity=layer.nonlinearity)
+            layer.init_weights(initialisation_regime=initialisation_regime, \
+                               nonlinearity=layer.nonlinearity)
         
         print('Layers initialised')
 
@@ -264,7 +280,8 @@ class Deep(object):
                 for batch_index in xrange(layer.n_train_batches):
                     c.append(pretrain_fns[i](batch_index))
                 end_time = time.clock()
-                
+               
+		# Compute mean cost, throw an error if weights have diverged 
                 mc = np.mean(c)
                 if np.isnan(mc):
                     print('NaN error')
@@ -303,15 +320,16 @@ class Deep(object):
                                 optimisation_scheme,
                                 fine_tune_learning_rate,
                                 max_epochs,
+                                validation_frequency,
                                 patience_increase,
                                 n_train_batches,
                                 n_valid_batches,
                                 batch_size,
-                                momentum                = 0.0,
-                                regularisation_weight   = 0.01,
+                                momentum		= 0.99, 
+				regularisation_weight   = 1e-6,
                                 h_track                 = 0.995,
                                 sparsity_target         = 0.05,
-                                activation_weight       = 0.01,
+                                activation_weight       = 1e-6, 
                                 tau                     = 50,
                                 pkl_rate                = 50,
                                 noise_type              = 'salt_and_pepper',
@@ -320,6 +338,7 @@ class Deep(object):
         self.optimisation_scheme        = optimisation_scheme
         self.fine_tune_learning_rate    = fine_tune_learning_rate
         self.max_epochs                 = max_epochs
+        self.validation_frequency       = validation_frequency
         self.patience_increase          = patience_increase
         self.n_train_batches            = n_train_batches
         self.n_valid_batches            = n_valid_batches
@@ -354,28 +373,25 @@ class Deep(object):
         
         index = T.lscalar()     # index to a [mini]batch
 
-        self.cost, updates  = self.get_cost_updates(learning_rate=self.fine_tune_learning_rate)
-        train_all           = theano.function([index],
+        self.cost, updates  	= self.get_cost_updates(learning_rate=self.fine_tune_learning_rate)
+        train_all           	= theano.function([index],
             self.cost,
-            updates = updates,
-            givens  = {self.x: self.data.train_set_x[index * self.batch_size: (index + 1) * self.batch_size,:]})
+            updates 		= updates,
+            givens  		= {self.x: self.data.train_set_x[index * self.batch_size: (index + 1) * self.batch_size,:]})
         
         print('Fine_tuning')
-        start_time          = time.clock()
-        best_valid_score    = np.inf
-        patience            = 200
-        done_looping        = False
-        self.best_params    = self.params
+        start_time          	= time.clock()
+        best_valid_score    	= np.inf
+        patience            	= 200
+        done_looping        	= False
+        self.best_params    	= self.params
         
         while (self.epoch < self.max_epochs) and (not done_looping):
             self.epoch = self.epoch + 1
             c = []
             for batch_index in xrange(self.n_train_batches):
                 c.append(train_all(batch_index))
-            # Cross validate
-            valid_score = self.cross_validate()
-            valid_score = np.mean(valid_score)
-            end_time    = time.clock()
+            end_time    = time.clock()         
                             
             mc = np.mean(c)
             if np.isnan(mc):
@@ -388,40 +404,57 @@ class Deep(object):
             print('Training epoch %d, cost %5.3f, elapsed time %5.3f' \
                   % (self.epoch, mc, (end_time - start_time)))
             
-            # In future I wish to leverage the second GPU to perform validation
-            if valid_score < best_valid_score:
-                best_valid_score = valid_score
-                # If we encounter a new best, increase patience
-                patience = max(patience, self.epoch * self.patience_increase)
-                print('     Best validation score: %5.3f, new patience: %d' % (best_valid_score, patience))
-                # And store the state of the system
-                self.best_params = self.params
+            # Cross validate
+            if self.epoch % self.validation_frequency == 0:
+                valid_score = self.cross_validate()
+                valid_score = np.mean(valid_score)
+            
+                # In future I wish to leverage the second GPU to perform validation
+                if valid_score < best_valid_score:
+                    best_valid_score = valid_score
+                    # If we encounter a new best, increase patience
+                    patience = max(patience, self.epoch * self.patience_increase)
+                    print('     Best validation score: %5.3f, new patience: %d' % (best_valid_score, patience))
+                    # And store the state of the system
+                    self.best_params = self.params
                 
             if self.epoch >= patience:
-                done_looping    = True
-                self.params     = self.best_params
-                del self.best_params
-                self.pickle_machine(self.pkl_name)
+                done_looping = True
+                break
                 
             if self.epoch % self.pkl_rate == 0:
                 self.pickle_machine(self.pkl_name)
-
         
+        # Wrap up
+        # Need to detach corruption from input if DAE
+        if self.device == 'DAE':
+            print('Network rebreak')
+            self.break_network(0, self.num_layers-1, self.x)
+            self.output = self.net[-1].output
+            del self.part
+        
+        self.params = self.best_params
+        del self.best_params
+        self.pickle_machine(self.pkl_name)
         
         
     
     def get_cost_updates(self, learning_rate):
         ### DEFINE COST FUNCTIONS AND UPDATES ###
-        if self.device == 'DAE':
+        # First we create a random number generator to corrupt the input, then we
+	# define the corruption process, then we concatenate this process onto the
+	# frontend of the NN. Finally we reference the output of this new NN in z. 
+
+	if self.device == 'DAE':
             self.init_random_numbers(self.noise_type, (self.batch_size, self.topology[0]))
             # Define input corruption process and concatenate
             x_tilde = self.get_corrupt(self.x, self.noise_type, self.corruption_level)
-            self.break_network(0, self.num_layers-1, x_tilde)
+            part_num = self.break_network(0, self.num_layers-1, x_tilde)
             print('Using fine-tune corruption')
         
         # For now we only use the standard SGD scheme
-        z = self.net[-1].output
-        updates         = []
+        z = self.part[part_num][2] 
+	updates         = []
         self.velocities = []
         for param in self.params:
             self.velocities.append(theano.shared(np.zeros(param.get_value().shape, \
@@ -502,7 +535,7 @@ class Deep(object):
         # don't want to resave data
         data_copy = self.data
         self.data = []   
-        pickle.dump(self, stream)
+        pickle.dump(self, stream, pickle.HIGHEST_PROTOCOL)
         
         self.data = data_copy
 
@@ -536,13 +569,13 @@ class Deep(object):
         x_tilde         = self.get_corrupt(pre_input, noise_type, corruption_level)
         
         # Concatenate the corruption process and encoder
-        self.break_network(0, break_position, x_tilde)
+        part_num        = self.break_network(0, break_position, x_tilde)
         
         # Need to work on a dict for the part labels
         sample_update   = (sample, T.set_subtensor(sample[:,:,index+1], self.part[0][2]))
         
         decrupt = theano.function([index],
-            sb.gpu_from_host(self.part[0][2]),
+            sb.gpu_from_host(self.part[part_num][2]),
             givens      = {pre_input: sample[:,:,index]},
             updates     = [sample_update])
 
@@ -589,6 +622,15 @@ class Deep(object):
     def break_network(self, position_in, position_out, input):
         """
         Split the NN into two parts an completely reconstruct expression graphs
+        
+        :type position_in: int
+        :param position_in: input layer
+        
+        :type position_in: int
+        :param position_in: output layer
+        
+        :type input: theano.config.floatX
+        :param input: data to enter network
         """
         
         # We break into an encoder and a decoder. First of all though we
@@ -649,6 +691,8 @@ class Deep(object):
         else:
             self.part = []
             self.part.append((net, params, output))
+        
+        return len(self.part) - 1   # Returns index to part
         
         print('Network partition built')
         

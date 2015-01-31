@@ -24,12 +24,12 @@ dh = Data_handling()
 dh.load_data('../data/mnist.pkl.gz')
 # Unpickle machine
 print('Unpickling machine')
-stream = open('../temp/AE1.pkl','r')
+stream = open('../AE_hyp/hyp23.pkl','r')
 AE = pickle.load(stream)
 AE.data = dh
 
 num_samples     = 300
-corruption_level= 0.1
+corruption_level= 0.2
 vector_length   = 28*28
 num_to_print    = 30
 stride          = 10

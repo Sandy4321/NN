@@ -26,7 +26,7 @@ stream.close()
 
 # Unpickle machine
 print('Unpickling machine')
-stream = open('../temp/AE1.pkl','r')
+stream = open('../AE_hyp/hyp23.pkl','r')
 AE = pickle.load(stream)
 AE.data = dh
 AE.data.get_corrupt('salt_and_pepper', 0.4)
@@ -63,7 +63,7 @@ image = Image.fromarray(utils.tile_raster_images(X=img,
 image.save('../temp/original.png')
 
 
-
+'''
 print('Plotting weights histogram')
 #----------------------------------------------------------------------
 # Weights histograms
@@ -80,7 +80,7 @@ for i in xrange(AE.num_layers/2):
     plt.hist(B, bin_edges)
 
 plt.show()
-
+'''
 
 # does the layer corrupt work?
 ip = T.matrix('ip')

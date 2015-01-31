@@ -18,7 +18,6 @@ import pickle
 
 
 
-
 ### 1 DEFINE PARAMETERS ###
 
 # Network parameters
@@ -59,21 +58,22 @@ corruption_level                = 0.4
 # Pretrain
 pretrain_optimisation_scheme    = 'SDG'
 pretrain_loss_type              = 'AE_xent'
-pretrain_learning_rate          = 1.0
-pretrain_epochs                 = 2  #4
+pretrain_learning_rate          = 0.2
+pretrain_epochs                 = 45  #4
 
 #Fine tune
 fine_tune_optimisation_scheme   = 'SDG'
 fine_tune_loss_type             = 'L2'
-fine_tune_learning_rate         = 1.0
-tau                             = 1  #33   
-momentum                        = 0. #0.7893854999695049
-regularisation_weight           = 0. #9.4839854289419e-06
-h_track                         = 0. #0.879630813575219
-sparsity_target                 = 0. #0.16451965545002675
-activation_weight               = 0. #2.3836078880048033e-06
+fine_tune_learning_rate         = 1.285
+tau                             = 40  #33   
+momentum                        = 0.4 #0.7893854999695049
+regularisation_weight           = 7e-7 #9.4839854289419e-06
+h_track                         = 0.98 #0.879630813575219
+sparsity_target                 = 0.14 #0.16451965545002675
+activation_weight               = 7e-5 #2.3836078880048033e-06
 patience_increase               = 2.0
 max_epochs                      = 200 - pretrain_epochs
+validation_frequency            = 5
 
 
 ### 2 LOAD PARAMETER VALUES ###
@@ -105,6 +105,7 @@ AE.load_fine_tuning_params(fine_tune_loss_type,
                            fine_tune_optimisation_scheme,
                            fine_tune_learning_rate  = fine_tune_learning_rate,
                            max_epochs               = max_epochs,
+                           validation_frequency     = validation_frequency,
                            patience_increase        = patience_increase,
                            n_train_batches          = n_train_batches,
                            n_valid_batches          = n_valid_batches,
@@ -127,17 +128,6 @@ AE.unsupervised_fine_tuning()
 
 
 
-
-
-
-
-
-### WRAP UP AND TEST ###
-
-print('Pickling machine')
-stream = open(pkl_name,'w')
-AE.data = []    # don't want to resave data
-pickle.dump(AE, stream)
 
 
 

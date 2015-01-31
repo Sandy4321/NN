@@ -334,7 +334,6 @@ class Layer(object):
                 L = 0.5*T.sum((z - self.x)**2, axis=1)
             elif self.loss_type=="AE_xent":
                 L = - T.sum(self.x * T.log(z) + (1 - self.x) * T.log(1 - z), axis=1)
-                #L = T.sum(T.nnet.binary_crossentropy(z, self.x), axis=1)
             else:
                 print 'Layer loss type not recognised'
                 sys.exit(1)
