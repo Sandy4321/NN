@@ -18,6 +18,7 @@ import theano.tensor as T
 import theano.tensor.nnet as Tnet
 from theano.tensor.shared_randomstreams import RandomStreams
 import sys
+import matplotlib.pyplot as plt
 
 
 
@@ -168,21 +169,22 @@ class Layer(object):
             W_shape = self.W.get_value(borrow=True, return_internal_type=True).shape
 
             if (nonlinearity == 'tanh') or (nonlinearity == 'tanh_linear'):
-                r = np.sqrt(6.0/(sum(W_shape)))
+                r = np.sqrt(6.0/(np.sum(W_shape)))
             elif (nonlinearity == 'logistic') or (nonlinearity == 'logistic_linear'):
-                r = 4.0*np.sqrt(6.0/(sum(W_shape)))
+                r = 4.0*np.sqrt(6.0/(np.sum(W_shape)))
             elif (nonlinearity == 'linear') or (nonlinearity == 'softplus'):
                 #NEED TO CHANGE THIS
-                r = 4.0*np.sqrt(6.0/(sum(W_shape)))
+                r = 4.0*np.sqrt(6.0/(np.sum(W_shape)))
             else:
                 print 'Invalid nonlinearity to initialise'
                 exit(1)
             
-            np_rng = r*np.random.random_sample(size=W_shape).astype(dtype=theano.config.floatX)
+            np_rng = 2*r*(np.random.random_sample(size=W_shape).astype(dtype=theano.config.floatX)-0.5)
             self.W.set_value(np_rng)
         else:
             print('Invalid initalisation regime')
             sys.exit(1)
+        
     
     def init_random_numbers(self, mode, shape):
         """
@@ -195,12 +197,16 @@ class Layer(object):
         so the solution found here is really just an empirical hack to speed things.
         """
         if (mode == 'bernoulli'):
-            self.rng = theano.shared(np.asarray(self.np_rng.randint(0,2,shape)), theano.config.floatX).astype(theano.config.floatX)
+            self.rng = theano.shared(np.asarray(self.np_rng.randint(0,2,shape)), \
+                                     theano.config.floatX).astype(theano.config.floatX)
         elif (mode == 'salt_and_pepper'):
-            self.rnga = theano.shared(np.asarray(self.np_rng.random_sample(shape)), theano.config.floatX).astype(theano.config.floatX)
-            self.rngb = theano.shared(np.asarray(self.np_rng.random_sample(shape)), theano.config.floatX).astype(theano.config.floatX)
+            self.rnga = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
+                                      theano.config.floatX).astype(theano.config.floatX)
+            self.rngb = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
+                                      theano.config.floatX).astype(theano.config.floatX)
         elif mode == 'gaussian':
-            self.rng = theano.shared(np.asarray(self.np_rng.randn(shape)), theano.config.floatX).astype(theano.config.floatX)
+            self.rng = theano.shared(np.asarray(self.np_rng.randn(shape)), \
+                                     theano.config.floatX).astype(theano.config.floatX)
         else:
             print('Invalid noise type for initialisation')
             sys.exit(1)

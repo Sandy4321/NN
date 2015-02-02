@@ -22,7 +22,7 @@ import pickle
 
 # Network parameters
 topology        = (784, 2000, 784)
-nonlinearities  = ('tanh','logistic')
+nonlinearities  = ('logistic','logistic')
 layer_types     = ('DAE','DAE')
 regularisation  = (('None','L2'),('None','L2'))
 device          = 'DAE'
@@ -57,20 +57,20 @@ corruption_level                = 0.4
 
 # Pretrain
 pretrain_optimisation_scheme    = 'SDG'
-pretrain_loss_type              = 'AE_xent'
-pretrain_learning_rate          = 0.2
-pretrain_epochs                 = 45  #4
+pretrain_loss_type              = 'L2'
+pretrain_learning_rate          = 10.0  #0.2
+pretrain_epochs                 = 1    #4
 
 #Fine tune
 fine_tune_optimisation_scheme   = 'SDG'
 fine_tune_loss_type             = 'L2'
-fine_tune_learning_rate         = 1.285
-tau                             = 40  #33   
-momentum                        = 0.4 #0.7893854999695049
-regularisation_weight           = 7e-7 #9.4839854289419e-06
-h_track                         = 0.98 #0.879630813575219
-sparsity_target                 = 0.14 #0.16451965545002675
-activation_weight               = 7e-5 #2.3836078880048033e-06
+fine_tune_learning_rate         = 10.0    #1.285
+tau                             = 1     #40  #33   
+momentum                        = 0.    #0.4   #0.7893854999695049
+regularisation_weight           = 0.    #7e-7  #9.4839854289419e-06
+h_track                         = 0.    #0.98  #0.879630813575219
+sparsity_target                 = 0.    #0.14  #0.16451965545002675
+activation_weight               = 0.    #7e-5  #2.3836078880048033e-06
 patience_increase               = 2.0
 max_epochs                      = 200 - pretrain_epochs
 validation_frequency            = 5

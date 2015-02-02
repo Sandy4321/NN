@@ -198,20 +198,6 @@ class Deep(object):
             print('Invalid noise type for initialisation')
             sys.exit(1)
     
-        
-    
-    
-    def init_weights(self, initialisation_regime):
-        '''
-        Run through the layers of the network and initialise one by one
-        '''
-        for layer in self.net:
-            layer.init_weights(initialisation_regime=initialisation_regime, \
-                               nonlinearity=layer.nonlinearity)
-        
-        print('Layers initialised')
-
-    
     
 
     def load_pretrain_params(self,

@@ -26,7 +26,7 @@ stream.close()
 
 # Unpickle machine
 print('Unpickling machine')
-stream = open('../AE_hyp/hyp23.pkl','r')
+stream = open('../temp/AE2.pkl','r')    #  hyp23
 AE = pickle.load(stream)
 AE.data = dh
 AE.data.get_corrupt('salt_and_pepper', 0.4)
