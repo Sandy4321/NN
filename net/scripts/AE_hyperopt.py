@@ -139,7 +139,7 @@ def objective(args):
         index   = T.scalar()
         score   = theano.function([],
             AE.output,
-            givens = {AE.x: AE.data.snp_set_x})
+            givens = {AE.x: AE.data.corrupt_set_x})
         z       = score()
         x       = AE.data.test_set_x.get_value()
         #cost    = - np.mean(np.sum(x * np.log(z) + (1 - x) * np.log(1 - z), axis=1))

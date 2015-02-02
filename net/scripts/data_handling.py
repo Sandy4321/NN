@@ -61,7 +61,7 @@ class Data_handling:
         # Define function
         # Gaussian
         if noise_type == 'gaussian':
-            corrupt     = theano_rng.normal(size=input.shape, avg=0.0, std=corruption_level) + input
+            corrupt     = theano_rng.normal(size=input.shape, avg=0.0, std=1.0)*T.sqrt(corruption_level) + input
         # Salt and pepper
         elif noise_type == 'salt_and_pepper':
             a       = theano_rng.binomial(size=input.shape, n=1, p=1-corruption_level, dtype=theano.config.floatX)
@@ -75,20 +75,10 @@ class Data_handling:
         # Construct expression graph
         fn      = theano.function([input], corrupt)
         
-        # Run function
-        if noise_type == 'gaussian':
-            self.corrupt_set_x = theano.shared(np.asarray(fn(self.test_set_x.get_value()),
-                                                      dtype=theano.config.floatX),
-                                           borrow=True)
-        # Salt and pepper
-        elif noise_type == 'salt_and_pepper':
-            self.snp_set_x = theano.shared(np.asarray(fn(self.test_set_x.get_value()),
-                                                  dtype=theano.config.floatX),
-                                       borrow=True)
-        
-        else:
-            print('Invalid noise type')
-            sys.exit(1)
+
+        self.corrupt_set_x = theano.shared(np.asarray(fn(self.test_set_x.get_value()),
+                                                    dtype=theano.config.floatX),
+                                        borrow=True)
 
         
     

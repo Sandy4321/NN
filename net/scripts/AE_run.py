@@ -26,7 +26,7 @@ stream.close()
 
 # Unpickle machine
 print('Unpickling machine')
-stream = open('../temp/AE2.pkl','r')    #  hyp23
+stream = open('../temp/AE1.pkl','r')    #  hyp23
 AE = pickle.load(stream)
 AE.data = dh
 AE.data.get_corrupt('salt_and_pepper', 0.4)
@@ -47,7 +47,7 @@ print('Bottom-up pass')
 index = T.lscalar()  # index to a [mini]batch
 AE_out = theano.function([index],
                     AE.output,
-                    givens = {AE.x: AE.data.snp_set_x[index: (index + 100)]})
+                    givens = {AE.x: AE.data.corrupt_set_x[index: (index + 100)]})
 
 # Print output
 image = Image.fromarray(utils.tile_raster_images(X=AE_out(32),
@@ -56,7 +56,7 @@ image = Image.fromarray(utils.tile_raster_images(X=AE_out(32),
 image.save('../temp/denoise.png')
 
 # Print input
-img = AE.data.snp_set_x.get_value()[32:133,:]
+img = AE.data.corrupt_set_x.get_value()[32:133,:]
 image = Image.fromarray(utils.tile_raster_images(X=img,
              img_shape=(28,28), tile_shape=(10, 10),
              tile_spacing=(1, 1)))
@@ -81,21 +81,6 @@ for i in xrange(AE.num_layers/2):
 
 plt.show()
 '''
-
-# does the layer corrupt work?
-ip = T.matrix('ip')
-corr = AE.net[0].get_corrupt(ip,0.2)
-
-fn = theano.function([index],
-                    corr,
-                    givens = {ip: AE.data.test_set_x[index:(index+100), :]})
-
-img = fn(32)
-image = Image.fromarray(utils.tile_raster_images(X=img,
-             img_shape=(28,28), tile_shape=(10, 10),
-             tile_spacing=(1, 1)))
-image.save('../temp/get_corrt.png')
-
 
 
 

@@ -232,16 +232,10 @@ class Deep(object):
         
 
 
-    def pretrain(self):
-        
+    def pretrain(self): 
         ### CONSTRUCT EXPRESSION GRAPH ###
-        
-        #x = T.matrix(name='x', dtype=theano.config.floatX)
         index = T.lscalar()  # index to a [mini]batch
-        
-        start_time  = time.clock()
         num_pretrain_layers = self.num_layers
-        
         if (self.device == 'AE') or (self.device == 'DAE'):
             num_pretrain_layers /= 2   
             
@@ -254,11 +248,13 @@ class Deep(object):
             train_layer     = theano.function([index],
                 cost,
                 updates     = updates,
-                givens      = {self.x: self.data.train_set_x[index * layer.batch_size: (index + 1) * layer.batch_size,:]})
+                givens      = {self.x: self.data.train_set_x[index * layer.batch_size: \
+                                                             (index + 1) * layer.batch_size,:]})
             
             pretrain_fns.append(train_layer)
         
-        print('Training')    
+        print('Training')
+        start_time  = time.clock()
         for i in np.arange(num_pretrain_layers):
             layer = self.net[i]
             for epoch in xrange(layer.pretrain_epochs):
@@ -267,37 +263,47 @@ class Deep(object):
                     c.append(pretrain_fns[i](batch_index))
                 end_time = time.clock()
                
-		# Compute mean cost, throw an error if weights have diverged 
                 mc = np.mean(c)
-                if np.isnan(mc):
-                    print('NaN error')
-                    raise DivergenceError('nan')
-                elif np.isinf(mc):
-                    print('INF error')
-                    raise DivergenceError('mc')
-                
+                self.check_real(mc)     # Check for divergence
                 print('Layer %d, Training epoch %d, cost %5.3f, elapsed time %5.3f' \
                       % (i, epoch, mc, (end_time - start_time)))
             self.pickle_machine(self.pkl_name)
             
         print('Pretraining complete: wrapping up')
-        
         if (self.device == 'AE') or (self.device == 'DAE'):
-            for i in np.arange(num_pretrain_layers):
+            self.unfold_AE()
+        self.set_params()
+
+            
+        self.pickle_machine(self.pkl_name)
+    
+    
+    def check_real(self, x):
+        if np.isnan(x):
+            print('NaN error')
+            raise DivergenceError('nan')
+        elif np.isinf(x):
+            print('INF error')
+            raise DivergenceError('mc')
+        
+    
+    
+    def unfold_AE(self):
+        num_pretrain_layers = self.num_layers/2
+        for i in np.arange(num_pretrain_layers):
                 layer = self.net[i]
                 inverse_layer = self.net[self.num_layers-i-1] 
                 inverse_layer.W.set_value(layer.W.get_value().T)
                 inverse_layer.b.set_value(layer.b2.get_value())
-        
-        # Now to rewrite the self.params variable to reflect the topological differences
-        # between training and general inference
+                
+                
+    
+    def set_params(self):
         self.params = []
         for layer in self.net:
             self.params.append(layer.W)
             self.params.append(layer.b)
-            
-        self.pickle_machine(self.pkl_name)
-            
+    
             
     
     
@@ -310,7 +316,7 @@ class Deep(object):
                                 patience_increase,
                                 n_train_batches,
                                 n_valid_batches,
-                                batch_size,
+                                batch_size              = 100,
                                 momentum		= 0.99, 
 				regularisation_weight   = 1e-6,
                                 h_track                 = 0.995,
@@ -363,7 +369,8 @@ class Deep(object):
         train_all           	= theano.function([index],
             self.cost,
             updates 		= updates,
-            givens  		= {self.x: self.data.train_set_x[index * self.batch_size: (index + 1) * self.batch_size,:]})
+            givens  		= {self.x: self.data.train_set_x[index * self.batch_size: \
+                                                                 (index + 1) * self.batch_size,:]})
         
         print('Fine_tuning')
         start_time          	= time.clock()
@@ -649,8 +656,7 @@ class Deep(object):
                             theano_rng  = self.theano_rng,
                             W           = self.net[position].W,
                             b           = self.net[position].b,
-                            b2          = None,
-                            mask        = None)
+                            b2          = None)
                 params.extend(lyr.params)
             else:
                 lyr = Layer(v_n         = self.topology[position],
@@ -664,8 +670,7 @@ class Deep(object):
                             theano_rng  = self.theano_rng,
                             W           = self.net[position].W,
                             b           = self.net[position].b,
-                            b2          = None,
-                            mask        = None)
+                            b2          = None)
                 params.extend(lyr.params)
             net.append(lyr)
 

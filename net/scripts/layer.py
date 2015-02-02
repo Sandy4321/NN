@@ -40,15 +40,14 @@ class Layer(object):
         h_n=500,
         input=None,
         layer_type='AE',
-        nonlinearity='sigmoid',
+        nonlinearity='logistic',
         h_reg='xent',
         W_reg='L2',
         np_rng=None,
         theano_rng=None,
         W=None,
         b=None,
-        b2=None,
-        mask=None
+        b2=None
         ):
         
         '''       
@@ -82,9 +81,6 @@ class Layer(object):
         
         :type b: theano.tensor.TensorType
         :param b: output layer biases
-        
-        :type mask: theano.tensor.TensorType
-        :param mask: mask specifiying specialist connectivities
         '''
         
         if b2 is not None:
@@ -118,16 +114,12 @@ class Layer(object):
         self.W = W
         self.b = b
         
-        if layer_type == 'AE':
+        if (layer_type == 'AE') or (layer_type == 'DAE'):
             initial_b2 = np.zeros(shape=(v_n), dtype=theano.config.floatX)
             b2 = theano.shared(value=initial_b2, name='b2', borrow=True)
             self.b2 = b2
             self.W_prime = self.W.T
-        elif layer_type == 'DAE':
-            initial_b2 = np.zeros(shape=(v_n), dtype=theano.config.floatX)
-            b2 = theano.shared(value=initial_b2, name='b2', borrow=True)
-            self.b2 = b2
-            self.W_prime = self.W.T
+
             # create a numpy and Theano random generator that give symbolic random values
             if np_rng is None:
                 self.np_rng = np.random.RandomState(123)
@@ -173,8 +165,7 @@ class Layer(object):
             elif (nonlinearity == 'logistic') or (nonlinearity == 'logistic_linear'):
                 r = 4.0*np.sqrt(6.0/(np.sum(W_shape)))
             elif (nonlinearity == 'linear') or (nonlinearity == 'softplus'):
-                #NEED TO CHANGE THIS
-                r = 4.0*np.sqrt(6.0/(np.sum(W_shape)))
+                r = 0.1        # similarish to a Gaussian with variance 0.01
             else:
                 print 'Invalid nonlinearity to initialise'
                 exit(1)
@@ -189,24 +180,39 @@ class Layer(object):
     def init_random_numbers(self, mode, shape):
         """
         Despite all the lovely things about theano the random number generation
-        is one of frustrating sticking points. Not only are they harder to use
+        is one of its frustrating sticking points. Not only are they harder to use
         but they are also very buggy. It appears that we need to create a numpy
         rng object and pass that through to a theano shared variable, which will
-        presumeably be shipped to the GPU during graph construction. The various
+        presumably be shipped to the GPU during graph construction. The various
         rng objects supplied by thenano run at speeds differing by orders of magnitude
         so the solution found here is really just an empirical hack to speed things.
+        
+        We create dedicated shared RNGs for the weight matrices of each layer. These
+        RNGs have a set shape and input distribution, which can only be defined once.
+        
+        :type mode: string
+        :param mode: RNG type ('bernoulli', 'salt_and_pepper', 'gaussian')
+        
+        :type shape: int tuple
+        :param shape: shape of 
         """
+        if not hasattr(self, 'rng'):
+            self.rng = ()
+            
         if (mode == 'bernoulli'):
-            self.rng = theano.shared(np.asarray(self.np_rng.randint(0,2,shape)), \
-                                     theano.config.floatX).astype(theano.config.floatX)
+            rng     = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
+                                      theano.config.floatX).astype(theano.config.floatX)
+            self.rng += (rng,)
         elif (mode == 'salt_and_pepper'):
-            self.rnga = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
+            rnga    = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
                                       theano.config.floatX).astype(theano.config.floatX)
-            self.rngb = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
+            rngb    = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
                                       theano.config.floatX).astype(theano.config.floatX)
+            self.rng += (rnga,rngb)
         elif mode == 'gaussian':
-            self.rng = theano.shared(np.asarray(self.np_rng.randn(shape)), \
+            rng     = theano.shared(np.asarray(self.np_rng.randn(shape)), \
                                      theano.config.floatX).astype(theano.config.floatX)
+            self.rng += (rng,)
         else:
             print('Invalid noise type for initialisation')
             sys.exit(1)
@@ -214,21 +220,21 @@ class Layer(object):
     
     def get_corrupt(self, input, corruption_level):
         """
-        This corresponds to noise inhjected at the input to the network
+        This corresponds to noise injected at the input to the layer
         
         :type input: theano.config.floatX
         :param input: the matrix of inputs to corrupt
         
         :type corruption_level: float in [0,1]
-        :param corruption_level: discrete corruption probability/continuous noise standard deviation 
+        :param corruption_level: discrete corruption probability/continuous noise variance
         """
-        if self.noise_type == 'mask':
-            return  self.theano_rng.binomial(size=input.shape, n=1, p=1 - corruption_level) * input
+        if self.noise_type == 'bernoulli':
+            return  (self.rng[0]>corruption_level) * input
         elif self.noise_type == 'gaussian':
-            return self.theano_rng.normal(size=input.shape, avg=0.0, std=corruption_level) + input
+            return self.rng[0]*T.sqrt(corruption_level) + input
         elif self.noise_type == 'salt_and_pepper':
-            a = (self.rnga>corruption_level)*1
-            b = (self.rngb>0.5)*1
+            a = (self.rng[0]>corruption_level)*1
+            b = (self.rng[1]>0.5)*1
             c = T.eq(a,0) * b
             return (input*a) + c
         else:
