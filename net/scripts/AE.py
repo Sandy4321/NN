@@ -29,10 +29,6 @@ device          = 'DAE'
 layer_scheme    = 'DAE'
 
 # IO
-#stream     = open('ZCA_data.pkl','r')
-#dh         = pickle.load(stream)
-#dh         = Data_handling()
-#dh.load_data('./data/mnist.pkl.gz')
 stream      = open('data.pkl','r')
 dh          = pickle.load(stream)
 stream.close()
@@ -45,7 +41,7 @@ l1_filters = 'l1_filters.png'
 # Training parameters
 #Shared
 initialisation_regime = 'Glorot'
-np_rng                          = np.random.RandomState(123)
+np_rng                          = np.random.RandomState(12)
 theano_rng                      = RandomStreams(np_rng.randint(2 ** 30))
 pkl_rate                        = 50
 training_size                   = dh.train_set_x.get_value().shape[0]
@@ -54,12 +50,14 @@ n_train_batches                 = training_size/batch_size
 n_valid_batches                 = dh.valid_set_x.get_value().shape[0]/batch_size
 noise_type                      = 'salt_and_pepper'
 corruption_level                = 0.4
+corruption_scheme               = 'anneal'
+corruption_tau                  = 50
 
 # Pretrain
 pretrain_optimisation_scheme    = 'SDG'
 pretrain_loss_type              = 'L2'
-pretrain_learning_rate          = 10.0  #0.2
-pretrain_epochs                 = 1    #4
+pretrain_learning_rate          = 10.0  
+pretrain_epochs                 = 1    
 
 #Fine tune
 fine_tune_optimisation_scheme   = 'SDG'
@@ -99,7 +97,9 @@ AE.load_pretrain_params(pretrain_loss_type,
                         pretrain_epochs             = pretrain_epochs,
                         initialisation_regime       = initialisation_regime,
                         noise_type                  = noise_type,
-                        corruption_level            = corruption_level)
+                        corruption_level            = corruption_level,
+                        corruption_scheme           = corruption_scheme,
+                        corruption_tau              = corruption_tau)
 
 AE.load_fine_tuning_params(fine_tune_loss_type,
                            fine_tune_optimisation_scheme,
@@ -118,7 +118,9 @@ AE.load_fine_tuning_params(fine_tune_loss_type,
                            tau                      = tau,
                            pkl_rate                 = pkl_rate,
                            noise_type               = noise_type,
-                           corruption_level         = corruption_level)
+                           corruption_level         = corruption_level,
+                           corruption_scheme        = corruption_scheme,
+                           corruption_tau           = corruption_tau)
 
 
 ### 3 TRAINING ###

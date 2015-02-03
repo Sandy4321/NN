@@ -119,8 +119,7 @@ class Deep(object):
                             theano_rng  = self.theano_rng,
                             W           = None,
                             b           = None,
-                            b2          = None,
-                            mask        = None)
+                            b2          = None)
                 self.params.extend(lyr.params)
             else:
                 lyr = Layer(v_n         = topology[i],
@@ -134,8 +133,7 @@ class Deep(object):
                             theano_rng  = self.theano_rng,
                             W           = None,
                             b           = None,
-                            b2          = None,
-                            mask        = None)
+                            b2          = None)
                 self.params.extend(lyr.params)
             self.net.append(lyr)
 
@@ -163,41 +161,33 @@ class Deep(object):
         rng objects supplied by theano run at speeds differing by orders of magnitude
         so the solution found here is really just an empirical hack to speed things.
         """
-        if (mode == 'bernoulli'):
-            self.rng    = theano.shared(np.asarray(self.np_rng.randint(0,2,shape)), \
-                                        theano.config.floatX).astype(theano.config.floatX)
+
+        if not hasattr(self, 'rng'):
+            self.rng = []
+    
+        if (mode == 'mask'):
+            rng     = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
+                                      theano.config.floatX).astype(theano.config.floatX)
+            self.rng.append((rng,))
+        elif (mode == 'bernoulli'):
+            rng     = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
+                                      theano.config.floatX).astype(theano.config.floatX)
+            self.rng.append((rng,))
         elif (mode == 'salt_and_pepper'):
-            self.rnga   = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
-                                        theano.config.floatX).astype(theano.config.floatX)
-            self.rngb   = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
-                                        theano.config.floatX).astype(theano.config.floatX)
+            rnga    = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
+                                      theano.config.floatX).astype(theano.config.floatX)
+            rngb    = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
+                                      theano.config.floatX).astype(theano.config.floatX)
+            self.rng.append((rnga,rngb))
         elif mode == 'gaussian':
-            self.rng    = theano.shared(np.asarray(self.np_rng.randn(shape)), \
-                                        theano.config.floatX).astype(theano.config.floatX)
+            rng     = theano.shared(np.asarray(self.np_rng.randn(shape)), \
+                                     theano.config.floatX).astype(theano.config.floatX)
+            self.rng.append((rng,))
         else:
             print('Invalid noise type for initialisation')
             sys.exit(1)
-            
-    
-    def init_random_numbers2(self, mode, shape):
-        """
-        Need to wrapp all these up into a single list
-        """
-        if (mode == 'bernoulli'):
-            self.rng2    = theano.shared(np.asarray(self.np_rng.randint(0,2,shape)), \
-                                         theano.config.floatX).astype(theano.config.floatX)
-        elif (mode == 'salt_and_pepper'):
-            self.rng2a   = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
-                                         theano.config.floatX).astype(theano.config.floatX)
-            self.rng2b   = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
-                                         theano.config.floatX).astype(theano.config.floatX)
-        elif mode == 'gaussian':
-            self.rng2    = theano.shared(np.asarray(self.np_rng.randn(shape)), \
-                                         theano.config.floatX).astype(theano.config.floatX)
-        else:
-            print('Invalid noise type for initialisation')
-            sys.exit(1)
-    
+        
+        return len(self.rng) - 1
     
 
     def load_pretrain_params(self,
@@ -210,7 +200,9 @@ class Deep(object):
                     pretrain_epochs         = 10,
                     initialisation_regime   = 'Glorot',
                     noise_type              = 'mask',
-                    corruption_level        = 0.1
+                    corruption_level        = 0.1,
+                    corruption_scheme       = 'flat',
+                    corruption_tau          = 1
                     ):
         '''
         Run through the layers of the network and load parameters
@@ -221,12 +213,14 @@ class Deep(object):
                 optimisation_scheme,
                 layer_scheme,
                 n_train_batches,
-                batch_size=batch_size,
-                pretrain_learning_rate=pretrain_learning_rate,
-                pretrain_epochs=pretrain_epochs,
-                initialisation_regime=initialisation_regime,
-                noise_type=noise_type,
-                corruption_level=corruption_level)
+                batch_size                  = batch_size,
+                pretrain_learning_rate      = pretrain_learning_rate,
+                pretrain_epochs             = pretrain_epochs,
+                initialisation_regime       = initialisation_regime,
+                noise_type                  = noise_type,
+                corruption_level            = corruption_level,
+                corruption_scheme           = corruption_scheme,
+                corruption_tau              = corruption_tau)
         
         print('Pretrain parameters loaded')
         
@@ -234,7 +228,8 @@ class Deep(object):
 
     def pretrain(self): 
         ### CONSTRUCT EXPRESSION GRAPH ###
-        index = T.lscalar()  # index to a [mini]batch
+        index               = T.lscalar()   # index to a [mini]batch
+        iteration           = T.lscalar()   # iteration number
         num_pretrain_layers = self.num_layers
         if (self.device == 'AE') or (self.device == 'DAE'):
             num_pretrain_layers /= 2   
@@ -243,7 +238,7 @@ class Deep(object):
         pretrain_fns = []
         for i in np.arange(num_pretrain_layers):
             layer           = self.net[i]
-            cost, updates   = layer.get_cost_updates(learning_rate=layer.pretrain_learning_rate)
+            cost, updates   = layer.get_cost_updates(layer.pretrain_learning_rate)
             
             train_layer     = theano.function([index],
                 cost,
@@ -259,6 +254,8 @@ class Deep(object):
             layer = self.net[i]
             for epoch in xrange(layer.pretrain_epochs):
                 c = []
+                
+                self.net[0].set_iteration(epoch)
                 for batch_index in xrange(layer.n_train_batches):
                     c.append(pretrain_fns[i](batch_index))
                 end_time = time.clock()
@@ -325,7 +322,9 @@ class Deep(object):
                                 tau                     = 50,
                                 pkl_rate                = 50,
                                 noise_type              = 'salt_and_pepper',
-                                corruption_level        = 0.4):
+                                corruption_level        = 0.4,
+                                corruption_scheme       = 'flat',
+                                corruption_tau          = 1):
         self.loss_type                  = loss_type
         self.optimisation_scheme        = optimisation_scheme
         self.fine_tune_learning_rate    = fine_tune_learning_rate
@@ -344,6 +343,8 @@ class Deep(object):
         self.pkl_rate                   = pkl_rate
         self.noise_type                 = noise_type
         self.corruption_level           = corruption_level
+        self.corruption_scheme          = corruption_scheme
+        self.corruption_tau             = corruption_tau
         
         # Some globally defined variables for synchronous updates
         self.epoch          = 0
@@ -364,6 +365,7 @@ class Deep(object):
         print('Constructing expression graph')
         
         index = T.lscalar()     # index to a [mini]batch
+        self.net[0].corruption_scheme = self.corruption_scheme
 
         self.cost, updates  	= self.get_cost_updates(learning_rate=self.fine_tune_learning_rate)
         train_all           	= theano.function([index],
@@ -382,6 +384,8 @@ class Deep(object):
         while (self.epoch < self.max_epochs) and (not done_looping):
             self.epoch = self.epoch + 1
             c = []
+            
+            self.net[0].set_iteration(self.epoch)
             for batch_index in xrange(self.n_train_batches):
                 c.append(train_all(batch_index))
             end_time    = time.clock()         
@@ -439,9 +443,9 @@ class Deep(object):
 	# frontend of the NN. Finally we reference the output of this new NN in z. 
 
 	if self.device == 'DAE':
-            self.init_random_numbers(self.noise_type, (self.batch_size, self.topology[0]))
-            # Define input corruption process and concatenate
-            x_tilde = self.get_corrupt(self.x, self.noise_type, self.corruption_level)
+            self.net[0].destroy_random_numbers()
+            self.net[0].init_random_numbers(self.noise_type, (self.batch_size, self.topology[0]))
+            x_tilde = self.net[0].get_corrupt(self.x, self.corruption_level)
             part_num = self.break_network(0, self.num_layers-1, x_tilde)
             print('Using fine-tune corruption')
         
@@ -462,7 +466,7 @@ class Deep(object):
         loss = T.mean(L)
         
         
-        # REGULARISATION
+        # REGULARISATION --- I would very much like to tidy this up at some point
         regularisation  = 0
         activation_grad = 0
         current_avg_h   = 0
@@ -487,6 +491,9 @@ class Deep(object):
         else:
             act = 0
         act     = T.cast(act, dtype=theano.config.floatX)
+        
+        
+        
         
         # COST = LOSS + REGULARISATION
         cost    = loss + (self.regularisation_weight*regularisation/self.training_size)
@@ -540,13 +547,11 @@ class Deep(object):
         # random number generators for MCMC if not already done
         #seed = theano.shared(seed, 'seed')
         self.init_corrupt()
-        self.init_random_numbers(noise_type, seed.shape)
-       
         
         # Define some useful parameters for navigating the broken network
         end_position    = self.num_layers - 1
-        #break_position= (end_position + 1)/2 - 1
-        break_position  = end_position
+        break_position= (end_position + 1)/2 - 1
+        #break_position  = end_position
         
         # Setting up the iterable sampling data structure
         seed_shape      = seed.shape
@@ -555,59 +560,51 @@ class Deep(object):
         sample[:,:,0]   = seed
         sample          = theano.shared(np.asarray(sample, dtype=theano.config.floatX))
 
-        # Define local corruption process
+        # Define input corruption process
         index = T.lscalar('index')
         pre_input       = T.matrix(name='pre_input', dtype=theano.config.floatX)
-        x_tilde         = self.get_corrupt(pre_input, noise_type, corruption_level)
+        rng_id          = self.init_random_numbers(noise_type, seed.shape)
+        x_tilde         = self.get_corrupt(pre_input, noise_type, rng_id, corruption_level)
         
         # Concatenate the corruption process and encoder
-        part_num        = self.break_network(0, break_position, x_tilde)
+        enc_idx         = self.break_network(0, break_position, x_tilde)
+        
+        # Define hidden layer sampling
+        rng_id          = self.init_random_numbers('bernoulli', (seed.shape[0], self.topology[break_position+1]))
+        h_stoc          = self.get_corrupt(self.part[enc_idx][2], 'bernoulli', rng_id)
+        dec_idx         = self.break_network(break_position+1, end_position, h_stoc)
         
         # Need to work on a dict for the part labels
-        sample_update   = (sample, T.set_subtensor(sample[:,:,index+1], self.part[0][2]))
+        sample_update   = (sample, T.set_subtensor(sample[:,:,index+1], self.part[dec_idx][2]))
         
         decrupt = theano.function([index],
-            sb.gpu_from_host(self.part[part_num][2]),
+            sb.gpu_from_host(self.part[dec_idx][2]),
             givens      = {pre_input: sample[:,:,index]},
             updates     = [sample_update])
 
         
         for i in xrange(num_samples):
             decrupt(i)
-        print('Sampling complete')
         
         return sample.get_value()           
         
         
         
-    def get_corrupt(self, input, noise_type, corruption_level):
+    def get_corrupt(self, input, noise_type, rng_id, corruption_level=0.5):
         """
         Corrupt input
         """
+        if noise_type == "mask":
+            return (self.rng[rng_id][0]>corruption_level) * input
         if noise_type == "bernoulli":
-            return  self.rng * input
+            return (self.rng[rng_id][0]<input)
         elif noise_type == "salt_and_pepper":
-            a = (self.rnga>corruption_level)*1.0
-            b = (self.rngb>0.5)*1.0
+            a = (self.rng[rng_id][0]>corruption_level)*1.0
+            b = (self.rng[rng_id][1]>0.5)*1.0
             c = T.eq(a,0) * b
             return (input*a) + c
         elif noise_type == "gaussian":
-            return self.rng * input
-        
-    
-    def get_corrupt2(self, input, noise_type, corruption_level):
-        """
-        Corrupt input
-        """
-        if noise_type == "bernoulli":
-            return  self.rng2 * input
-        elif noise_type == "salt_and_pepper":
-            a = (self.rng2a>corruption_level)*1.0
-            b = (self.rng2b>0.5)*1.0
-            c = T.eq(a,0) * b
-            return (input*a) + (2*c - 1.0)
-        elif noise_type == "gaussian":
-            return self.rng2 * input
+            return self.rng[rng_id][0] * input
     
 
 

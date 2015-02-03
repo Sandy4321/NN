@@ -127,7 +127,7 @@ class Data_handling:
     
 if __name__ == '__main__':
     dh = Data_handling()
-    dh.load_data('./data/mnist.pkl.gz')
+    dh.load_data('../data/mnist.pkl.gz')
     dh.shuffle_data()
     dh.binarize(level=0.5)
     dh.get_corrupt('salt_and_pepper', corruption_level=0.4)

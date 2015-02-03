@@ -32,11 +32,11 @@ num_samples     = 300
 corruption_level= 0.4
 vector_length   = 28*28
 num_to_print    = 30
-stride          = 10
+stride          = 1
 batch_size      = 10
 noise_type      = 'salt_and_pepper'
 
-start_point     = 310
+start_point     = 330
 seed            = np.asarray(dh.test_set_x.get_value()[start_point:start_point+batch_size,:], dtype=theano.config.floatX)
 
 if num_to_print*stride > num_samples+1:

@@ -161,7 +161,7 @@ class Layer(object):
             W_shape = self.W.get_value(borrow=True, return_internal_type=True).shape
 
             if (nonlinearity == 'tanh') or (nonlinearity == 'tanh_linear'):
-                r = np.sqrt(6.0/(np.sum(W_shape)))
+                r = 0.1*np.sqrt(6.0/(np.sum(W_shape)))
             elif (nonlinearity == 'logistic') or (nonlinearity == 'logistic_linear'):
                 r = 4.0*np.sqrt(6.0/(np.sum(W_shape)))
             elif (nonlinearity == 'linear') or (nonlinearity == 'softplus'):
@@ -194,7 +194,11 @@ class Layer(object):
         :param mode: RNG type ('bernoulli', 'salt_and_pepper', 'gaussian')
         
         :type shape: int tuple
-        :param shape: shape of 
+        :param shape: shape of RNG
+        
+        RETURNS
+        :type: int
+        :param: index of first RNG (assume we created [index] through to [-1])
         """
         if not hasattr(self, 'rng'):
             self.rng = ()
@@ -203,19 +207,30 @@ class Layer(object):
             rng     = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
                                       theano.config.floatX).astype(theano.config.floatX)
             self.rng += (rng,)
+            indices = 1
         elif (mode == 'salt_and_pepper'):
             rnga    = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
                                       theano.config.floatX).astype(theano.config.floatX)
             rngb    = theano.shared(np.asarray(self.np_rng.random_sample(shape)), \
                                       theano.config.floatX).astype(theano.config.floatX)
             self.rng += (rnga,rngb)
+            indicies = 2
         elif mode == 'gaussian':
             rng     = theano.shared(np.asarray(self.np_rng.randn(shape)), \
                                      theano.config.floatX).astype(theano.config.floatX)
             self.rng += (rng,)
+            indicies = 1
         else:
             print('Invalid noise type for initialisation')
             sys.exit(1)
+        
+        return len(self.rng) - indicies
+    
+    
+    def destroy_random_numbers(self):
+        if hasattr(self, 'rng'):
+            del self.rng
+    
     
     
     def get_corrupt(self, input, corruption_level):
@@ -229,17 +244,43 @@ class Layer(object):
         :param corruption_level: discrete corruption probability/continuous noise variance
         """
         if self.noise_type == 'bernoulli':
-            return  (self.rng[0]>corruption_level) * input
+            return  (self.rng[0]>corruption_level*self.get_cm()) * input
         elif self.noise_type == 'gaussian':
-            return self.rng[0]*T.sqrt(corruption_level) + input
+            return self.rng[0]*T.sqrt(corruption_level*self.get_cm()) + input
         elif self.noise_type == 'salt_and_pepper':
-            a = (self.rng[0]>corruption_level)*1
+            a = (self.rng[0]>(corruption_level*self.get_cm()))*1
             b = (self.rng[1]>0.5)*1
             c = T.eq(a,0) * b
             return (input*a) + c
         else:
             print('Invalid noise type')
             sys.exit(1)
+            
+            
+    
+    def get_cm(self):
+        '''
+        Get corruption multiplier
+        
+        :type iteration: int
+        :param iteration: used for annealing noise
+        '''
+        print('Corruption scheme: ' + self.corruption_scheme)
+        if self.corruption_scheme == 'anneal':
+            multiplier = 1.0*self.corruption_tau/np.amax((self.iteration, self.corruption_tau))
+        elif self.corruption_scheme == 'random':
+            multiplier = T.cast(np.random.random_sample(), dtype=theano.config.floatX)
+        elif self.corruption_scheme == 'flat':
+            multiplier = 1.0
+        else:
+            print('Invalid pretraining corruption scheme')
+
+        return multiplier
+    
+    
+    
+    def set_iteration(self, iteration):
+        self.iteration = iteration
     
     
     def get_enc(self, visible):
@@ -305,8 +346,9 @@ class Layer(object):
                     pretrain_epochs         = 10,
                     initialisation_regime   = 'Glorot',
                     noise_type              = 'bernoulli',
-                    corruption_level        = 0.1
-                    ):
+                    corruption_level        = 0.1,
+                    corruption_scheme       = 'flat',
+                    corruption_tau          = 1):
         self.loss_type              = loss_type
         self.optimisation_scheme    = optimisation_scheme
         self.layer_scheme           = layer_scheme
@@ -317,10 +359,11 @@ class Layer(object):
         self.initialisation_regime  = initialisation_regime
         self.noise_type             = noise_type
         self.corruption_level       = corruption_level
+        self.corruption_scheme      = corruption_scheme
+        self.corruption_tau         = corruption_tau
         
         self.init_weights(initialisation_regime, self.nonlinearity)
-        self.init_random_numbers(mode=noise_type, shape=(batch_size,self.v_n))
-    
+        self.iteration              = 1.0
 
 
     ### 2 CONSTRUCT EXPRESSION GRAPH
@@ -333,8 +376,12 @@ class Layer(object):
             
             :type learning_rate: theano.config.floatX
             :param learning_rate: rate at which to perfrom gradient descent
+            
+            :type iteration: int
+            :param iteration: used to calculate corruption noise
             '''
             if self.layer_scheme == 'DAE':
+                self.init_random_numbers(mode=self.noise_type, shape=(self.batch_size,self.v_n))
                 x_tilde = self.get_corrupt(self.x, self.corruption_level)
             else:
                 x_tilde = self.x
@@ -360,7 +407,7 @@ class Layer(object):
             updates = []
             for param, gparam in zip(self.params, gparams):
                 updates.append((param, param - learning_rate * gparam))
-               
+            
             return cost, updates
 
         
