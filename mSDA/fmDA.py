@@ -11,7 +11,7 @@ from PIL import Image
 import sys
 
 
-logistic = lambda x : (1. / (1 + np.exp(-x)))
+nonlinearity = lambda x : np.tanh(x) # np.maximum(0,x)
 
 class fmDA:
     def __init__(self):
@@ -42,6 +42,56 @@ class fmDA:
         # Least squares solution
         P = 0.5*S
         Q = (S/3) + (D/6)
+        # Weights
+        W = np.linalg.solve(Q.T+1e-5*np.eye(d),P[:-1,:].T).T
+        return W
+    
+    
+    
+    def rfmDA(self, X, Y):
+        '''
+        fmDA builds a fully uniformly marginalised DAE
+        
+        :type X:    numpy array
+        :param X:   data stored columnwise
+        '''
+        # Add a bias
+        X = np.vstack((X,np.ones((1,X.shape[1]))))
+        Y = np.vstack((Y,np.ones((1,Y.shape[1]))))
+        # Dimension of data + bias 1
+        d = X.shape[0]
+        # Scatter matrix
+        S = np.dot(X,X.T)
+        # Adaptive regulariser
+        D = np.diag(np.sum(X**2,1))
+        # Least squares solution
+        P = 0.5*np.dot(Y,X.T)
+        Q = (S/3) + (D/6)
+        # Weights
+        W = np.linalg.solve(Q.T+1e-5*np.eye(d),P[:-1,:].T).T
+        return W
+    
+    
+    
+    def krfmDA(self, X, Y, kappa):
+        '''
+        fmDA builds a fully kappa marginalised DAE
+        
+        :type X:    numpy array
+        :param X:   data stored columnwise
+        '''
+        # Add a bias
+        X = np.vstack((X,np.ones((1,X.shape[1]))))
+        Y = np.vstack((Y,np.ones((1,Y.shape[1]))))
+        # Dimension of data + bias 1
+        d = X.shape[0]
+        # Scatter matrix
+        S = np.dot(X,X.T)
+        # Adaptive regulariser
+        D = np.diag(np.sum(X**2,1))
+        # Least squares solution
+        P = np.dot(Y,X.T)
+        Q = kappa*S + (1-kappa)*D
         # Weights
         W = np.linalg.solve(Q.T+1e-5*np.eye(d),P[:-1,:].T).T
         return W
@@ -79,7 +129,7 @@ class fmDA:
     
     
     
-    def fmSDA(self, machine, train_data, k):
+    def SDA(self, machine, train_data, k, kappa=None):
         '''
         fmSDA builds a stack of mDAs
         
@@ -91,32 +141,55 @@ class fmDA:
         
         :type k:            int
         :param k:           number of layers
+        
+        :type kappa:        float in [0,1]
+        :param kappa:       kappa value for kappa marginalisation
         '''
         params      = []
         hidden_rep  = train_data
         n           = train_data.shape[1]
         start = time.time()
+        if kappa is not None:
+            assert kappa >= 0
+            assert kappa <= 1
+        
         for i in xrange(k-1):
             print('Building layer %i' % i)
-            if machine == 'fmSDA':
+            if machine == 'fmDA':
                 params.append(self.fmDA(hidden_rep))
-            elif machine == 'mSDA':
+            elif machine == 'mDA':
                 params.append(self.mDA(hidden_rep,0.5))
+            elif machine == 'rfmDA':
+                params.append(self.rfmDA(hidden_rep,train_data))
+            elif machine == 'krfmDA':
+                params.append(self.krfmDA(hidden_rep,train_data,kappa))
             else:
                 print('Invalid machine')
                 sys.exit(1)
             h_augmented = np.vstack((hidden_rep,np.ones((1,n))))
-            hidden_rep  = logistic(np.dot(params[i],h_augmented))
+            hidden_rep  = nonlinearity(np.dot(params[i],h_augmented))
             print('Elapsed time: %04f' % (time.time()-start,))
+            
         print('Building layer %i' % (k-1,))
-        params.append(self.fmDA(hidden_rep))
+        if machine == 'fmDA':
+            params.append(self.fmDA(hidden_rep))
+        elif machine == 'mDA':
+            params.append(self.mDA(hidden_rep,0.5))
+        elif machine == 'rfmDA':
+            params.append(self.rfmDA(hidden_rep,train_data))
+        elif machine == 'krfmDA':
+                params.append(self.krfmDA(hidden_rep,train_data,kappa))
+        else:
+            print('Invalid machine')
+            sys.exit(1)
+        # No need to put through nonlinearity again
         print('Elapsed time: %04f' % (time.time()-start,))
         
         return params
+
+
     
-    
-    
-    def test(self, test_data, params):
+    def map(self, test_data, params):
         '''
         test measures the error under the loss function
         
@@ -134,37 +207,59 @@ class fmDA:
         for i in xrange(k):
             print('Propagating through layer %i' % i)
             h_augmented = np.vstack((hidden_rep,np.ones((1,n))))
-            hidden_rep  = logistic(np.dot(params[i],h_augmented))
+            hidden_rep  = nonlinearity(np.dot(params[i],h_augmented))
         print('Elapsed time: %04f' % (time.time()-start,))
-        loss = 0.5*((test_data - hidden_rep)**2).sum()/n
+        return hidden_rep
+        
+        
+        
+    def test(self, test_data, params):
+        '''
+        test measures the error under the loss function
+        
+        :type test_data:    numpy array
+        :param test_data:   the test data stored column-wise
+        
+        :type params:       list of numpy arrays
+        :param params:      the parameters of the network
+        '''
+        # Build network
+        hidden_rep  = self.map(test_data,params)
+        n           = test_data.shape[1]
+        loss        = 0.5*((test_data - hidden_rep)**2).sum()/n
         
         return loss
-        
-if __name__ == '__main__':
-    fmda = fmDA()
-    # Note the data is stored row-wise and the fmDA takes it column-wise
-    print('Loading data')
-    T, V, test = fmda.load('../net/data/mnist.pkl.gz')
-    X       = np.vstack((T[0],V[0])).T
-    Xtest   = test[0].T
-    print('Computing layers')
-    params_fmSDA= fmda.fmSDA('fmSDA',X,3)
-    params_mSDA = fmda.fmSDA('mSDA',X,3)
-    loss_fmSDA  = fmda.test(Xtest,params_fmSDA)
-    loss_mSDA   = fmda.test(Xtest,params_mSDA)
-    print loss_fmSDA, loss_mSDA
     
-    
-    
-    '''
-    num_imgs = 400
-    index = rp.choice(W.shape[1], num_imgs, replace=False)
-    img = W[:,index]
-    image = Image.fromarray(utils.tile_raster_images(X=img.T,
-             img_shape=(28,28), tile_shape=(20, 20),
-             tile_spacing=(1, 1)))
-    image.save('hypSDA.png')
-    '''
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
    
    
    

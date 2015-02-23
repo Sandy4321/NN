@@ -1,5 +1,5 @@
 '''
-fmDA_test.py
+krfmDA.py
 '''
 from fmDA import fmDA
 import numpy as np
@@ -18,7 +18,7 @@ print('Loading data')
 T, V, test  = fmda.load('../net/data/mnist.pkl.gz')
 X           = np.vstack((T[0],V[0])).T
 Xtest       = test[0].T
-name       = ('mDA', 'fmDA', 'rfmDA')
+num_kappa   = 10
 # Setup test case
 side_length = 20
 num_imgs    = side_length**2
@@ -35,14 +35,15 @@ image       = Image.fromarray(utils.tile_raster_images(X=Xtest.T, \
 image.save('in.png')
 
 # Train each model
-for dev in xrange(3):
-    print('Training')
-    params_SDA  = fmda.SDA(name[dev],X,3)
+for k in xrange(num_kappa+1):
+    kappa = float(k)/num_kappa
+    print('Training with kappa = %.2f' % kappa)
+    params_SDA  = fmda.SDA('krfmDA',X,3, kappa)
     test_output = fmda.map(Xtest,params_SDA)
     image       = Image.fromarray(utils.tile_raster_images(X=test_output.T, \
                                                        img_shape=(28,28), tile_shape=(20, 20), \
                                                        tile_spacing=(1, 1)))
-    filename    = name[dev] + '.png'
+    filename    = 'kappa/kappa' + str(k) + '.png'
     image.save(filename)
 
 
