@@ -37,7 +37,8 @@ image.save('in.png')
 # Train each model
 for dev in xrange(3):
     print('Training')
-    params_SDA  = fmda.SDA(name[dev],X,3)
+    params_SDA  = fmda.SDA(name[dev],X,10)
+    print fmda.test(Xtest,params_SDA)
     test_output = fmda.map(Xtest,params_SDA)
     image       = Image.fromarray(utils.tile_raster_images(X=test_output.T, \
                                                        img_shape=(28,28), tile_shape=(20, 20), \
