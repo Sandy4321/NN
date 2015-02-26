@@ -239,10 +239,13 @@ class fmDA:
         n           = test_data.shape[1]
         k           = len(params)
         start = time.time()
-        for i in xrange(k):
+        for i in xrange(k-1):
             print('Propagating through layer %i' % i)
             h_augmented = np.vstack((hidden_rep,np.ones((1,n))))
             hidden_rep  = nonlinearity(np.dot(params[i],h_augmented))
+        # Final layer has no nonlinearity
+        h_augmented = np.vstack((hidden_rep,np.ones((1,n))))
+        hidden_rep  = np.dot(params[-1],h_augmented)
         print('Elapsed time: %04f' % (time.time()-start,))
         return hidden_rep
         
@@ -258,7 +261,7 @@ class fmDA:
         :type params:       list of numpy arrays
         :param params:      the parameters of the network
         '''
-        # Build network
+        # Build network - need to calculate across all noise levels
         hidden_rep  = self.map(test_data,params)
         n           = test_data.shape[1]
         loss        = 0.5*((test_data - hidden_rep)**2).sum()/n
