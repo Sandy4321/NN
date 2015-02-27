@@ -40,7 +40,6 @@ l1_filters = 'l1_filters.png'
 
 # Training parameters
 #Shared
-initialisation_regime = 'Glorot'
 np_rng                          = np.random.RandomState(12)
 theano_rng                      = RandomStreams(np_rng.randint(2 ** 30))
 pkl_rate                        = 50
