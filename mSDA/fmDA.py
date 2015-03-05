@@ -305,7 +305,7 @@ class fmDA:
     
     
     
-    def biasDA(self, X, Y):
+    def biasDA(self, X, Y, kappa):
         '''
         mDA builds a Minmin Chen style marginalised DAE
         
@@ -314,10 +314,10 @@ class fmDA:
               
         :type Y:    numpy array
         :param Y:   target data stored columnwise
+        
+        :type kappa:    float in [0,1]
+        :params kappa:  kappa regularisation constant
         '''
-        c1 = 1./2
-        c2 = 1./3
-
         # Add a bias
         X = np.vstack((X,np.ones((1,X.shape[1]))))
         Y = np.vstack((Y,np.ones((1,Y.shape[1]))))
