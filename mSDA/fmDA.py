@@ -170,6 +170,8 @@ class fmDA:
                 params.append(self.rfmDA(hidden_rep,train_data))
             elif machine == 'krfmDA':
                 params.append(self.krfmDA(hidden_rep,train_data,kappa))
+            elif machine == 'biasDA':
+                params.append(self.biasDA(hidden_rep,train_data))
             else:
                 print('Invalid machine')
                 sys.exit(1)
@@ -186,6 +188,8 @@ class fmDA:
             params.append(self.rfmDA(hidden_rep,train_data))
         elif machine == 'krfmDA':
                 params.append(self.krfmDA(hidden_rep,train_data,kappa))
+        elif machine == 'biasDA':
+            params.append(self.biasDA(hidden_rep,train_data))
         else:
             print('Invalid machine')
             sys.exit(1)
@@ -300,7 +304,41 @@ class fmDA:
         return (A,B)
     
     
+    
+    def biasDA(self, X, Y):
+        '''
+        mDA builds a Minmin Chen style marginalised DAE
+        
+        :type X:    numpy array
+        :param X:   data stored columnwise
+              
+        :type Y:    numpy array
+        :param Y:   target data stored columnwise
+        '''
+        c1 = 1./2
+        c2 = 1./3
 
+        # Add a bias
+        X = np.vstack((X,np.ones((1,X.shape[1]))))
+        Y = np.vstack((Y,np.ones((1,Y.shape[1]))))
+        # Dimension of data + bias 1
+        d = X.shape[0]
+        
+
+        # Corruption multiplier
+        q1 = np.vstack((np.ones((d-1,1))*c1,1))
+        Q2 = c2*np.ones((d-1,d-1))
+        Q2 = np.hstack((Q2,c1*np.ones((d-1,1))))
+        Q2 = np.vstack((Q2,q1.T))
+        # Scatter matrix
+        S = np.dot(X,X.T)
+        # Least squares solution
+        Q = S*Q2
+        np.fill_diagonal(Q,q1.T*np.diag(S))
+        P = np.dot(Y,X.T)*q1.T*np.ones((d,d))
+        # Weights
+        W = np.linalg.solve(Q.T+1e-5*np.eye(d),P[:-1,:].T).T
+        return W
    
    
    
