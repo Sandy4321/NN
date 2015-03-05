@@ -18,7 +18,7 @@ print('Loading data')
 T, V, test  = fmda.load('../net/data/mnist.pkl.gz')
 X           = np.vstack((T[0],V[0])).T
 Xtest       = test[0].T
-name       = ('mDA', 'fmDA', 'rfmDA')
+name       = ('mDA', 'fmDA', 'rfmDA', 'biasDA')
 # Setup test case
 side_length = 20
 num_imgs    = side_length**2
@@ -35,15 +35,15 @@ image       = Image.fromarray(utils.tile_raster_images(X=Xtest.T, \
 image.save('in.png')
 
 # Train each model
-for dev in xrange(3):
+for i, machine in enumerate(name):
     print('Training')
-    params_SDA  = fmda.SDA(name[dev],X,3)
+    params_SDA  = fmda.SDA(machine,X,3)
     print fmda.test(Xtest,params_SDA)
     test_output = fmda.map(Xtest,params_SDA)
     image       = Image.fromarray(utils.tile_raster_images(X=test_output.T, \
                                                        img_shape=(28,28), tile_shape=(20, 20), \
                                                        tile_spacing=(1, 1)))
-    filename    = name[dev] + '.png'
+    filename    = name[i] + '.png'
     image.save(filename)
 
 

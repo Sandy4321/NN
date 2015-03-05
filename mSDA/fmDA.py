@@ -86,6 +86,9 @@ class fmDA:
         
         :type X:    numpy array
         :param X:   data stored columnwise
+                
+        :type Y:    numpy array
+        :param Y:   target data stored columnwise
         '''
         # Add a bias
         X = np.vstack((X,np.ones((1,X.shape[1]))))
@@ -111,6 +114,9 @@ class fmDA:
         
         :type X:    numpy array
         :param X:   data stored columnwise
+        
+        :type Y:    numpy array
+        :param Y:   target data stored columnwise
         '''
         # Add a bias
         X = np.vstack((X,np.ones((1,X.shape[1]))))
@@ -292,10 +298,9 @@ class fmDA:
         B       = np.dot(S,V)
         
         return (A,B)
-        
-   
-   
-   
+    
+    
+
    
    
    
