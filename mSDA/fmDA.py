@@ -136,6 +136,39 @@ class fmDA:
     
     
     
+    def biasDA(self, X, Y, kappa):
+        '''
+        mDA builds a Minmin Chen style marginalised DAE
+        
+        :type X:    numpy array
+        :param X:   data stored columnwise
+              
+        :type Y:    numpy array
+        :param Y:   target data stored columnwise
+        
+        :type kappa:    float in [0,1]
+        :params kappa:  kappa regularisation constant
+        '''
+        # Add a bias
+        X = np.vstack((X,np.ones((1,X.shape[1]))))
+        # Dimension of data + bias 1
+        d = X.shape[0]
+        # Corruption multiplier
+        Qn                  = np.ones((d,d))
+        Qn[:(d-1),:(d-1)]   = Qn[:(d-1),:(d-1)]*kappa
+        np.fill_diagonal(Qn,1.)
+        # Scatter matrix
+        S = np.dot(X,X.T)
+        # Block form
+        Q = S*Qn
+        np.fill_diagonal(Q,np.diag(S))
+        P = np.dot(Y,X.T)
+        # Weights
+        W = np.linalg.solve(Q.T+1e-5*np.eye(d),P.T).T
+        return W
+    
+    
+    
     def SDA(self, machine, train_data, k, kappa=None):
         '''
         fmSDA builds a stack of mDAs
@@ -171,7 +204,7 @@ class fmDA:
             elif machine == 'krfmDA':
                 params.append(self.krfmDA(hidden_rep,train_data,kappa))
             elif machine == 'biasDA':
-                params.append(self.biasDA(hidden_rep,train_data))
+                params.append(self.biasDA(hidden_rep,train_data, kappa))
             else:
                 print('Invalid machine')
                 sys.exit(1)
@@ -189,7 +222,7 @@ class fmDA:
         elif machine == 'krfmDA':
                 params.append(self.krfmDA(hidden_rep,train_data,kappa))
         elif machine == 'biasDA':
-            params.append(self.biasDA(hidden_rep,train_data))
+            params.append(self.biasDA(hidden_rep,train_data, kappa))
         else:
             print('Invalid machine')
             sys.exit(1)
@@ -198,40 +231,6 @@ class fmDA:
         
         return params
     
-    
-    
-    def SVDnet(self, train_data, k, w, kappa):
-        '''
-        SVDnet builds a krfmDA using the split architecture
-        '''
-        params      = []
-        hidden_rep  = train_data
-        n           = train_data.shape[1]
-        start = time.time()
-        if kappa is not None:
-            assert kappa >= 0
-            assert kappa <= 1
-        
-        assert len(w) is k
-        
-        for i in xrange(k-1):
-            print('Building layer %i' % i)
-            W       = self.krfmDA(hidden_rep, hidden_rep, kappa)
-            A, B    = self.Wsplit(w[i], W)
-            params.append((A,B))
-            h_augmented = np.vstack((hidden_rep,np.ones((1,n))))
-            hidden_rep  = nonlinearity(np.dot(B,h_augmented))
-            print('Elapsed time: %04f' % (time.time()-start,))
-            
-        print('Building layer %i' % (k-1,))
-        W       = self.krfmDA(hidden_rep, hidden_rep, kappa)
-        A, B    = self.Wsplit(w[i], W)
-        params.append((A,B))
-        # No need to put through nonlinearity again
-        print('Elapsed time: %04f' % (time.time()-start,))
-        
-        return params
-
 
     
     def map(self, test_data, params):
@@ -280,65 +279,7 @@ class fmDA:
     
     
     
-    def Wsplit(self, w, X):
-        '''
-        Wsplit computes the SVD of a matrix and returns two matrices corresponding
-        to a decomposition using the w largest singular components
-        
-        N.B. will add incremental updates later
-        
-        :type w:    int
-        :param w:   the number of singular values to keep
-        
-        :type X:    numpy array
-        :param X:   the matrix to SVD
-        '''
-        u, s, v = np.linalg.svd(X)
-        U       = u[:,:w]
-        S       = np.diag(s[:w])
-        V       = v[:w,:]
-        
-        A       = np.dot(U,S)
-        B       = np.dot(S,V)
-        
-        return (A,B)
-    
-    
-    
-    def biasDA(self, X, Y, kappa):
-        '''
-        mDA builds a Minmin Chen style marginalised DAE
-        
-        :type X:    numpy array
-        :param X:   data stored columnwise
-              
-        :type Y:    numpy array
-        :param Y:   target data stored columnwise
-        
-        :type kappa:    float in [0,1]
-        :params kappa:  kappa regularisation constant
-        '''
-        # Add a bias
-        X = np.vstack((X,np.ones((1,X.shape[1]))))
-        Y = np.vstack((Y,np.ones((1,Y.shape[1]))))
-        # Dimension of data + bias 1
-        d = X.shape[0]
-        
 
-        # Corruption multiplier
-        q1 = np.vstack((np.ones((d-1,1))*c1,1))
-        Q2 = c2*np.ones((d-1,d-1))
-        Q2 = np.hstack((Q2,c1*np.ones((d-1,1))))
-        Q2 = np.vstack((Q2,q1.T))
-        # Scatter matrix
-        S = np.dot(X,X.T)
-        # Least squares solution
-        Q = S*Q2
-        np.fill_diagonal(Q,q1.T*np.diag(S))
-        P = np.dot(Y,X.T)*q1.T*np.ones((d,d))
-        # Weights
-        W = np.linalg.solve(Q.T+1e-5*np.eye(d),P[:-1,:].T).T
-        return W
    
    
    
