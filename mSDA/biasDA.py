@@ -31,13 +31,13 @@ Xtest       = Xtest*mask
 # Train each model
 
 print('Training')
-params_SDA  = fmda.SDA('biasDA',X,3, kappa=2./3)
+params_SDA  = fmda.SDA('fmDAb',X, 1, c1=1./4., c2=1./10.)
 print fmda.test(Xtest,params_SDA)
 test_output = fmda.map(Xtest,params_SDA)
 image       = Image.fromarray(utils.tile_raster_images(X=test_output.T, \
                                                    img_shape=(28,28), tile_shape=(20, 20), \
                                                    tile_spacing=(1, 1)))
-filename    = 'biasDA.png'
+filename    = 'fmDAb.png'
 image.save(filename)
 
 
