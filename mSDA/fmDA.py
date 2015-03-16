@@ -82,7 +82,7 @@ class fmDA:
     
     def rfmDA(self, X, Y):
         '''
-        fmDA builds a fully uniformly marginalised DAE
+        fmDA builds a fully uniformly marginalised DAE with retargetting
         
         :type X:    numpy array
         :param X:   data stored columnwise
@@ -110,7 +110,7 @@ class fmDA:
     
     def krfmDA(self, X, Y, kappa):
         '''
-        fmDA builds a fully kappa marginalised DAE
+        fmDA builds a fully kappa marginalised DAE with retargetting
         
         :type X:    numpy array
         :param X:   data stored columnwise
@@ -118,6 +118,8 @@ class fmDA:
         :type Y:    numpy array
         :param Y:   target data stored columnwise
         '''
+        assert kappa >= 0.
+        assert kappa <= 1.
         # Add a bias
         X = np.vstack((X,np.ones((1,X.shape[1]))))
         Y = np.vstack((Y,np.ones((1,Y.shape[1]))))
@@ -136,7 +138,87 @@ class fmDA:
     
     
     
-    def SDA(self, machine, train_data, k, kappa=None):
+    def biasDA(self, X, Y, kappa):
+        '''
+        biasDA builds a fully kappa marginalised DAE with retargetting
+        
+        :type X:    numpy array
+        :param X:   data stored columnwise
+              
+        :type Y:    numpy array
+        :param Y:   target data stored columnwise
+        
+        :type kappa:    float in [0,1]
+        :params kappa:  kappa regularisation constant
+        '''
+        assert kappa >= 0.
+        assert kappa <= 1.
+        # Add a bias
+        X = np.vstack((X,np.ones((1,X.shape[1]))))
+        # Dimension of data + bias 1
+        d = X.shape[0]
+        # Corruption multiplier
+        Qn                  = np.ones((d,d))
+        Qn[:(d-1),:(d-1)]   = Qn[:(d-1),:(d-1)]*kappa
+        np.fill_diagonal(Qn,1.)
+        # Scatter matrix
+        S = np.dot(X,X.T)
+        # Block form
+        Q = S*Qn
+        np.fill_diagonal(Q,np.diag(S))
+        P = np.dot(Y,X.T)
+        # Weights
+        W = np.linalg.solve(Q.T+1e-5*np.eye(d),P.T).T
+        return W
+    
+    
+    
+    def fmDAb(self, X, Y, c1, c2):
+        '''
+        biasDA builds a fully marginalised DAE with retargetting and
+        correct biases
+        
+        :type X:    numpy array
+        :param X:   data stored columnwise
+              
+        :type Y:    numpy array
+        :param Y:   target data stored columnwise
+        
+        :type c1:   float in [0,1]
+        :params c1: mean parameter
+        
+        :type c2:   float in [0,1]
+        :param c2:  energy parameter
+        '''
+        kappa   = c2/c1
+        assert kappa >= 0.
+        assert kappa <= 1.
+        # Add a bias
+        Xs= X.shape
+        Ys= Y.shape
+        # Dimension of data + bias 1
+        d = Xs[0]+1
+        N = Xs[1]
+        X = np.vstack((X,np.ones((1,N))))
+        # Corruption multiplier
+        Qn                  = c2*np.ones((d,d))
+        np.fill_diagonal(Qn,c1)
+        Qn[:,-1]            = c1
+        Qn[-1,:]            = c1
+        Qn[-1,-1]           = 1
+        Pn                  = c1*np.ones((Ys[0],Xs[0]))
+        Pn                  = np.hstack((Pn,np.ones((Ys[0],1))))
+        # Scatter matrix
+        S = np.dot(X,X.T)
+        # Block form
+        Q = S*Qn
+        P = np.dot(Y,X.T)*Pn
+        # Weights
+        W = np.linalg.solve(Q.T+1e-5*np.eye(d),P.T).T
+        return W
+    
+    
+    def SDA(self, machine, train_data, k, kappa=None, c1=None, c2=None, p=None):
         '''
         fmSDA builds a stack of mDAs
         
@@ -157,21 +239,27 @@ class fmDA:
         n           = train_data.shape[1]
         start = time.time()
         if kappa is not None:
-            assert kappa >= 0
-            assert kappa <= 1
+            assert kappa >= 0.
+            assert kappa <= 1.
+        
+        if p is not None:
+            assert p >= 0.
+            assert p <= 1.
         
         for i in xrange(k-1):
             print('Building layer %i' % i)
             if machine == 'fmDA':
                 params.append(self.fmDA(hidden_rep))
             elif machine == 'mDA':
-                params.append(self.mDA(hidden_rep,0.5))
+                params.append(self.mDA(hidden_rep, p))
             elif machine == 'rfmDA':
-                params.append(self.rfmDA(hidden_rep,train_data))
+                params.append(self.rfmDA(hidden_rep, train_data))
             elif machine == 'krfmDA':
-                params.append(self.krfmDA(hidden_rep,train_data,kappa))
+                params.append(self.krfmDA(hidden_rep, train_data,kappa))
             elif machine == 'biasDA':
-                params.append(self.biasDA(hidden_rep,train_data))
+                params.append(self.biasDA(hidden_rep, train_data, kappa))
+            elif machine == 'fmDAb':
+                params.append(self.fmDAb(hidden_rep, train_data, c1, c2))
             else:
                 print('Invalid machine')
                 sys.exit(1)
@@ -189,7 +277,9 @@ class fmDA:
         elif machine == 'krfmDA':
                 params.append(self.krfmDA(hidden_rep,train_data,kappa))
         elif machine == 'biasDA':
-            params.append(self.biasDA(hidden_rep,train_data))
+            params.append(self.biasDA(hidden_rep,train_data, kappa))
+        elif machine == 'fmDAb':
+                params.append(self.fmDAb(hidden_rep,train_data, c1, c2))
         else:
             print('Invalid machine')
             sys.exit(1)
@@ -197,8 +287,6 @@ class fmDA:
         print('Elapsed time: %04f' % (time.time()-start,))
         
         return params
-    
-    
 
 
     
@@ -248,10 +336,6 @@ class fmDA:
     
     
     
-
-    
-    
-    
     def biasDA(self, X, Y):
         '''
         mDA builds a Minmin Chen style marginalised DAE
@@ -291,9 +375,23 @@ class fmDA:
     
     def underAE(self, X, Y, H):
         '''
-        An undercomplete autoencoder with H hidden variables
+        An undercomplete autoencoder with H hidden variables. We
+        are going to have to use unbiased corruption for what follows.
+        
+        Corruption is not used for now
         '''
-        pass
+        # Zero mean everything
+        meanX   = np.mean(X,axis=1)
+        meanY   = np.mean(Y,axis=1)
+        X0      = X - meanX[:,np.newaxis]
+        Y0      = Y - meanY[:,np.newaxis]
+        
+        D0      = X0
+        Dbar    = np.dot(Y0,D0.T) + np.dot(Y0,D0.T).T
+        
+        V       = np.dot(X0,X0.T)
+        
+
    
    
    

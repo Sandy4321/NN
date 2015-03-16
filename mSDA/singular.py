@@ -1,5 +1,7 @@
 '''
-krfmDA.py
+singular.py is a script to calculate the singular value decomposition
+of the single layer mDA on a few different data sets to motivate the
+use of undercomplete layers for dimensionality reduction
 '''
 from fmDA import fmDA
 import numpy as np
@@ -10,7 +12,7 @@ import gzip
 import utils
 from PIL import Image
 import sys
-
+import matplotlib.pyplot as plt
 
 fmda = fmDA()
 # Note the data is stored row-wise and the fmDA takes it column-wise
@@ -18,7 +20,6 @@ print('Loading data')
 T, V, test  = fmda.load('../net/data/mnist.pkl.gz')
 X           = np.vstack((T[0],V[0])).T
 Xtest       = test[0].T
-num_kappa   = 10
 # Setup test case
 side_length = 20
 num_imgs    = side_length**2
@@ -32,18 +33,21 @@ Xtest       = Xtest*mask
 image       = Image.fromarray(utils.tile_raster_images(X=Xtest.T, \
                                                    img_shape=(28,28), tile_shape=(20, 20), \
                                                    tile_spacing=(1, 1)))
-image.save('in.png')
 
-# Train each model
-for k in xrange(num_kappa+1):
-    kappa = float(k)/num_kappa
-    print('Training with kappa = %.2f' % kappa)
-    params_SDA  = fmda.SDA('krfmDA',X,3, kappa)
-    test_output = fmda.map(Xtest,params_SDA)
-    image       = Image.fromarray(utils.tile_raster_images(X=test_output.T, \
-                                                       img_shape=(28,28), tile_shape=(20, 20), \
-                                                       tile_spacing=(1, 1)))
-    filename    = 'kappa/kappa' + str(k) + '.png'
-    image.save(filename)
+# Train model
+print('Training')
+for i in xrange(10):
+    params_SDA  = fmda.SDA('krfmDA',X,k=1,kappa=i*0.1)
+    for param in params_SDA:
+        U,S,V = np.linalg.svd(param[:,:-1])
+        plt.plot(S)
+    
+plt.xlabel('Singular component')
+plt.ylabel('Singular values')
+plt.title('Singular spectrum of linear layer')
+plt.yscale('log')
+plt.grid()
+plt.show()
+
 
 

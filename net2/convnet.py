@@ -1,9 +1,9 @@
-'''
-An deep autoencoder script for the deep-net framework
+"""
+A convnet
 
+@date: 27 Feb 2015
 @author: dew
-@date: 6 Jan 2013
-'''
+"""
 
 from layer import Layer
 from data_handling import Data_handling
@@ -25,8 +25,8 @@ topology        = (784, 400, 10)
 nonlinearities  = ('ReLU','softmax')
 layer_types     = ('FF','FF')
 regularisation  = (('None','L2'),('None','L2'))
-device          = 'DAE'
-layer_scheme    = 'DAE'
+device          = 'FF'
+layer_scheme    = 'FF'
 
 # IO
 stream      = open('data.pkl','r')
@@ -101,7 +101,7 @@ CNN = Deep(
 
 
 
-AE.load_fine_tuning_params(fine_tune_loss_type,
+CNN.load_fine_tuning_params(fine_tune_loss_type,
                            fine_tune_optimisation_scheme,
                            fine_tune_learning_rate  = fine_tune_learning_rate,
                            max_epochs               = max_epochs,
@@ -124,7 +124,7 @@ AE.load_fine_tuning_params(fine_tune_loss_type,
 
 
 ### 3 TRAINING ###
-AE.unsupervised_fine_tuning()
+CNN.unsupervised_fine_tuning()
 
 
 
