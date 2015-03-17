@@ -3,7 +3,7 @@ These are a family of machines which can be used for novel initialisation of neu
 
 ##TODO
 - [x] correct the bias
-- [ ] undercomplete hidden layers 
+- [x] undercomplete hidden layers 
 - [ ] overcomplete hidden layers 
 - [ ] layer size selection
 - [ ] kernelisation
