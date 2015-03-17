@@ -218,7 +218,7 @@ class fmDA:
         return W
     
     
-    def SDA(self, machine, train_data, k, kappa=None, c1=None, c2=None, p=None):
+    def SDA(self, machine, train_data, k, kappa=None, c1=None, c2=None, p=None, H=None):
         '''
         fmSDA builds a stack of mDAs
         
@@ -236,7 +236,6 @@ class fmDA:
         '''
         params      = []
         hidden_rep  = train_data
-        n           = train_data.shape[1]
         start = time.time()
         if kappa is not None:
             assert kappa >= 0.
@@ -245,6 +244,10 @@ class fmDA:
         if p is not None:
             assert p >= 0.
             assert p <= 1.
+        
+        if H is not None:
+            assert H > 0
+            assert H % 1 == 0
         
         for i in xrange(k-1):
             print('Building layer %i' % i)
@@ -260,9 +263,12 @@ class fmDA:
                 params.append(self.biasDA(hidden_rep, train_data, kappa))
             elif machine == 'fmDAb':
                 params.append(self.fmDAb(hidden_rep, train_data, c1, c2))
+            elif machine == 'underAE':
+                params.append(self.underAE(hidden_rep, train_data, H))
             else:
                 print('Invalid machine')
                 sys.exit(1)
+            n           = hidden_rep.shape[1]
             h_augmented = np.vstack((hidden_rep,np.ones((1,n))))
             hidden_rep  = nonlinearity(np.dot(params[i],h_augmented))
             print('Elapsed time: %04f' % (time.time()-start,))
@@ -280,6 +286,8 @@ class fmDA:
             params.append(self.biasDA(hidden_rep,train_data, kappa))
         elif machine == 'fmDAb':
                 params.append(self.fmDAb(hidden_rep,train_data, c1, c2))
+        elif machine == 'underAE':
+                params.append(self.underAE(hidden_rep, train_data, H))
         else:
             print('Invalid machine')
             sys.exit(1)
@@ -293,6 +301,33 @@ class fmDA:
     def map(self, test_data, params):
         '''
         map passes data through the DA
+        
+        :type test_data:    numpy array
+        :param test_data:   the test data stored column-wise
+        
+        :type params:       list of numpy arrays
+        :param params:      the parameters of the network
+        '''
+        # Build network
+        hidden_rep  = test_data
+        n           = test_data.shape[1]
+        k           = len(params)
+        start = time.time()
+        for i in xrange(k-1):
+            print('Propagating through layer %i' % i)
+            h_augmented = np.vstack((hidden_rep,np.ones((1,n))))
+            hidden_rep  = nonlinearity(np.dot(params[i],h_augmented))
+        # Final layer has no nonlinearity
+        h_augmented = np.vstack((hidden_rep,np.ones((1,n))))
+        hidden_rep  = np.dot(params[-1],h_augmented)
+        print('Elapsed time: %04f' % (time.time()-start,))
+        return hidden_rep
+
+
+    
+    def mapAE(self, test_data, params):
+        '''
+        map passes data through the AE for reconstruction
         
         :type test_data:    numpy array
         :param test_data:   the test data stored column-wise
@@ -378,18 +413,83 @@ class fmDA:
         An undercomplete autoencoder with H hidden variables. We
         are going to have to use unbiased corruption for what follows.
         
-        Corruption is not used for now
+        :type X:    numpy array
+        :param X:   hidden layer input
+        
+        :type Y:    numpy array
+        :param Y:   overall target
+        
+        :type H:    int
+        :param H:   number of hidden units
         '''
+        assert H != None
+        reg     = 1e-3
+        mean    = 0.4
+        variance= 0.04
+        nu      = (mean*(1-mean)/variance)-1
+        alpha   = mean*nu
+        beta    = (1-mean)*nu
+        while (alpha - 1.)**2 < 0.001:
+            alpha += 0.01
+        print('alpha: %0.3g, beta: %0.3g' % (alpha, beta))
+        
         # Zero mean everything
+        Y       = X
+        
         meanX   = np.mean(X,axis=1)
         meanY   = np.mean(Y,axis=1)
         X0      = X - meanX[:,np.newaxis]
         Y0      = Y - meanY[:,np.newaxis]
+        b       = Y0.mean(axis=1)
+        d, n    = X0.shape
         
+        # Natural statistics of the corruption
         D0      = X0
         Dbar    = np.dot(Y0,D0.T) + np.dot(Y0,D0.T).T
         
-        V       = np.dot(X0,X0.T)
+        # Spectral decompositon of the natural statistics
+        Vclean  = np.dot(X0,X0.T)
+        priorf  = beta*(alpha+beta-1)/((alpha+beta)*(alpha-1))
+        V       = Vclean + priorf*np.diag(np.diag(Vclean))
+        Vbar    = V + V.T
+        U, L    = np.linalg.svd(Vbar, full_matrices=True)[0:2]
+        UH      = U[:,:H]
+        LH      = L[:H]
+        LHsh    = LH.shape[0]
+        
+        # Forward weight matrix
+        MH      = 1./( LH[:,np.newaxis] + LH[np.newaxis,:] + reg*np.ones((LHsh,LHsh)))
+        Dproj   = 2*np.dot(UH.T,np.dot(Dbar,UH))
+        Wbar    = MH*Dproj
+        B       = np.dot(np.linalg.cholesky(Wbar + reg*np.eye(LHsh)),UH.T)
+        bE      = np.linalg.lstsq(B.T,b)[0]
+        B       = np.hstack((B,bE[:,np.newaxis]))
+        
+        return B
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         
 
    
