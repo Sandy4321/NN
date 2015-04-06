@@ -47,7 +47,7 @@ class kfmDA:
         enc_bias    = []
         dec_bias    = []
         d           = train_data.shape[0]
-        hidden_inp  = self.forward(np.eye(d), np.zeros(d), train_data, 'tanh')
+        hidden_inp  = self.forward(np.eye(d), np.zeros(d), train_data, 'linear')
         hidden_tgt  = train_data
         start = time.time()
        
@@ -64,7 +64,7 @@ class kfmDA:
                 weights.append(B)
                 enc_bias.append(bE)
                 dec_bias.append(bD)
-                hidden_inp = self.forward(weights[i], enc_bias[i], hidden_inp, 'tanh')
+                hidden_inp = self.forward(weights[i], enc_bias[i], hidden_inp, 'linear')
                 hidden_tgt = self.backward(weights[i],dec_bias[i], hidden_tgt, 'linear')
                 print('Elapsed time: %04f' % (time.time()-start,))
             else:

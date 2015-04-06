@@ -16,7 +16,8 @@ kfmda = kfmDA()
 # Note the data is stored row-wise and the kfmDA takes it column-wise
 print('Loading data')
 T, V, test  = kfmda.load('../net/data/mnist.pkl.gz')
-X           = np.vstack((T[0],V[0])).T
+# X           = np.vstack((T[0],V[0])).T
+X           = T[0]
 Xtest       = test[0].T
 # Setup test case
 side_length = 20
@@ -36,9 +37,9 @@ meanX   = np.mean(X,axis=1)[:,np.newaxis]
 X0      = X - meanX
 
 # Train
-params_SDA  = kfmda.SDA('underAE',X0,H=(100,50))
-Y           = kfmda.map(Xclean, params_SDA)
-error   = ((Y-Xclean)**2).sum()
+params_SDA  = kfmda.SDA('underAE',X0,H=(200,))
+Y           = kfmda.map(V[0], params_SDA)
+error   = ((Y-V[0])**2).sum()
 print('Error: %0.3g' % (error,))
 
 # Test images
