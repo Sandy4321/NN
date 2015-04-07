@@ -1,54 +1,24 @@
-'''
-kfmDA.py
-'''
-from kfmDA import kfmDA
-import numpy as np
-import numpy.random as rp
-import time
-import cPickle
-import gzip
-import utils
-from PIL import Image
-import sys
-import matplotlib.pyplot as plt
+"""Undercomplete fmDA implementation"""
 
-kfmda = kfmDA()
+__authors__   = "Daniel Worrall"
+__copyright__ = "(c) 2015, University College London"
+__license__   = "3-clause BSD License"
+__contact__   = "d.worrall@cs.ucl.ac.uk"
+
+import numpy
+
+from fmDA import fmDA
+
+fmda = fmDA()
 # Note the data is stored row-wise and the kfmDA takes it column-wise
 print('Loading data')
-T, V, test  = kfmda.load('../net/data/mnist.pkl.gz')
-# X           = np.vstack((T[0],V[0])).T
-X           = T[0]
-Xtest       = test[0].T
-# Setup test case
-side_length = 20
-num_imgs    = side_length**2
-Xclean      = Xtest[:,:num_imgs]
-mask        = rp.random_sample(Xclean.shape)
-for cols in xrange(side_length):
-    p       = (cols+1.)/side_length
-    i       = cols*side_length
-    mask[:,i:(i+side_length)]   = (mask[:,i:(i+side_length)] > p)*1.
-Xdirty      = Xclean*mask
-
-
-# Preprocess data
-print('Training')
-meanX   = np.mean(X,axis=1)[:,np.newaxis]
-X0      = X - meanX
+train, valid, test = fmda.load('../net/data/mnist.pkl.gz')
+X = train[0].astype(dtype=numpy.float32)
 
 # Train
-params_SDA  = kfmda.SDA('underAE',X0,H=(200,))
-Y           = kfmda.map(V[0], params_SDA)
-error   = ((Y-V[0])**2).sum()
-print('Error: %0.3g' % (error,))
-
-# Test images
-image       = Image.fromarray(utils.tile_raster_images(X=Y.T, \
-                                                   img_shape=(28,28), tile_shape=(20, 20), \
-                                                   tile_spacing=(1, 1)))
-image.save('kfmDA.png')
-
-
+print('Training')
+#params_SDA = kfmda.SDA('underAE',X0,H=(200,))
+B, bE, bD = fmda.underfmDA(X, X, H=200)
 
 
 
