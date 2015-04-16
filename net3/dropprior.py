@@ -40,7 +40,7 @@ class DroppriorTrain(Exception):
     def gpu_type(self, data):
         '''Convert data to theano.config.sharedX type'''
         data_typed = numpy.asarray(data, dtype=Tconf.floatX)
-        dataX = TsharedX(data_typed)
+        dataX = TsharedX(data_typed, borrow=True)
         return dataX
     
     def load(self, data_address):
@@ -60,9 +60,9 @@ class DroppriorTrain(Exception):
         self.valid_y = self.gpu_type(valid_set[1].T)
         self.test_x = self.gpu_type(test_set[0].T)
         self.test_y = self.gpu_type(test_set[1].T)
-        self.num_train = train_set[0].shape[1]
-        self.num_valid = valid_set[0].shape[1]
-        self.num_test = test_set[0].shape[1]
+        self.num_train = train_set[0].shape[0]
+        self.num_valid = valid_set[0].shape[0]
+        self.num_test = test_set[0].shape[0]
         
     def build(self, args):
         '''Construct the model'''
@@ -112,8 +112,8 @@ class DroppriorTrain(Exception):
         c = []
         num_train_batches = numpy.ceil(self.num_train / batch_size)
         for batch in numpy.arange(num_train_batches):
-            print batch
             c.append(train_model(batch))
+        print numpy.asarray(c).mean()
 
 
 class Dropprior(Exception):
@@ -132,22 +132,22 @@ class Dropprior(Exception):
             W_value = coeff*numpy.random.uniform(size=(self.ls[i+1],self.ls[i]))
             W_value = numpy.asarray(W_value, dtype=Tconf.floatX)
             Wname = 'W' + str(i)
-            self.W.append(TsharedX(W_value, Wname))
+            self.W.append(TsharedX(W_value, Wname, borrow=True))
             
-            b_value = 0.1 * numpy.ones(self.ls[i+1])
-            b_value = numpy.asarray(W_value, dtype=Tconf.floatX)
+            b_value = 0.1*numpy.ones((self.ls[i+1],))
+            b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
             bname = 'b' + str(i)
-            self.b.append(TsharedX(b_value, bname))
+            self.b.append(TsharedX(b_value, bname, borrow=True))
             
-            c_value = 0.1 * numpy.ones(self.ls[i])
-            c_value = numpy.asarray(W_value, dtype=Tconf.floatX)
+            c_value = 0.1*numpy.ones((self.ls[i],))
+            c_value = numpy.asarray(c_value, dtype=Tconf.floatX)
             cname = 'c' + str(i)
-            self.c.append(TsharedX(c_value, cname))
+            self.c.append(TsharedX(c_value, cname, borrow=True))
         
         for W, b, c in zip(self.W, self.b, self.c):
             self._params.append(W)
             self._params.append(b)
-            self._params.append(c)
+            #self._params.append(c)
     
     def encode_layer(self, X, layer):
         '''Sigmoid encoder function for single layer'''
@@ -157,7 +157,7 @@ class Dropprior(Exception):
     def decode_layer(self, h, layer):
         '''Linear decoder function for a single layer'''
         idx = self.num_layers - layer - 1
-        pre_act = T.dot(self.W[idx].T, h) + self.c[idx]
+        pre_act = T.dot(self.W[idx].T, h) #+ self.c[idx]
         return pre_act * (pre_act > 0)
     
     def encode(self, X):
