@@ -5,7 +5,7 @@ __copyright__ = "(c) 2015, University College London"
 __license__   = "3-clause BSD License"
 __contact__   = "d.worrall@cs.ucl.ac.uk"
 
-import sys
+import sys, time
 
 import cPickle
 import gzip
@@ -16,7 +16,6 @@ import theano.tensor.nnet as Tnet
 from theano import config as Tconf
 from theano import function as Tfunction
 from theano import shared as TsharedX
-
 
 
 class DroppriorTrain(Exception):
@@ -78,8 +77,6 @@ class DroppriorTrain(Exception):
         batch_size = args['batch_size']
         data_address = args['data_address']
         params = self.model._params
-        print params
-        print params[0].get_value().shape
         
         print('Loading data')
         self.load2gpu(data_address)
@@ -111,10 +108,13 @@ class DroppriorTrain(Exception):
         print('Training')
         c = []
         num_train_batches = numpy.ceil(self.num_train / batch_size)
-        for batch in numpy.arange(num_train_batches):
-            c.append(train_model(batch))
-        print numpy.asarray(c).mean()
-
+        num_epochs = 10
+        start = time.time()
+        for epoch in numpy.arange(num_epochs):
+            for batch in numpy.arange(num_train_batches):
+                c.append(train_model(batch))
+            print numpy.asarray(c).mean()
+        print('Time: %f' % (time.time() - start,))
 
 class Dropprior(Exception):
     def __init__(self, layer_sizes):
@@ -134,20 +134,20 @@ class Dropprior(Exception):
             Wname = 'W' + str(i)
             self.W.append(TsharedX(W_value, Wname, borrow=True))
             
-            b_value = 0.1*numpy.ones((self.ls[i+1],))
+            b_value = 0.1*numpy.ones((self.ls[i+1],))[:,numpy.newaxis]
             b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
             bname = 'b' + str(i)
-            self.b.append(TsharedX(b_value, bname, borrow=True))
+            self.b.append(TsharedX(b_value, bname, borrow=True, broadcastable=(False,True)))
             
-            c_value = 0.1*numpy.ones((self.ls[i],))
+            c_value = 0.1*numpy.ones((self.ls[i],))[:,numpy.newaxis]
             c_value = numpy.asarray(c_value, dtype=Tconf.floatX)
             cname = 'c' + str(i)
-            self.c.append(TsharedX(c_value, cname, borrow=True))
+            self.c.append(TsharedX(c_value, cname, borrow=True, broadcastable=(False,True)))
         
         for W, b, c in zip(self.W, self.b, self.c):
             self._params.append(W)
             self._params.append(b)
-            #self._params.append(c)
+            self._params.append(c)
     
     def encode_layer(self, X, layer):
         '''Sigmoid encoder function for single layer'''
@@ -157,7 +157,7 @@ class Dropprior(Exception):
     def decode_layer(self, h, layer):
         '''Linear decoder function for a single layer'''
         idx = self.num_layers - layer - 1
-        pre_act = T.dot(self.W[idx].T, h) #+ self.c[idx]
+        pre_act = T.dot(self.W[idx].T, h) + self.c[idx]
         return pre_act * (pre_act > 0)
     
     def encode(self, X):
@@ -181,7 +181,7 @@ class Dropprior(Exception):
 if __name__ == '__main__':
     
     args = {
-        'layer_sizes' : (784, 2000),
+        'layer_sizes' : (784, 2000, 2000),
         'data_address' : './data/mnist.pkl.gz',
         'learning_rate' : 1e-4,
         'batch_size' : 100
@@ -191,7 +191,9 @@ if __name__ == '__main__':
     dpt.build(args)
     dpt.train(args)
     
-    
+    '''
+    TODO: VALIDATION, DROPOUT, WEIGHT CONSTRAINTS, PRETRAINING, CONVOLUTIONS
+    ''' 
     
     
     
