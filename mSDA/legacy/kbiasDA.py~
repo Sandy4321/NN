@@ -15,7 +15,7 @@ import sys
 fmda = fmDA()
 # Note the data is stored row-wise and the fmDA takes it column-wise
 print('Loading data')
-T, V, test  = fmda.load('/home/daniel/Code/NN/net/data/mnist.pkl.gz')
+T, V, test  = fmda.load('/homedaniel/Code/NN/net/data/mnist.pkl.gz')
 X           = np.vstack((T[0],V[0])).T
 Xtest       = test[0].T
 num_kappa   = 10
