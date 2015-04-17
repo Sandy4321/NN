@@ -13,28 +13,25 @@ import numpy
 import theano.tensor as T
 import theano.tensor.nnet as Tnet
 
+from matplotlib import pyplot as plt
 from theano import config as Tconf
 from theano import function as Tfunction
 from theano import shared as TsharedX
 
 
-class DroppriorTrain(Exception):
-
-    def cost(self):
-        Yhat = self.output
-        Y = self.target
-        loss = ((Y-Yhat)**2).sum(axis=1)
-        return loss.mean()
+class Train(Exception):
+    # Some handy timing functions
+    def set_start(self):
+        '''Set timer to zero'''
+        s = time.time()
+        return s
     
-    def updates(self, cost, params, args):
-        '''Get parameter updates given cost'''
-        learning_rate = args['learning_rate']
-        updates = []
-        for param in params:
-            g_param = T.grad(cost, param)
-            update = param - learning_rate * g_param
-            updates.append((param, update))
-        return updates
+    def now(self, s):
+        '''Readout time elapsed'''
+        secs = time.time() - s
+        strsecs = '%06.1f' % (secs,)
+        message = '[TIME: ' + strsecs + ']'
+        return message
     
     def gpu_type(self, data):
         '''Convert data to theano.config.sharedX type'''
@@ -63,19 +60,19 @@ class DroppriorTrain(Exception):
         self.num_valid = valid_set[0].shape[0]
         self.num_test = test_set[0].shape[0]
         
-    def build(self, args):
+    def build(self, model, args):
         '''Construct the model'''
         print('Building model')
         layer_sizes = args['layer_sizes']
-        self.model = Dropprior(layer_sizes)
+        self.model = model(layer_sizes)
         self.input = T.matrix(name='input', dtype=Tconf.floatX)
         self.output = self.model.reconstruct(self.input)
         self.target = T.matrix(name='target', dtype=Tconf.floatX)
     
     def train(self, args):
         '''Train the model'''
-        batch_size = args['batch_size']
         data_address = args['data_address']
+        batch_size = args['batch_size']
         params = self.model._params
         
         print('Loading data')
@@ -83,10 +80,10 @@ class DroppriorTrain(Exception):
         
         print('Constructing flow graph')
         index = T.lscalar()
-        
         cost = self.cost()
         updates = self.updates(cost, params, args)
-        train_model = Tfunction(
+        Tfuncs = {}
+        Tfuncs['train_model'] = Tfunction(
             inputs=[index],
             outputs=cost,
             updates=updates,
@@ -95,28 +92,109 @@ class DroppriorTrain(Exception):
                 self.target: self.train_x[:,index*batch_size:(index+1)*batch_size]
             }
         )
-        validate_model = Tfunction(
+        Tfuncs['validate_model'] = Tfunction(
             inputs=[index],
             outputs=cost, ## CHANGE THIS LATER
-            updates=updates,
             givens={
                 self.input: self.valid_x[:,index*batch_size:(index+1)*batch_size],
                 self.target: self.valid_x[:,index*batch_size:(index+1)*batch_size]
             }
         )
+        # Train
+        monitor = self.main_loop(Tfuncs, args)
+        return monitor
+    
+    def main_loop(self, Tfuncs, args):
+        '''The main training loop'''
+        train_model = Tfuncs['train_model']
+        validate_model = Tfuncs['validate_model']
+        batch_size = args['batch_size']
+        validation_freq = args['validation_freq']
+        save_freq = args['save_freq']
+        save_name = args['save_name']
+        monitor = {'train_cost' : [],
+                'valid_cost' : [],
+                'best_cost' : numpy.inf,
+                'best_model' : self.model._params}
         
         print('Training')
-        c = []
         num_train_batches = numpy.ceil(self.num_train / batch_size)
+        num_valid_batches = numpy.ceil(self.num_valid / batch_size)
         num_epochs = 10
-        start = time.time()
+        # Timing, displays and monitoring
+        s = self.set_start()
+        n = self.now
         for epoch in numpy.arange(num_epochs):
+            ep = '[EPOCH %05d]' % (epoch,)
+            # Train
+            train_cost = numpy.zeros(num_train_batches)
             for batch in numpy.arange(num_train_batches):
-                c.append(train_model(batch))
-            print numpy.asarray(c).mean()
-        print('Time: %f' % (time.time() - start,))
+                train_cost[batch] = train_model(batch)
+            tc = train_cost.mean()
+            monitor['train_cost'].append(tc)
+            print('%s%s Training cost: %f' % (ep, n(s), tc,))
+            # Validate
+            if epoch % validation_freq == 0:
+                valid_cost = numpy.zeros(num_valid_batches)
+                for batch in numpy.arange(num_valid_batches):
+                    valid_cost[batch] = validate_model(batch)
+                vc = valid_cost.mean()
+                monitor['valid_cost'].append(vc)
+                # Best model
+                if vc < monitor['best_cost']:
+                    monitor['best_model'] = self.model._params
+                    print('BEST MODEL: '),
+                print('%s%s Validation cost: %f' % (ep, n(s), vc,))
+            # Saving
+            if epoch % save_freq == 0:
+                self.save_state(save_name, args, monitor)
+        
+        self.save_state(save_name, args, monitor)
+        return monitor
+        
+    def cost(self):
+        Yhat = self.output
+        Y = self.target
+        loss = ((Y-Yhat)**2).sum(axis=1)
+        return loss.mean()
+    
+    def updates(self, cost, params, args):
+        '''Get parameter updates given cost'''
+        # Load variables a check valid
+        lr = args['learning_rate']
+        assert lr >= 0
+        mmtm = args['momentum']
+        assert (mmtm >= 0 and mmtm < 1) or (mmtm == None)
+        
+        # File updates
+        updates = []
+        for param in params:
+            g_param = T.grad(cost, param)
+            # If no momentum set variable to None
+            if mmtm != None:
+                param_update = TsharedX(param.get_value()*0., broadcastable=param.broadcastable)
+                updates.append((param_update, mmtm*param_update + lr*g_param))
+            else:
+                param_update = lr*g_param
+            updates.append((param, param - param_update))
+        return updates
+    
+    def load_state(self):
+        '''Load data from a pkl file'''
+        pass
+    
+    def save_state(self, fname, args, monitor=None):
+        '''Save data to a pkl file'''
+        print('Pickling: %s' % (fname,))
+        state = {'params' : self.model._params,
+                 'hyperparams' : args,
+                 'monitor' : monitor}
+        stream = open(fname,'w')
+        cPickle.dump(state, stream, protocol=cPickle.HIGHEST_PROTOCOL)
+        stream.close()
+    
 
-class Dropprior(Exception):
+class Autoencoder(Exception):
     def __init__(self, layer_sizes):
         '''Construct the autoencoder expression graph'''
 
@@ -184,15 +262,32 @@ if __name__ == '__main__':
         'layer_sizes' : (784, 2000, 2000),
         'data_address' : './data/mnist.pkl.gz',
         'learning_rate' : 1e-4,
-        'batch_size' : 100
+        'momentum' : 0.9,
+        'batch_size' : 100,
+        'validation_freq' : 5,
+        'save_freq' : 5,
+        'save_name' : 'dropprior.pkl'
         }
     
-    dpt = DroppriorTrain()
-    dpt.build(args)
-    dpt.train(args)
+    tr = Train()
+    model = Autoencoder
+    tr.build(model, args)
+    monitor = tr.train(args)
+    '''
+    fig = plt.figure()
+    plt.plot(monitor['train_cost'])
+    plt.show()
+    '''
     
     '''
-    TODO: VALIDATION, DROPOUT, WEIGHT CONSTRAINTS, PRETRAINING, CONVOLUTIONS
+    TODO: DROPOUT, WEIGHT CONSTRAINTS, PRETRAINING, CONVOLUTIONS
+    
+    A problem with dropout is in deciding whether it is part of the model or
+    the optimisation. I am going to side with the view that an optimisation is
+    independent of the model (as much as possible) and has the sole aim of
+    reaching a local minimum. Apart from early stopping, regularised SGD is
+    actually SGD on a regularised objective, where the regularised objective
+    is the model instead of an optimisation trick.
     ''' 
     
     
