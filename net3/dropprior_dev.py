@@ -305,18 +305,16 @@ class Autoencoder():
         '''Return a random dropout vector'''
         name = 'layer' + str(layer)
         corruption = dropout_dict[name]
+        cseed = corruption['seed']
         ctype = corruption['type']
         cvalues = corruption['values']
         
         if ctype == 'unbiased':
             # Construct RNG
-            print name, shape,
-            rv = numpy.random.random_sample(shape)
-            print rv.shape
-            rng = TsharedX(numpy.asarray(rv),Tconf.floatX,broadcastable=(False,True)).astype(Tconf.floatX)
+            srng = RandomStreams(seed=cseed)
+            rng = srng.uniform(size=shape)####NEED TO IMPLEMENT BATCH SIZE
             # Evaluate RNG
             dropmult = (rng < cvalues) / cvalues
-            print cvalues
         
         return dropmult
     
@@ -330,7 +328,8 @@ if __name__ == '__main__':
             v = 0.2
         else:
             v = 0.5
-        sub_dict = { name : {'type' : 'unbiased',
+        sub_dict = { name : {'seed' : 234,
+                             'type' : 'unbiased',
                              'values' : v}}
         dropout_dict.update(sub_dict)
     
