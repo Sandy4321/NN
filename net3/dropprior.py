@@ -16,11 +16,16 @@ import theano.tensor.nnet as Tnet
 from matplotlib import pyplot as plt
 from theano import config as Tconf
 from theano import function as Tfunction
+from theano.sandbox.rng_mrg import MRG_RandomStreams
 from theano import shared as TsharedX
+from theano.tensor.shared_randomstreams import RandomStreams
 
 class DivergenceError(Exception): pass
 
 class Train():
+    def __init__(self):
+        self.epoch = 0
+        
     # Some handy timing functions
     def set_start(self):
         '''Set timer to zero'''
@@ -64,8 +69,7 @@ class Train():
     def build(self, model, args):
         '''Construct the model'''
         print('Building model')
-        layer_sizes = args['layer_sizes']
-        self.model = model(layer_sizes)
+        self.model = model(args)
         self.input = T.matrix(name='input', dtype=Tconf.floatX)
         self.output = self.model.reconstruct(self.input)
         self.target = T.matrix(name='target', dtype=Tconf.floatX)
@@ -75,6 +79,7 @@ class Train():
         data_address = args['data_address']
         batch_size = int(args['batch_size'])
         params = self.model._params
+        self.learning_rate_margin = args['learning_rate_margin']
         
         print('Loading data')
         self.load2gpu(data_address)
@@ -125,8 +130,8 @@ class Train():
         # Timing, displays and monitoring
         s = self.set_start()
         n = self.now
-        for epoch in numpy.arange(num_epochs):
-            ep = '[EPOCH %05d]' % (epoch,)
+        for self.epoch in numpy.arange(num_epochs):
+            ep = '[EPOCH %05d]' % (self.epoch,)
             
             # Train
             train_cost = numpy.zeros(num_train_batches)
@@ -138,7 +143,7 @@ class Train():
             self.check_real(tc)
             
             # Validate
-            if epoch % validation_freq == 0:
+            if self.epoch % validation_freq == 0:
                 valid_cost = numpy.zeros(num_valid_batches)
                 for batch in numpy.arange(num_valid_batches):
                     valid_cost[batch] = validate_model(batch) 
@@ -154,7 +159,7 @@ class Train():
                 self.check_real(vc)
             
             # Saving
-            if epoch % save_freq == 0:
+            if self.epoch % save_freq == 0:
                 self.save_state(save_name, args, monitor)
         
         self.save_state(save_name, args, monitor)
@@ -163,13 +168,13 @@ class Train():
     def cost(self):
         Yhat = self.output
         Y = self.target
-        loss = ((Y-Yhat)**2).sum(axis=1)
+        loss = ((Y-Yhat)**2).sum(axis=0)
         return loss.mean()
     
     def updates(self, cost, params, args):
         '''Get parameter updates given cost'''
         # Load variables a check valid
-        lr = args['learning_rate']
+        lr = args['learning_rate']*self.learning_rate_correction()
         assert lr >= 0
         mmtm = args['momentum']
         assert (mmtm >= 0 and mmtm < 1) or (mmtm == None)
@@ -180,12 +185,33 @@ class Train():
             g_param = T.grad(cost, param)
             # If no momentum set variable to None
             if mmtm != None:
-                param_update = TsharedX(param.get_value()*0., broadcastable=param.broadcastable)
+                param_update = TsharedX(param.get_value()*0.,
+                                        broadcastable=param.broadcastable)
                 updates.append((param_update, mmtm*param_update + lr*g_param))
             else:
                 param_update = lr*g_param
             updates.append((param, param - param_update))
+        self.max_norm(updates, args)
+        
         return updates
+    
+    def max_norm(self, updates, args):
+        '''Apply max norm constraint to the updates on weights'''
+        max_col_norm = args['max_col_norm']
+        for i, update in enumerate(updates):
+            param, param_update = update
+            if param in self.model.W:
+                col_norms = T.sqrt(T.sum(T.sqr(param_update), axis=0))
+                desired_norms = T.clip(col_norms, 0, max_col_norm)
+                constrained_W = param_update * (desired_norms / (1e-7 + col_norms))
+                # Tuples are immutable
+                updates_i = list(updates[i])
+                updates_i[1] = constrained_W
+                updates[i] = tuple(updates_i)
+                 
+    def learning_rate_correction(self):
+        tau = self.learning_rate_margin*1.
+        return tau/float(max(tau, self.epoch))
     
     def check_real(self, x):
         '''Check training has not diverged'''
@@ -203,8 +229,7 @@ class Train():
     def save_state(self, fname, args, monitor=None):
         '''Save data to a pkl file'''
         print('Pickling: %s' % (fname,))
-        state = {'params' : self.model._params,
-                 'hyperparams' : args,
+        state = {'hyperparams' : args,
                  'monitor' : monitor}
         stream = open(fname,'w')
         cPickle.dump(state, stream, protocol=cPickle.HIGHEST_PROTOCOL)
@@ -216,10 +241,10 @@ class Train():
     
 
 class Autoencoder():
-    def __init__(self, layer_sizes):
+    def __init__(self, args):
         '''Construct the autoencoder expression graph'''
 
-        self.ls = layer_sizes
+        self.ls = args['layer_sizes']
         self.num_layers = len(self.ls) - 1
         
         self.W = []
@@ -228,7 +253,8 @@ class Autoencoder():
         self._params = []
         for i in numpy.arange(self.num_layers):
             coeff = numpy.sqrt(6/(self.ls[i] + (self.ls[i+1])))
-            W_value = coeff*numpy.random.uniform(size=(self.ls[i+1],self.ls[i]))
+            W_value = 2*coeff*(numpy.random.uniform(size=(self.ls[i+1],
+                                                          self.ls[i]))-0.5)
             W_value = numpy.asarray(W_value, dtype=Tconf.floatX)
             Wname = 'W' + str(i)
             self.W.append(TsharedX(W_value, Wname, borrow=True))
@@ -236,28 +262,44 @@ class Autoencoder():
             b_value = 0.1*numpy.ones((self.ls[i+1],))[:,numpy.newaxis]
             b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
             bname = 'b' + str(i)
-            self.b.append(TsharedX(b_value, bname, borrow=True, broadcastable=(False,True)))
+            self.b.append(TsharedX(b_value, bname, borrow=True,
+                                   broadcastable=(False,True)))
             
             c_value = 0.1*numpy.ones((self.ls[i],))[:,numpy.newaxis]
             c_value = numpy.asarray(c_value, dtype=Tconf.floatX)
             cname = 'c' + str(i)
-            self.c.append(TsharedX(c_value, cname, borrow=True, broadcastable=(False,True)))
+            self.c.append(TsharedX(c_value, cname, borrow=True,
+                                   broadcastable=(False,True)))
         
         for W, b, c in zip(self.W, self.b, self.c):
             self._params.append(W)
             self._params.append(b)
             self._params.append(c)
+        
+        # Load the dropout variables
+        self.dropout_dict = args['dropout_dict']
     
     def encode_layer(self, X, layer):
-        '''Sigmoid encoder function for single layer'''
-        pre_act = T.dot(self.W[layer], X) + self.b[layer]
-        return pre_act * (pre_act > 0)
+        '''Sigmoid encoder function for single layer'''          
+        if self.dropout_dict == None:
+            Xdrop = X
+        else:
+            size = X.shape
+            Xdrop = X*self.dropout(layer, size)
+        pre_act = T.dot(self.W[layer], Xdrop) + self.b[layer]  
+        return (pre_act > 0) * pre_act 
     
     def decode_layer(self, h, layer):
         '''Linear decoder function for a single layer'''
         idx = self.num_layers - layer - 1
-        pre_act = T.dot(self.W[idx].T, h) + self.c[idx]
-        return pre_act * (pre_act > 0)
+        lyr = self.num_layers + layer
+        if self.dropout_dict == None:
+            hdrop = h
+        else:
+            size = h.shape
+            hdrop = h*self.dropout(lyr, size)
+        pre_act = T.dot(self.W[idx].T, hdrop) + self.c[idx]
+        return (pre_act > 0) * pre_act
     
     def encode(self, X):
         '''Full encoder'''
@@ -276,19 +318,56 @@ class Autoencoder():
         h = self.encode(X)
         return self.decode(h)
     
+    def dropout(self, layer, size):
+        '''Return a random dropout vector'''
+        name = 'layer' + str(layer)
+        vname = 'dropout' + str(layer)
+        sub_dict = self.dropout_dict[name]
+        cseed = sub_dict['seed']
+        ctype = sub_dict['type']
+        cvalues = TsharedX(sub_dict['values'], vname, broadcastable=(False, True))
+        
+        if ctype == 'unbiased':
+            # Construct RNG
+            smrg = MRG_RandomStreams(seed=cseed)
+            rng = smrg.uniform(size=size)
+            # Evaluate RNG
+            dropmult = (rng < cvalues) / cvalues
+        
+        return dropmult
+    
 
 if __name__ == '__main__':
+    
+    dropout_dict = {}
+    for i in numpy.arange(4):
+        name = 'layer' + str(i)
+        if i == 0:
+            # Need to cast to floatX or the computation gets pushed to the CPU
+            v = 0.2*numpy.ones((784,1)).astype(Tconf.floatX)
+        else:
+            v = 0.5*numpy.ones((2000,1)).astype(Tconf.floatX)
+        sub_dict = { name : {'seed' : 234,
+                             'type' : 'unbiased',
+                             'values' : v}}
+        dropout_dict.update(sub_dict)
     
     args = {
         'layer_sizes' : (784, 2000, 2000),
         'data_address' : './data/mnist.pkl.gz',
-        'learning_rate' : 1e-4,
-        'momentum' : 0.9,
-        'batch_size' : 100,
+        'learning_rate' : 1e-7,
+        'learning_rate_margin' : 20,
+        'momentum' : 0.865,
+        'batch_size' : 40,
+        'num_epochs' : 10,
+        'max_col_norm' : 5,
+        'dropout_dict' : dropout_dict,
         'validation_freq' : 5,
         'save_freq' : 5,
-        'save_name' : 'dropprior.pkl'
+        'save_name' : 'dropprior_dev.pkl'
         }
+    
+    numpy.random.seed(seed=324)
     
     tr = Train()
     model = Autoencoder
@@ -301,7 +380,7 @@ if __name__ == '__main__':
     '''
     
     '''
-    TODO: EXCEPTIONS, DROPOUT, WEIGHT CONSTRAINTS, PRETRAINING, CONVOLUTIONS
+    TODO: DROPOUT, WEIGHT CONSTRAINTS, PRETRAINING, CONVOLUTIONS
     
     A problem with dropout is in deciding whether it is part of the model or
     the optimisation. I am going to side with the view that an optimisation is

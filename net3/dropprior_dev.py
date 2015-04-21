@@ -168,7 +168,7 @@ class Train():
     def cost(self):
         Yhat = self.output
         Y = self.target
-        loss = ((Y-Yhat)**2).sum(axis=1)
+        loss = ((Y-Yhat)**2).sum(axis=0)
         return loss.mean()
     
     def updates(self, cost, params, args):
@@ -185,13 +185,30 @@ class Train():
             g_param = T.grad(cost, param)
             # If no momentum set variable to None
             if mmtm != None:
-                param_update = TsharedX(param.get_value()*0., broadcastable=param.broadcastable)
+                param_update = TsharedX(param.get_value()*0.,
+                                        broadcastable=param.broadcastable)
                 updates.append((param_update, mmtm*param_update + lr*g_param))
             else:
                 param_update = lr*g_param
             updates.append((param, param - param_update))
+        self.max_norm(updates, args)
+        
         return updates
     
+    def max_norm(self, updates, args):
+        '''Apply max norm constraint to the updates on weights'''
+        max_col_norm = args['max_col_norm']
+        for i, update in enumerate(updates):
+            param, param_update = update
+            if param in self.model.W:
+                col_norms = T.sqrt(T.sum(T.sqr(param_update), axis=0))
+                desired_norms = T.clip(col_norms, 0, max_col_norm)
+                constrained_W = param_update * (desired_norms / (1e-7 + col_norms))
+                # Tuples are immutable
+                updates_i = list(updates[i])
+                updates_i[1] = constrained_W
+                updates[i] = tuple(updates_i)
+                 
     def learning_rate_correction(self):
         tau = self.learning_rate_margin*1.
         return tau/float(max(tau, self.epoch))
@@ -267,9 +284,6 @@ class Autoencoder():
         if self.dropout_dict == None:
             Xdrop = X
         else:
-            #name = 'layer' + str(layer)
-            #sub_dict = self.dropout_dict[name]
-            #cvalues = sub_dict['values']
             size = X.shape
             Xdrop = X*self.dropout(layer, size)
         pre_act = T.dot(self.W[layer], Xdrop) + self.b[layer]  
@@ -346,6 +360,7 @@ if __name__ == '__main__':
         'momentum' : 0.865,
         'batch_size' : 40,
         'num_epochs' : 10,
+        'max_col_norm' : 5,
         'dropout_dict' : dropout_dict,
         'validation_freq' : 5,
         'save_freq' : 5,

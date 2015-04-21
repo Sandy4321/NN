@@ -6,7 +6,7 @@ import pylab
 
 from matplotlib import pyplot as plt
 
-fname = 'best_dropprior.pkl'
+fname = './pkl/dropprior.pkl'
 stream = open(fname, 'r')
 state = cPickle.load(stream)
 stream.close()
