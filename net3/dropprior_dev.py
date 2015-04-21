@@ -16,6 +16,7 @@ import theano.tensor.nnet as Tnet
 from matplotlib import pyplot as plt
 from theano import config as Tconf
 from theano import function as Tfunction
+from theano.sandbox.rng_mrg import MRG_RandomStreams
 from theano import shared as TsharedX
 from theano.tensor.shared_randomstreams import RandomStreams
 
@@ -68,11 +69,9 @@ class Train():
     def build(self, model, args):
         '''Construct the model'''
         print('Building model')
-        layer_sizes = args['layer_sizes']
-        dropout_dict = args['dropout_dict']
-        self.model = model(layer_sizes)
+        self.model = model(args)
         self.input = T.matrix(name='input', dtype=Tconf.floatX)
-        self.output = self.model.reconstruct(self.input, dropout_dict)
+        self.output = self.model.reconstruct(self.input)
         self.target = T.matrix(name='target', dtype=Tconf.floatX)
     
     def train(self, args):
@@ -225,10 +224,10 @@ class Train():
     
 
 class Autoencoder():
-    def __init__(self, layer_sizes):
+    def __init__(self, args):
         '''Construct the autoencoder expression graph'''
 
-        self.ls = layer_sizes
+        self.ls = args['layer_sizes']
         self.num_layers = len(self.ls) - 1
         
         self.W = []
@@ -259,60 +258,65 @@ class Autoencoder():
             self._params.append(W)
             self._params.append(b)
             self._params.append(c)
+        
+        # Load the dropout variables
+        self.dropout_dict = args['dropout_dict']
     
-    def encode_layer(self, X, layer, dropout_dict=None):
+    def encode_layer(self, X, layer):
         '''Sigmoid encoder function for single layer'''          
-        if dropout_dict == None:
+        if self.dropout_dict == None:
             Xdrop = X
         else:
-            shape = (self.ls[layer],1)
-            Xdrop = X*self.dropout(dropout_dict, layer, shape)
+            #name = 'layer' + str(layer)
+            #sub_dict = self.dropout_dict[name]
+            #cvalues = sub_dict['values']
+            size = X.shape
+            Xdrop = X*self.dropout(layer, size)
         pre_act = T.dot(self.W[layer], Xdrop) + self.b[layer]  
-        
-        return (pre_act > 0) * pre_act
+        return (pre_act > 0) * pre_act 
     
-    def decode_layer(self, h, layer, dropout_dict=None):
+    def decode_layer(self, h, layer):
         '''Linear decoder function for a single layer'''
         idx = self.num_layers - layer - 1
-        real_layer = self.num_layers + layer
-        if dropout_dict == None:
+        lyr = self.num_layers + layer
+        if self.dropout_dict == None:
             hdrop = h
         else:
-            shape = (self.ls[idx+1],1)
-            hdrop = h*self.dropout(dropout_dict, real_layer, shape)
+            size = h.shape
+            hdrop = h*self.dropout(lyr, size)
         pre_act = T.dot(self.W[idx].T, hdrop) + self.c[idx]
-        
         return (pre_act > 0) * pre_act
     
-    def encode(self, X, dropout_dict=None):
+    def encode(self, X):
         '''Full encoder'''
         for i in numpy.arange(self.num_layers):
-            X = self.encode_layer(X, i, dropout_dict)
+            X = self.encode_layer(X, i)
         return X
     
-    def decode(self, h, dropout_dict=None):
+    def decode(self, h):
         '''Full decoder'''
         for i in numpy.arange(self.num_layers):
-            h = self.decode_layer(h, i, dropout_dict)
+            h = self.decode_layer(h, i)
         return h
 
-    def reconstruct(self, X, dropout_dict=None):
+    def reconstruct(self, X):
         '''Reconstruct input'''
-        h = self.encode(X, dropout_dict)
-        return self.decode(h, dropout_dict)
+        h = self.encode(X)
+        return self.decode(h)
     
-    def dropout(self, dropout_dict, layer, shape):
+    def dropout(self, layer, size):
         '''Return a random dropout vector'''
         name = 'layer' + str(layer)
-        corruption = dropout_dict[name]
-        cseed = corruption['seed']
-        ctype = corruption['type']
-        cvalues = corruption['values']
+        vname = 'dropout' + str(layer)
+        sub_dict = self.dropout_dict[name]
+        cseed = sub_dict['seed']
+        ctype = sub_dict['type']
+        cvalues = TsharedX(sub_dict['values'], vname, broadcastable=(False, True))
         
         if ctype == 'unbiased':
             # Construct RNG
-            srng = RandomStreams(seed=cseed)
-            rng = srng.uniform(size=shape)####NEED TO IMPLEMENT BATCH SIZE
+            smrg = MRG_RandomStreams(seed=cseed)
+            rng = smrg.uniform(size=size)
             # Evaluate RNG
             dropmult = (rng < cvalues) / cvalues
         
@@ -325,9 +329,10 @@ if __name__ == '__main__':
     for i in numpy.arange(4):
         name = 'layer' + str(i)
         if i == 0:
-            v = 0.2
+            # Need to cast to floatX or the computation gets pushed to the CPU
+            v = 0.2*numpy.ones((784,1)).astype(Tconf.floatX)
         else:
-            v = 0.5
+            v = 0.5*numpy.ones((2000,1)).astype(Tconf.floatX)
         sub_dict = { name : {'seed' : 234,
                              'type' : 'unbiased',
                              'values' : v}}
@@ -336,10 +341,10 @@ if __name__ == '__main__':
     args = {
         'layer_sizes' : (784, 2000, 2000),
         'data_address' : './data/mnist.pkl.gz',
-        'learning_rate' : 1e-4,
+        'learning_rate' : 1e-7,
         'learning_rate_margin' : 20,
-        'momentum' : 0.9,
-        'batch_size' : 100,
+        'momentum' : 0.865,
+        'batch_size' : 40,
         'num_epochs' : 10,
         'dropout_dict' : dropout_dict,
         'validation_freq' : 5,
@@ -347,7 +352,6 @@ if __name__ == '__main__':
         'save_name' : 'dropprior_dev.pkl'
         }
     
-    print args
     numpy.random.seed(seed=324)
     
     tr = Train()

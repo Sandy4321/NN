@@ -18,32 +18,45 @@ from theano import config as Tconf
 from theano import function as Tfunction
 from theano import shared as TsharedX
 from theano.tensor.shared_randomstreams import RandomStreams
+from theano.sandbox.rng_mrg import MRG_RandomStreams
+from theano.sandbox.cuda.rng_curand import CURAND_RandomStreams
 
 
-x = numpy.zeros((4,1))
-print x
+def add(a,b,p):
+    return a + b < p
+
+x = numpy.zeros((4,2)).astype(Tconf.floatX)
 x_gpu = TsharedX(x, 'x_gpu', borrow=True)
 
-srng = RandomStreams(seed=234)
-y_gpu = srng.uniform((4,1))
+batch_size = 2
+length = 5
 
-fnc = Tfunction([], outputs=x_gpu+y_gpu)
-print fnc()
-print fnc()
+smrg = MRG_RandomStreams(seed=12345)
+m_gpu = smrg.uniform(size=x_gpu.shape)
+p = numpy.asarray([0.,0.2,0.8,1.0], dtype=Tconf.floatX)[:,numpy.newaxis]
+p_gpu = TsharedX(p, 'p', broadcastable=(False,True))
 
-z = numpy.zeros((4,5))
-print z
+add_result = add(x_gpu, m_gpu, p)
+
+z = numpy.zeros((4,length*batch_size + 1)).astype(Tconf.floatX)
 z_gpu = TsharedX(z, 'z_gpu', borrow=True)
 
-fnc2 = Tfunction([],
-    outputs=x_gpu+y_gpu,
+index = T.iscalar(name='index')
+fnc = Tfunction([index],
+    outputs=add_result,
     givens={
-        x_gpu : z_gpu
+        x_gpu : z_gpu[:,index*batch_size:(index+1)*batch_size]
     })
 
-print fnc2()
-print fnc2()
-    
+
+start = time.time()
+for j in numpy.arange(length+1):
+    print fnc(j)
+
+time1 = time.time() - start
+
+print time1
+
     
     
     
