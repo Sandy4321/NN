@@ -13,8 +13,12 @@ import numpy
 import theano.tensor as T
 import theano.tensor.nnet as Tnet
 
+from autoencoder import Autoencoder
+from mlp import Mlp
+from matplotlib import pylab
 from matplotlib import pyplot as plt
 from theano import config as Tconf
+from theano.tensor.extra_ops import to_one_hot
 from theano import function as Tfunction
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 from theano import shared as TsharedX
@@ -50,60 +54,100 @@ class Train():
         f = gzip.open(data_address, 'rb')
         train_set, valid_set, test_set = cPickle.load(f)
         f.close()
+        train_set = list(train_set)
+        valid_set = list(valid_set)
+        test_set = list(test_set)
+        train_set[1] = train_set[1][:,numpy.newaxis]
+        valid_set[1] = valid_set[1][:,numpy.newaxis]
+        test_set[1] = test_set[1][:,numpy.newaxis]
+        train_set = tuple(train_set)
+        valid_set = tuple(valid_set)
+        test_set = tuple(test_set)
         return (train_set, valid_set, test_set)
     
-    def load2gpu(self, data_address):
+    def load2gpu(self, data_address, args):
         '''Load the data into the gpu'''
+        learning_type = args['learning_type']
+        
         train_set, valid_set, test_set = self.load(data_address)
         # Data should be stored columnwise
         self.train_x = self.gpu_type(train_set[0].T)
-        self.train_y = self.gpu_type(train_set[1].T)
         self.valid_x = self.gpu_type(valid_set[0].T)
-        self.valid_y = self.gpu_type(valid_set[1].T)
         self.test_x = self.gpu_type(test_set[0].T)
-        self.test_y = self.gpu_type(test_set[1].T)
+        
+        if learning_type == 'supervised':
+            self.train_y = self.gpu_type(train_set[1].T)
+            self.valid_y = self.gpu_type(valid_set[1].T)
+            self.test_y = self.gpu_type(test_set[1].T)
+        elif learning_type == 'unsupervised':
+            self.train_y = self.train_x
+            self.valid_y = self.valid_x
+            self.test_y = self.test_x
+        elif learning_type == 'classification':
+            nc = args['num_classes']
+            # Need to convert the target values into one-hot encodings
+            train_y = numpy.zeros((train_set[1].shape[0], nc), dtype=Tconf.floatX)
+            valid_y = numpy.zeros((valid_set[1].shape[0], nc), dtype=Tconf.floatX)
+            test_y = numpy.zeros((test_set[1].shape[0], nc), dtype=Tconf.floatX)
+            train_y[:, train_set[1]-1] = 1
+            valid_y[:, valid_set[1]-1] = 1
+            test_y[:, test_set[1]-1] = 1
+            self.train_y = self.gpu_type(train_y.T)
+            self.valid_y = self.gpu_type(valid_y.T)
+            self.test_y = self.gpu_type(test_y.T)
+        else:
+            print('Invalid learning type')
+            sys.exit(1)
+        
         self.num_train = train_set[0].shape[0]
         self.num_valid = valid_set[0].shape[0]
-        self.num_test = test_set[0].shape[0]
+        self.num_test = test_set[0].shape[0]          
         
     def build(self, model, args):
         '''Construct the model'''
         print('Building model')
         self.model = model(args)
         self.input = T.matrix(name='input', dtype=Tconf.floatX)
-        self.output = self.model.reconstruct(self.input)
+        self.output = self.model.predict(self.input, args)
         self.target = T.matrix(name='target', dtype=Tconf.floatX)
+    
+    def load_data(self, args):
+        '''Load the data'''
+        data_address = args['data_address']
+        print('Loading data')
+        self.load2gpu(data_address, args)
     
     def train(self, args):
         '''Train the model'''
-        data_address = args['data_address']
         batch_size = int(args['batch_size'])
         params = self.model._params
         self.learning_rate_margin = args['learning_rate_margin']
         
-        print('Loading data')
-        self.load2gpu(data_address)
-        
         print('Constructing flow graph')
         index = T.lscalar()
-        cost = self.cost()
-        updates = self.updates(cost, params, args)
+        train_cost_type = args['train_cost_type']
+        valid_cost_type = args['valid_cost_type']
+        
+        train_cost = self.cost(train_cost_type)
+        valid_cost = self.cost(valid_cost_type)
+        
+        updates = self.updates(train_cost, params, args)
         Tfuncs = {}
         Tfuncs['train_model'] = Tfunction(
             inputs=[index],
-            outputs=cost,
+            outputs=train_cost,
             updates=updates,
             givens={
                 self.input: self.train_x[:,index*batch_size:(index+1)*batch_size],
-                self.target: self.train_x[:,index*batch_size:(index+1)*batch_size]
+                self.target: self.train_y[:,index*batch_size:(index+1)*batch_size]
             }
         )
         Tfuncs['validate_model'] = Tfunction(
             inputs=[index],
-            outputs=cost, ## CHANGE THIS LATER
+            outputs=valid_cost,
             givens={
                 self.input: self.valid_x[:,index*batch_size:(index+1)*batch_size],
-                self.target: self.valid_x[:,index*batch_size:(index+1)*batch_size]
+                self.target: self.valid_y[:,index*batch_size:(index+1)*batch_size]
             }
         )
         # Train
@@ -165,10 +209,19 @@ class Train():
         self.save_state(save_name, args, monitor)
         return monitor
         
-    def cost(self):
+    def cost(self, cost_type):
+        '''Evaluate the loss between prediction and target'''
         Yhat = self.output
         Y = self.target
-        loss = ((Y-Yhat)**2).sum(axis=0)
+        if cost_type == 'MSE':
+            loss = 0.5*((Y-Yhat)**2).sum(axis=0)
+        elif cost_type == 'cross_entropy':
+            loss = Tnet.binary_crossentropy(Yhat, Y).sum(axis=0)
+        elif cost_type == 'accuracy':
+            loss = (Y * Yhat).sum(axis=0)
+        else:
+            print('Invalid cost')
+            sys.exit(1)
         return loss.mean()
     
     def updates(self, cost, params, args):
@@ -240,147 +293,64 @@ class Train():
         pass
     
 
-class Autoencoder():
-    def __init__(self, args):
-        '''Construct the autoencoder expression graph'''
-
-        self.ls = args['layer_sizes']
-        self.num_layers = len(self.ls) - 1
-        
-        self.W = []
-        self.b = []
-        self.c = []
-        self._params = []
-        for i in numpy.arange(self.num_layers):
-            coeff = numpy.sqrt(6/(self.ls[i] + (self.ls[i+1])))
-            W_value = 2*coeff*(numpy.random.uniform(size=(self.ls[i+1],
-                                                          self.ls[i]))-0.5)
-            W_value = numpy.asarray(W_value, dtype=Tconf.floatX)
-            Wname = 'W' + str(i)
-            self.W.append(TsharedX(W_value, Wname, borrow=True))
-            
-            b_value = 0.1*numpy.ones((self.ls[i+1],))[:,numpy.newaxis]
-            b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
-            bname = 'b' + str(i)
-            self.b.append(TsharedX(b_value, bname, borrow=True,
-                                   broadcastable=(False,True)))
-            
-            c_value = 0.1*numpy.ones((self.ls[i],))[:,numpy.newaxis]
-            c_value = numpy.asarray(c_value, dtype=Tconf.floatX)
-            cname = 'c' + str(i)
-            self.c.append(TsharedX(c_value, cname, borrow=True,
-                                   broadcastable=(False,True)))
-        
-        for W, b, c in zip(self.W, self.b, self.c):
-            self._params.append(W)
-            self._params.append(b)
-            self._params.append(c)
-        
-        # Load the dropout variables
-        self.dropout_dict = args['dropout_dict']
-    
-    def encode_layer(self, X, layer):
-        '''Sigmoid encoder function for single layer'''          
-        if self.dropout_dict == None:
-            Xdrop = X
-        else:
-            size = X.shape
-            Xdrop = X*self.dropout(layer, size)
-        pre_act = T.dot(self.W[layer], Xdrop) + self.b[layer]  
-        return (pre_act > 0) * pre_act 
-    
-    def decode_layer(self, h, layer):
-        '''Linear decoder function for a single layer'''
-        idx = self.num_layers - layer - 1
-        lyr = self.num_layers + layer
-        if self.dropout_dict == None:
-            hdrop = h
-        else:
-            size = h.shape
-            hdrop = h*self.dropout(lyr, size)
-        pre_act = T.dot(self.W[idx].T, hdrop) + self.c[idx]
-        return (pre_act > 0) * pre_act
-    
-    def encode(self, X):
-        '''Full encoder'''
-        for i in numpy.arange(self.num_layers):
-            X = self.encode_layer(X, i)
-        return X
-    
-    def decode(self, h):
-        '''Full decoder'''
-        for i in numpy.arange(self.num_layers):
-            h = self.decode_layer(h, i)
-        return h
-
-    def reconstruct(self, X):
-        '''Reconstruct input'''
-        h = self.encode(X)
-        return self.decode(h)
-    
-    def dropout(self, layer, size):
-        '''Return a random dropout vector'''
-        name = 'layer' + str(layer)
-        vname = 'dropout' + str(layer)
-        sub_dict = self.dropout_dict[name]
-        cseed = sub_dict['seed']
-        ctype = sub_dict['type']
-        cvalues = TsharedX(sub_dict['values'], vname, broadcastable=(False, True))
-        
-        if ctype == 'unbiased':
-            # Construct RNG
-            smrg = MRG_RandomStreams(seed=cseed)
-            rng = smrg.uniform(size=size)
-            # Evaluate RNG
-            dropmult = (rng < cvalues) / cvalues
-        
-        return dropmult
-    
-
 if __name__ == '__main__':
-    
+    '''
     dropout_dict = {}
     for i in numpy.arange(4):
         name = 'layer' + str(i)
+        
+        a = 80
+        b = 71.5
+        c = 0.5
+        d = 0.6
+        
         if i == 0:
             # Need to cast to floatX or the computation gets pushed to the CPU
-            v = 0.2*numpy.ones((784,1)).astype(Tconf.floatX)
+            v = 0.8*numpy.ones((784,1)).astype(Tconf.floatX)
         else:
-            v = 0.5*numpy.ones((2000,1)).astype(Tconf.floatX)
+            #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
+            #v = 0.5*numpy.ones((2000,1)).astype(Tconf.floatX)
+            v = numpy.random.uniform(c, d, size=(2000,1)).astype(Tconf.floatX)
         sub_dict = { name : {'seed' : 234,
                              'type' : 'unbiased',
                              'values' : v}}
         dropout_dict.update(sub_dict)
-    
+        
+        pylab.figure()
+        pylab.hist(v, 50, normed=1)
+        pylab.xlim(0,1)
+        pylab.show()
+    '''
+        
     args = {
-        'layer_sizes' : (784, 2000, 2000),
+        'learning_type' : 'classification',
+        'num_classes' : 10,
+        'train_cost_type' : 'cross_entropy',
+        'valid_cost_type' : 'accuracy',
+        'layer_sizes' : (784, 1024, 1024, 2048, 10),
+        'nonlinearities' : ('ReLU', 'ReLU', 'ReLU', 'SoftMax'),
         'data_address' : './data/mnist.pkl.gz',
-        'learning_rate' : 1e-7,
-        'learning_rate_margin' : 20,
-        'momentum' : 0.865,
+        'learning_rate' : 0.0002,
+        'learning_rate_margin' : 80.2,
+        'momentum' : 0.92,
         'batch_size' : 40,
-        'num_epochs' : 10,
-        'max_col_norm' : 5,
-        'dropout_dict' : dropout_dict,
+        'num_epochs' : 25,
+        'max_col_norm' : 2.6,
+        'dropout_dict' : None, #dropout_dict,
         'validation_freq' : 5,
-        'save_freq' : 5,
+        'save_freq' : 50,
         'save_name' : 'dropprior_dev.pkl'
         }
-    
+
     numpy.random.seed(seed=324)
     
     tr = Train()
-    model = Autoencoder
-    tr.build(model, args)
+    tr.build(Mlp, args)
+    tr.load_data(args)
     monitor = tr.train(args)
-    '''
-    fig = plt.figure()
-    plt.plot(monitor['train_cost'])
-    plt.show()
-    '''
     
     '''
-    TODO: DROPOUT, WEIGHT CONSTRAINTS, PRETRAINING, CONVOLUTIONS
+    TODO: PRETRAINING, CONVOLUTIONS
     
     A problem with dropout is in deciding whether it is part of the model or
     the optimisation. I am going to side with the view that an optimisation is
