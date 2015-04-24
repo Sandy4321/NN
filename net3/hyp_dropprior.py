@@ -26,34 +26,38 @@ class Hyp_dropprior():
         self.best_serial = './pkl/best_serial.pkl'
     
     def main(self):
-        '''Sample hpyperparameter space and run'''
+        '''Sample hyperparameter space and run'''
         trials = Trials()
         
         args = {
+            'algorithm' : 'SGD',
             'learning_type' : 'classification',
             'num_classes' : 10,
-            'train_cost_type' : 'cross_entropy',
+            'train_cost_type' : 'nll',
             'valid_cost_type' : 'accuracy',
-            'layer_sizes' : (784, 1024, 1024, 2048, 10),
+            'layer_sizes' : (784, 1000, 1000, 1000, 10),
             'nonlinearities' : ('ReLU', 'ReLU', 'ReLU', 'SoftMax'),
             'data_address' : './data/mnist.pkl.gz',
-            'learning_rate' : hp.loguniform('learning_rate', numpy.log(1e-7),
+            'learning_rate' : hp.loguniform('learning_rate', numpy.log(1e-6),
                                             numpy.log(1e0)),
-            'learning_rate_margin' : hp.uniform('learning_rate_margin', 20, 100),
-            'momentum' : hp.uniform('momentum', 0.85, 0.9999),
-            'batch_size' : hp.quniform('batch_size', 20, 200, 20),
-            'num_epochs' : 100,
-            'max_col_norm' : hp.uniform('max_col_norm', 2, 5),
+            'learning_rate_margin' : hp.uniform('learning_rate_margin', 20, 200),
+            'momentum' : hp.uniform('momentum', 0.80, 0.9999),
+            'batch_size' : hp.quniform('batch_size', 20, 400, 20),
+            'num_epochs' : 200,
+            'max_col_norm' : hp.uniform('max_col_norm', 2, 6),
             'dropout_dict' : None,
             'validation_freq' : 5,
             'save_freq' : 50,
             'save_name' : self.save_name
         }
+        
+        if args['valid_cost_type'] == 'accuracy':
+            self.best_cost = -numpy.inf
 
         best = fmin(self.objective,
                     space = args,
                     algo = tpe.suggest,
-                    max_evals = 60,
+                    max_evals = 250,
                     trials = trials)
         
         print best
@@ -72,7 +76,7 @@ class Hyp_dropprior():
             # simply define the dropout prior outside
             dropout_dict = {}
             
-            for i in numpy.arange(4):
+            for i in numpy.arange(len(args['nonlinearities'])):
                 name = 'layer' + str(i)
                 ls = args['layer_sizes'][i]
                 if i == 0:
@@ -91,16 +95,28 @@ class Hyp_dropprior():
             tr.load_data(args)
             monitor = tr.train(args)
             
-            print monitor['best_cost']
-            return_dict =  {'loss' : monitor['best_cost'],
-                            'status' : STATUS_OK }
-            if monitor['best_cost'] < self.best_cost:
-                stream = open(self.save_best, 'wb')
-                state = {'hyperparams' : args,
-                         'monitor' : monitor}
-                cPickle.dump(state, stream, cPickle.HIGHEST_PROTOCOL)
-                stream.close()
-                self.best_cost = monitor['best_cost']
+            if args['valid_cost_type'] == 'accuracy':
+                return_dict =  {'loss' : -monitor['best_cost'],
+                                'status' : STATUS_OK }
+                print -monitor['best_cost']
+                if monitor['best_cost'] > self.best_cost:
+                    stream = open(self.save_best, 'wb')
+                    state = {'hyperparams' : args,
+                             'monitor' : monitor}
+                    cPickle.dump(state, stream, cPickle.HIGHEST_PROTOCOL)
+                    stream.close()
+                    self.best_cost = monitor['best_cost']
+            elif args['valid_cost_type'] != 'accuracy':
+                return_dict =  {'loss' : monitor['best_cost'],
+                                'status' : STATUS_OK }
+                print monitor['best_cost']
+                if monitor['best_cost'] < self.best_cost:
+                    stream = open(self.save_best, 'wb')
+                    state = {'hyperparams' : args,
+                             'monitor' : monitor}
+                    cPickle.dump(state, stream, cPickle.HIGHEST_PROTOCOL)
+                    stream.close()
+                    self.best_cost = monitor['best_cost']
             
         except DivergenceError, e:
             return {'loss': numpy.inf,

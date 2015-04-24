@@ -8,17 +8,18 @@ import utils
 from matplotlib import pyplot as plt
 from PIL import Image
 
-fname = './pkl/best_dropprior.pkl'
+fname = './pkl/dropprior.pkl'
 stream = open(fname, 'r')
 state = cPickle.load(stream)
 stream.close()
 
 monitor = state['monitor']
+args = state['hyperparams']
 print('Validation cost %f' % (monitor['best_cost'],))
 
 params = monitor['best_model']
 
-'''
+
 for param in params:
     print param
     print('Max: %f' % (numpy.amax(param.get_value()),))
@@ -26,13 +27,17 @@ for param in params:
     pylab.figure()
     pylab.hist(param.get_value().flatten(), 50, normed=1)
     pylab.show()
-'''
+
 
 fig = plt.figure()
 plt.plot(monitor['train_cost'])
 plt.show()
 
-n = 40
+for arg in args:
+    if arg != 'dropout_dict':
+        print arg, args[arg]
+
+n = 30
 for param in params:
     W = param.get_value()
     Wsh = W.shape
@@ -46,7 +51,7 @@ for param in params:
                                                       tile_shape=(n,n),
                                                       tile_spacing=(1,1)))
         im.show()
-        
+     
         
         
         

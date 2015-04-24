@@ -89,9 +89,11 @@ class Train():
             train_y = numpy.zeros((train_set[1].shape[0], nc), dtype=Tconf.floatX)
             valid_y = numpy.zeros((valid_set[1].shape[0], nc), dtype=Tconf.floatX)
             test_y = numpy.zeros((test_set[1].shape[0], nc), dtype=Tconf.floatX)
-            train_y[:, train_set[1]-1] = 1
-            valid_y[:, valid_set[1]-1] = 1
-            test_y[:, test_set[1]-1] = 1
+            
+            train_y[numpy.arange(train_y.shape[0]), train_set[1][:,0]] = 1
+            valid_y[numpy.arange(valid_y.shape[0]), valid_set[1][:,0]] = 1
+            test_y[numpy.arange(test_y.shape[0]), test_set[1][:,0]] = 1
+
             self.train_y = self.gpu_type(train_y.T)
             self.valid_y = self.gpu_type(valid_y.T)
             self.test_y = self.gpu_type(test_y.T)
@@ -167,6 +169,8 @@ class Train():
                 'valid_cost' : [],
                 'best_cost' : numpy.inf,
                 'best_model' : self.model._params}
+        if args['valid_cost_type'] == 'accuracy':
+            monitor['best_cost'] = -numpy.inf
         
         print('Training')
         num_train_batches = numpy.ceil(self.num_train / batch_size)
@@ -195,10 +199,16 @@ class Train():
                 monitor['valid_cost'].append(vc)
                 
                 # Best model
-                if vc < monitor['best_cost']:
-                    monitor['best_cost'] = vc
-                    monitor['best_model'] = self.model._params
-                    print('BEST MODEL: '),
+                if args['valid_cost_type'] == 'accuracy':
+                    if vc > monitor['best_cost']:
+                        monitor['best_cost'] = vc
+                        monitor['best_model'] = self.model._params
+                        print('BEST MODEL: '),
+                elif args['valid_cost_type'] != 'accuracy':
+                    if vc < monitor['best_cost']:
+                        monitor['best_cost'] = vc
+                        monitor['best_model'] = self.model._params
+                        print('BEST MODEL: '),
                 print('%s%s Validation cost: %f' % (ep, n(s), vc,))
                 self.check_real(vc)
             
@@ -217,8 +227,12 @@ class Train():
             loss = 0.5*((Y-Yhat)**2).sum(axis=0)
         elif cost_type == 'cross_entropy':
             loss = Tnet.binary_crossentropy(Yhat, Y).sum(axis=0)
+        elif cost_type == 'nll':
+            loss = -T.log((Y * Yhat).sum(axis=0))
         elif cost_type == 'accuracy':
-            loss = (Y * Yhat).sum(axis=0)
+            Yhatmax = T.argmax(Yhat, axis=0)
+            Ymax = T.argmax(Y, axis=0)
+            loss = T.mean(T.eq(Ymax,Yhatmax))
         else:
             print('Invalid cost')
             sys.exit(1)
@@ -234,16 +248,34 @@ class Train():
         
         # File updates
         updates = []
-        for param in params:
-            g_param = T.grad(cost, param)
-            # If no momentum set variable to None
-            if mmtm != None:
-                param_update = TsharedX(param.get_value()*0.,
-                                        broadcastable=param.broadcastable)
-                updates.append((param_update, mmtm*param_update + lr*g_param))
-            else:
-                param_update = lr*g_param
-            updates.append((param, param - param_update))
+        # Standard SGD with momentum
+        if args['algorithm'] == 'SGD':
+            for param in params:
+                g_param = T.grad(cost, param)
+                # If no momentum set variable to None
+                if mmtm != None:
+                    param_update = TsharedX(param.get_value()*0.,
+                                            broadcastable=param.broadcastable)
+                    updates.append((param_update, mmtm*param_update + lr*g_param))
+                else:
+                    param_update = lr*g_param
+                updates.append((param, param - param_update))
+        # Hinton's RMSprop (Coursera lecture 6) without Nesterov momentum            
+        elif args['algorithm'] == 'RMSprop':
+            RMScoeff = args['RMScoeff']
+            RMSreg = args['RMSreg']
+            for param in params:
+                g_param = T.grad(cost, param)
+                ms = TsharedX(param.get_value()*0.,
+                                            broadcastable=param.broadcastable)
+                updates.append((ms, RMScoeff*ms + (1-RMScoeff)*(g_param**2)))
+                param_update = lr*g_param/(T.sqrt(ms) + RMSreg)
+                updates.append((param, param - param_update))
+        
+        else:
+            print('Invalid training algorithm')
+            sys.exit(1)
+        
         self.max_norm(updates, args)
         
         return updates
@@ -294,53 +326,44 @@ class Train():
     
 
 if __name__ == '__main__':
-    '''
+        
+    args = {
+        'algorithm' : 'SGD',
+        'RMScoeff' : 0.9,
+        'RMSreg' : 1e-3,
+        'learning_type' : 'classification',
+        'num_classes' : 10,
+        'train_cost_type' : 'nll',
+        'valid_cost_type' : 'accuracy',
+        'layer_sizes' : (784, 1000, 1000, 1000, 10),
+        'nonlinearities' : ('ReLU', 'ReLU', 'ReLU', 'SoftMax'),
+        'data_address' : './data/mnist.pkl.gz',
+        'learning_rate' : 1e-3,
+        'learning_rate_margin' : 25,
+        'momentum' : 0.95,
+        'batch_size' : 20,
+        'num_epochs' : 200,
+        'max_col_norm' : 4.5,
+        'dropout_dict' : None, 
+        'validation_freq' : 5,
+        'save_freq' : 50,
+        'save_name' : 'train.pkl'
+        }
+    
     dropout_dict = {}
-    for i in numpy.arange(4):
+    for i in numpy.arange(len(args['nonlinearities'])):
         name = 'layer' + str(i)
-        
-        a = 80
-        b = 71.5
-        c = 0.5
-        d = 0.6
-        
+
         if i == 0:
             # Need to cast to floatX or the computation gets pushed to the CPU
             v = 0.8*numpy.ones((784,1)).astype(Tconf.floatX)
         else:
             #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
-            #v = 0.5*numpy.ones((2000,1)).astype(Tconf.floatX)
-            v = numpy.random.uniform(c, d, size=(2000,1)).astype(Tconf.floatX)
+            v = 0.5*numpy.ones((args['layer_sizes'][i],1)).astype(Tconf.floatX)
         sub_dict = { name : {'seed' : 234,
                              'type' : 'unbiased',
                              'values' : v}}
         dropout_dict.update(sub_dict)
-        
-        pylab.figure()
-        pylab.hist(v, 50, normed=1)
-        pylab.xlim(0,1)
-        pylab.show()
-    '''
-        
-    args = {
-        'learning_type' : 'classification',
-        'num_classes' : 10,
-        'train_cost_type' : 'cross_entropy',
-        'valid_cost_type' : 'accuracy',
-        'layer_sizes' : (784, 1024, 1024, 2048, 10),
-        'nonlinearities' : ('ReLU', 'ReLU', 'ReLU', 'SoftMax'),
-        'data_address' : './data/mnist.pkl.gz',
-        'learning_rate' : 0.0002,
-        'learning_rate_margin' : 80.2,
-        'momentum' : 0.92,
-        'batch_size' : 40,
-        'num_epochs' : 25,
-        'max_col_norm' : 2.6,
-        'dropout_dict' : None, #dropout_dict,
-        'validation_freq' : 5,
-        'save_freq' : 50,
-        'save_name' : 'dropprior_dev.pkl'
-        }
 
     numpy.random.seed(seed=324)
     
