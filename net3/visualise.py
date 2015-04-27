@@ -8,7 +8,7 @@ import utils
 from matplotlib import pyplot as plt
 from PIL import Image
 
-fname = './pkl/dropprior.pkl'
+fname = './pkl/best_serial0.pkl'
 stream = open(fname, 'r')
 state = cPickle.load(stream)
 stream.close()

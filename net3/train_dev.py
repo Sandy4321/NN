@@ -14,7 +14,7 @@ import theano.tensor as T
 import theano.tensor.nnet as Tnet
 
 from autoencoder import Autoencoder
-from mlp import Mlp
+from mlp_dev import Mlp
 from matplotlib import pylab
 from matplotlib import pyplot as plt
 from theano import config as Tconf
@@ -271,7 +271,17 @@ class Train():
                 updates.append((ms, RMScoeff*ms + (1-RMScoeff)*(g_param**2)))
                 param_update = lr*g_param/(T.sqrt(ms) + RMSreg)
                 updates.append((param, param - param_update))
-        
+        elif args['algorithm'] == 'SGSD':
+            for param in params:
+                g_param = T.sgn(T.grad(cost, param))
+                # If no momentum set variable to None
+                if mmtm != None:
+                    param_update = TsharedX(param.get_value()*0.,
+                                            broadcastable=param.broadcastable)
+                    updates.append((param_update, mmtm*param_update + lr*g_param))
+                else:
+                    param_update = lr*g_param
+                updates.append((param, param - param_update))
         else:
             print('Invalid training algorithm')
             sys.exit(1)
@@ -282,18 +292,34 @@ class Train():
     
     def max_norm(self, updates, args):
         '''Apply max norm constraint to the updates on weights'''
-        max_col_norm = args['max_col_norm']
-        for i, update in enumerate(updates):
-            param, param_update = update
-            if param in self.model.W:
-                col_norms = T.sqrt(T.sum(T.sqr(param_update), axis=0))
-                desired_norms = T.clip(col_norms, 0, max_col_norm)
-                constrained_W = param_update * (desired_norms / (1e-7 + col_norms))
-                # Tuples are immutable
-                updates_i = list(updates[i])
-                updates_i[1] = constrained_W
-                updates[i] = tuple(updates_i)
-                 
+        max_row_norm = args['max_row_norm']
+        if max_row_norm == None:
+            pass
+        else:         
+            norm = args['norm']
+            if norm == 'L2':  
+                for i, update in enumerate(updates):
+                    param, param_update = update
+                    if param in self.model.W:
+                        row_norms = T.sqrt(T.sum(T.sqr(param_update), axis=1, keepdims=True))
+                        desired_norms = T.clip(row_norms, 0, max_row_norm)
+                        constrained_W = param_update * (desired_norms / (1e-7 + row_norms))
+                        # Tuples are immutable
+                        updates_i = list(updates[i])
+                        updates_i[1] = constrained_W
+                        updates[i] = tuple(updates_i)
+            elif norm == 'Linf':
+                for i, update in enumerate(updates):
+                    param, param_update = update
+                    if param in self.model.W:
+                        row_norms = T.max(T.abs_(param_update), axis=1, keepdims=True)
+                        desired_norms = T.clip(row_norms, 0, max_row_norm)
+                        constrained_W = param_update * (desired_norms / (1e-7 + row_norms))
+                        # Tuples are immutable
+                        updates_i = list(updates[i])
+                        updates_i[1] = constrained_W
+                        updates[i] = tuple(updates_i)
+    
     def learning_rate_correction(self):
         tau = self.learning_rate_margin*1.
         return tau/float(max(tau, self.epoch))
@@ -329,8 +355,6 @@ if __name__ == '__main__':
         
     args = {
         'algorithm' : 'SGD',
-        'RMScoeff' : 0.9,
-        'RMSreg' : 1e-3,
         'learning_type' : 'classification',
         'num_classes' : 10,
         'train_cost_type' : 'nll',
@@ -338,16 +362,17 @@ if __name__ == '__main__':
         'layer_sizes' : (784, 1000, 1000, 1000, 10),
         'nonlinearities' : ('ReLU', 'ReLU', 'ReLU', 'SoftMax'),
         'data_address' : './data/mnist.pkl.gz',
-        'learning_rate' : 0.043,
-        'learning_rate_margin' : 53,
-        'momentum' : 0.91,
-        'batch_size' : 220,
-        'num_epochs' : 200,
-        'max_col_norm' : 2.15,
+        'learning_rate' : 1e-6,
+        'learning_rate_margin' : 34,
+        'momentum' : 0.85,
+        'batch_size' : 100,
+        'num_epochs' : 1000,
+        'norm' : 'L2',
+        'max_row_norm' : 3.5,
         'dropout_dict' : None, 
         'validation_freq' : 5,
-        'save_freq' : 50,
-        'save_name' : 'train.pkl'
+        'save_freq' : 5,
+        'save_name' : 'train_dev.pkl'
         }
     
     dropout_dict = {}
@@ -364,7 +389,7 @@ if __name__ == '__main__':
                              'type' : 'unbiased',
                              'values' : v}}
         dropout_dict.update(sub_dict)
-
+    args['dropout_dict'] = dropout_dict
     #numpy.random.seed(seed=234)
     
     tr = Train()
@@ -374,50 +399,4 @@ if __name__ == '__main__':
     
     '''
     TODO: PRETRAINING, CONVOLUTIONS
-    
-    A problem with dropout is in deciding whether it is part of the model or
-    the optimisation. I am going to side with the view that an optimisation is
-    independent of the model (as much as possible) and has the sole aim of
-    reaching a local minimum. Apart from early stopping, regularised SGD is
-    actually SGD on a regularised objective, where the regularised objective
-    is the model instead of an optimisation trick.
     ''' 
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    

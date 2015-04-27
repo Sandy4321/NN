@@ -12,8 +12,9 @@ import cPickle
 import gzip
 import numpy
 
-from train import DivergenceError, Train
+from train_dev import DivergenceError, Train
 from hyperopt import fmin, hp, STATUS_FAIL, STATUS_OK, tpe, Trials
+from matplotlib import pyplot as plt
 from mlp import Mlp
 from theano import config as Tconf
 
@@ -21,13 +22,16 @@ from theano import config as Tconf
 class Hyp_dropprior():
     def __init__(self):
         self.best_cost = numpy.inf
-        self.save_name = './pkl/dropprior.pkl'
-        self.save_best = './pkl/best_dropprior.pkl'
-        self.best_serial = './pkl/best_serial.pkl'
     
-    def main(self):
+    def main(self, experiment):
         '''Sample hyperparameter space and run'''
         trials = Trials()
+        rj = RejectionSample()
+        lower, upper = rj.uniform()
+        
+        self.save_name = './pkl/dropprior' + str(experiment) +'.pkl'
+        self.save_best = './pkl/best_dropprior' + str(experiment) +'.pkl'
+        self.best_serial = './pkl/best_serial' + str(experiment) +'.pkl'
         
         args = {
             'algorithm' : 'SGD',
@@ -38,14 +42,17 @@ class Hyp_dropprior():
             'layer_sizes' : (784, 1000, 1000, 1000, 10),
             'nonlinearities' : ('ReLU', 'ReLU', 'ReLU', 'SoftMax'),
             'data_address' : './data/mnist.pkl.gz',
-            'learning_rate' : hp.loguniform('learning_rate', numpy.log(1e-6),
+            'learning_rate' : hp.loguniform('learning_rate', numpy.log(1e-5),
                                             numpy.log(1e0)),
-            'learning_rate_margin' : hp.uniform('learning_rate_margin', 20, 200),
-            'momentum' : hp.uniform('momentum', 0.80, 0.9999),
-            'batch_size' : hp.quniform('batch_size', 20, 400, 20),
+            'learning_rate_margin' : hp.uniform('learning_rate_margin', 50, 200),
+            'momentum' : hp.uniform('momentum', 0.85, 0.9999),
+            'batch_size' : hp.quniform('batch_size', 20, 200, 10),
             'num_epochs' : 200,
-            'max_col_norm' : hp.uniform('max_col_norm', 2, 6),
+            'norm' : 'L2',
+            'max_row_norm' : hp.uniform('max_row_norm', 3, 4),
             'dropout_dict' : None,
+            'lower' : lower,
+            'upper' : upper,
             'validation_freq' : 5,
             'save_freq' : 50,
             'save_name' : self.save_name
@@ -57,7 +64,7 @@ class Hyp_dropprior():
         best = fmin(self.objective,
                     space = args,
                     algo = tpe.suggest,
-                    max_evals = 250,
+                    max_evals = 16,
                     trials = trials)
         
         print best
@@ -75,6 +82,8 @@ class Hyp_dropprior():
             # come up with a more elegant solution in future, but for now, we
             # simply define the dropout prior outside
             dropout_dict = {}
+            lower = args['lower']
+            upper = args['upper']
             
             for i in numpy.arange(len(args['nonlinearities'])):
                 name = 'layer' + str(i)
@@ -83,7 +92,7 @@ class Hyp_dropprior():
                     # Need to cast to floatX or the computation gets pushed to the CPU
                     v = 0.8*numpy.ones((784,1)).astype(Tconf.floatX)
                 else:
-                    v = 0.5*numpy.ones((ls,1)).astype(Tconf.floatX)
+                    v = numpy.linspace(lower,upper,ls)[:,numpy.newaxis].astype(Tconf.floatX)
                 sub_dict = { name : {'seed' : 234,
                                      'type' : 'unbiased',
                                      'values' : v}}
@@ -95,12 +104,15 @@ class Hyp_dropprior():
             tr.load_data(args)
             monitor = tr.train(args)
             
+            # If the validation channel is 'accuracy' we need to invert how we
+            # judge a best model, because bigger is better.
             if args['valid_cost_type'] == 'accuracy':
                 return_dict =  {'loss' : -monitor['best_cost'],
                                 'status' : STATUS_OK }
                 print -monitor['best_cost']
                 if monitor['best_cost'] > self.best_cost:
                     stream = open(self.save_best, 'wb')
+                    # We save the hyperparameters and the monitor
                     state = {'hyperparams' : args,
                              'monitor' : monitor}
                     cPickle.dump(state, stream, cPickle.HIGHEST_PROTOCOL)
@@ -125,9 +137,32 @@ class Hyp_dropprior():
         
         return return_dict
 
+
+class RejectionSample():
+    def __init__(self):
+        pass
+    
+    def uniform(self):
+        '''Draw a uniform distribution uniformly'''
+        # Sample mu in [0.0,0.5]
+        mu = 0
+        var = numpy.inf
+        # Rejection sample variance
+        while var > (mu**2)/3:
+            mu = numpy.random.random_sample()/2
+            std = numpy.random.random_sample()/numpy.sqrt(12.)
+            var = std**2
+        # With prob. 0.5 lift mu into [0.5,1.0]
+        if numpy.random.random_sample() < 0.5:
+            mu = 1. - mu
+        a = mu - numpy.sqrt(3*var)
+        b = mu + numpy.sqrt(3*var)
+        return (a,b)
+
 if __name__ == '__main__':
     hd = Hyp_dropprior()
-    hd.main()
+    for i in numpy.arange(100):
+        hd.main(i)
     
         
     
