@@ -29,9 +29,9 @@ class Hyp_dropprior():
         rj = RejectionSample()
         lower, upper = rj.uniform()
         
-        self.save_name = './pkl/dropprior' + str(experiment) +'.pkl'
-        self.save_best = './pkl/best_dropprior' + str(experiment) +'.pkl'
-        self.best_serial = './pkl/best_serial' + str(experiment) +'.pkl'
+        self.save_name = './pkl/droppriorB' + str(experiment) +'.pkl'
+        self.save_best = './pkl/best_droppriorB' + str(experiment) +'.pkl'
+        self.best_serial = './pkl/best_serialB' + str(experiment) +'.pkl'
         
         args = {
             'algorithm' : 'SGD',
