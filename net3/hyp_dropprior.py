@@ -29,9 +29,9 @@ class Hyp_dropprior():
         rj = RejectionSample()
         lower, upper = rj.uniform()
         
-        self.save_name = './pkl/droppriorB' + str(experiment) +'.pkl'
-        self.save_best = './pkl/best_droppriorB' + str(experiment) +'.pkl'
-        self.best_serial = './pkl/best_serialB' + str(experiment) +'.pkl'
+        self.save_name = './pkl/droppriorE' + str(experiment) +'.pkl'
+        self.save_best = './pkl/best_droppriorE' + str(experiment) +'.pkl'
+        self.best_serial = './pkl/best_serialE' + str(experiment) +'.pkl'
         
         args = {
             'algorithm' : 'SGD',
@@ -148,10 +148,14 @@ class RejectionSample():
         mu = 0
         var = numpy.inf
         # Rejection sample variance
+        '''
         while var > (mu**2)/3:
             mu = numpy.random.random_sample()/2
             std = numpy.random.random_sample()/numpy.sqrt(12.)
             var = std**2
+        '''
+        mu = numpy.random.random_sample()/2
+        var = 0
         # With prob. 0.5 lift mu into [0.5,1.0]
         if numpy.random.random_sample() < 0.5:
             mu = 1. - mu

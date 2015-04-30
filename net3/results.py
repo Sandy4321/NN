@@ -60,7 +60,20 @@ ax.scatter(new_coords[:,0][:,numpy.newaxis], new_coords[:,1][:,numpy.newaxis], f
 plt.show()
 
 
-
+mesh = 100
+for p in numpy.linspace(0.5,0.5,1):
+    m = numpy.linspace(p,p,1)
+    s = numpy.linspace(0.,1,mesh)/numpy.sqrt(12)
+    new_x, new_y = numpy.meshgrid(m,s)
+    new_coords = numpy.vstack((new_x.flatten(), new_y.flatten())).T
+    ym, ys2, fm, fs2, lp = model.predict(new_coords)         # predict test cases
+    nc = new_coords[:,1]
+    plt.plot(nc, fm)
+    sd = numpy.vstack((fm+2*numpy.sqrt(fs2),fm[::-1]-2*numpy.sqrt(fs2[::-1])))
+    coords = numpy.hstack((nc,nc[::-1]))
+    plt.fill(coords, sd, alpha=0.1)
+    plt.xlim(0,0.3)
+plt.show()
 
 
 
