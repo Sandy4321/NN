@@ -3,6 +3,7 @@ import fnmatch
 import os
 
 import cPickle
+import matplotlib.cm as cm
 import numpy
 import pyGPs
 
@@ -39,7 +40,7 @@ acc = (1 - acc)*100
 
 coords = numpy.vstack((mu,std)).T
 
-mesh = 12
+mesh = 100
 m = numpy.linspace(0.,1,mesh)
 s = numpy.linspace(0.,1,mesh)/numpy.sqrt(12)
 new_x, new_y = numpy.meshgrid(m,s)
@@ -49,11 +50,15 @@ model = pyGPs.GPR()      # specify model (GP regression)
 model.getPosterior(coords, acc) # fit default model (mean zero & rbf kernel) with data
 model.optimize(coords, acc)     # optimize hyperparamters (default optimizer: single run minimize)
 ym, ys2, fm, fs2, lp = model.predict(new_coords)         # predict test cases
+fm = numpy.reshape(fm, (mesh, mesh))
 
 fig = plt.figure()
-ax = fig.add_subplot(111,projection='3d')
-ax.scatter(coords[:,0], coords[:,1], acc, c='r')
-ax.scatter(new_coords[:,0][:,numpy.newaxis], new_coords[:,1][:,numpy.newaxis], fm, c='b')
+#ax = fig.add_subplot(111,projection='3d')
+#ax.scatter(coords[:,0], coords[:,1], acc, c='r')
+#ax.plot_surface(new_x, new_y, fm, alpha=0.3)
+plt.imshow(fm,cmap=cm.RdBu) # drawing the function
+cset = plt.contour(fm.T,numpy.arange(1.5,3.5,0.2),linewidths=2,cmap=cm.Set2)
+plt.clabel(cset,inline=True,fmt='%1.1f',fontsize=10)
 #new_z = numpy.reshape(fm, new_x.shape)
 #CS = plt.contour(new_x, new_y, new_z)
 #plt.clabel(CS, CS.levels, inline=1, fontsize=10)

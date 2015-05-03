@@ -29,9 +29,9 @@ class Hyp_dropprior():
         rj = RejectionSample()
         lower, upper = rj.uniform()
         
-        self.save_name = './pkl/droppriorE' + str(experiment) +'.pkl'
-        self.save_best = './pkl/best_droppriorE' + str(experiment) +'.pkl'
-        self.best_serial = './pkl/best_serialE' + str(experiment) +'.pkl'
+        self.save_name = './pkl_lecun/dropprior' + str(experiment) +'.pkl'
+        self.save_best = './pkl_lecun/best_dropprior' + str(experiment) +'.pkl'
+        self.best_serial = './pkl_lecun/best_serial' + str(experiment) +'.pkl'
         
         args = {
             'algorithm' : 'SGD',
@@ -39,15 +39,15 @@ class Hyp_dropprior():
             'num_classes' : 10,
             'train_cost_type' : 'nll',
             'valid_cost_type' : 'accuracy',
-            'layer_sizes' : (784, 1000, 1000, 1000, 10),
-            'nonlinearities' : ('ReLU', 'ReLU', 'ReLU', 'SoftMax'),
+            'layer_sizes' : (784, 800, 800, 10),
+            'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
             'data_address' : './data/mnist.pkl.gz',
             'learning_rate' : hp.loguniform('learning_rate', numpy.log(1e-5),
                                             numpy.log(1e0)),
-            'learning_rate_margin' : hp.uniform('learning_rate_margin', 50, 200),
-            'momentum' : hp.uniform('momentum', 0.85, 0.9999),
+            'learning_rate_margin' : 600,
+            'momentum' : hp.uniform('momentum', 0.88, 0.999),
             'batch_size' : hp.quniform('batch_size', 20, 200, 10),
-            'num_epochs' : 200,
+            'num_epochs' : 600,
             'norm' : 'L2',
             'max_row_norm' : hp.uniform('max_row_norm', 3, 4),
             'dropout_dict' : None,
