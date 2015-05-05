@@ -123,8 +123,9 @@ class Train():
         '''Train the model'''
         batch_size = int(args['batch_size'])
         params = self.model._params
-        self.learning_rate_margin = args['learning_rate_margin']
-        
+        self.learning_rate_margin = numpy.asarray(args['learning_rate_margin'])
+        self.learning_rate_schedule = args['learning_rate_schedule']       
+ 
         print('Constructing flow graph')
         index = T.lscalar()
         train_cost_type = args['train_cost_type']
@@ -178,6 +179,7 @@ class Train():
         # Timing, displays and monitoring
         s = self.set_start()
         n = self.now
+        self.last_best = 0      # Last time we had a best cost
         for self.epoch in numpy.arange(num_epochs):
             ep = '[EPOCH %05d]' % (self.epoch,)
             
@@ -203,11 +205,13 @@ class Train():
                     if vc > monitor['best_cost']:
                         monitor['best_cost'] = vc
                         monitor['best_model'] = self.model._params
+                        self.last_best = self.epoch
                         print('BEST MODEL: '),
                 elif args['valid_cost_type'] != 'accuracy':
                     if vc < monitor['best_cost']:
                         monitor['best_cost'] = vc
                         monitor['best_model'] = self.model._params
+                        self.last_best = self.epoch
                         print('BEST MODEL: '),
                 print('%s%s Validation cost: %f' % (ep, n(s), vc,))
                 self.check_real(vc)
@@ -242,23 +246,29 @@ class Train():
         '''Get parameter updates given cost'''
         # Load variables a check valid
         lr = args['learning_rate']*self.learning_rate_correction()
+        lrb = args['lr_bias_multiplier']
         assert lr >= 0
+        assert lrb >= 0
         mmtm = args['momentum']
         assert (mmtm >= 0 and mmtm < 1) or (mmtm == None)
-        
+
         # File updates
         updates = []
         # Standard SGD with momentum
         if args['algorithm'] == 'SGD':
             for param in params:
+                if param in self.model.b:
+                    lr2 = lr * lrb
+                else:
+                    lr2 = lr
                 g_param = T.grad(cost, param)
                 # If no momentum set variable to None
                 if mmtm != None:
                     param_update = TsharedX(param.get_value()*0.,
                                             broadcastable=param.broadcastable)
-                    updates.append((param_update, mmtm*param_update + lr*g_param))
+                    updates.append((param_update, mmtm*param_update + lr2*g_param))
                 else:
-                    param_update = lr*g_param
+                    param_update = lr2*g_param
                 updates.append((param, param - param_update))
         # Hinton's RMSprop (Coursera lecture 6) without Nesterov momentum            
         elif args['algorithm'] == 'RMSprop':
@@ -271,7 +281,17 @@ class Train():
                 updates.append((ms, RMScoeff*ms + (1-RMScoeff)*(g_param**2)))
                 param_update = lr*g_param/(T.sqrt(ms) + RMSreg)
                 updates.append((param, param - param_update))
-        
+        elif args['algorithm'] == 'SGSD':
+            for param in params:
+                g_param = T.sgn(T.grad(cost, param))
+                # If no momentum set variable to None
+                if mmtm != None:
+                    param_update = TsharedX(param.get_value()*0.,
+                                            broadcastable=param.broadcastable)
+                    updates.append((param_update, mmtm*param_update + lr*g_param))
+                else:
+                    param_update = lr*g_param
+                updates.append((param, param - param_update))
         else:
             print('Invalid training algorithm')
             sys.exit(1)
@@ -282,21 +302,40 @@ class Train():
     
     def max_norm(self, updates, args):
         '''Apply max norm constraint to the updates on weights'''
-        max_col_norm = args['max_col_norm']
-        for i, update in enumerate(updates):
-            param, param_update = update
-            if param in self.model.W:
-                col_norms = T.sqrt(T.sum(T.sqr(param_update), axis=0))
-                desired_norms = T.clip(col_norms, 0, max_col_norm)
-                constrained_W = param_update * (desired_norms / (1e-7 + col_norms))
-                # Tuples are immutable
-                updates_i = list(updates[i])
-                updates_i[1] = constrained_W
-                updates[i] = tuple(updates_i)
-                 
+        max_row_norm = args['max_row_norm']
+        if max_row_norm == None:
+            pass
+        else:         
+            norm = args['norm']
+            if norm == 'L2':  
+                for i, update in enumerate(updates):
+                    param, param_update = update
+                    if param in self.model.W:
+                        row_norms = T.sqrt(T.sum(T.sqr(param_update), axis=1, keepdims=True))
+                        desired_norms = T.clip(row_norms, 0, max_row_norm)
+                        constrained_W = param_update * (desired_norms / (1e-7 + row_norms))
+                        # Tuples are immutable
+                        updates_i = list(updates[i])
+                        updates_i[1] = constrained_W
+                        updates[i] = tuple(updates_i)
+            elif norm == 'Linf':
+                for i, update in enumerate(updates):
+                    param, param_update = update
+                    if param in self.model.W:
+                        row_norms = T.max(T.abs_(param_update), axis=1, keepdims=True)
+                        desired_norms = T.clip(row_norms, 0, max_row_norm)
+                        constrained_W = param_update * (desired_norms / (1e-7 + row_norms))
+                        # Tuples are immutable
+                        updates_i = list(updates[i])
+                        updates_i[1] = constrained_W
+                        updates[i] = tuple(updates_i)
+    
     def learning_rate_correction(self):
-        tau = self.learning_rate_margin*1.
-        return tau/float(max(tau, self.epoch))
+        '''Learning rate schedule'''
+        idx = [x[0] for x in enumerate(self.learning_rate_margin) if x[1] <= self.epoch]
+        idx = numpy.amax(idx)
+        lrm = self.learning_rate_schedule[idx][0]
+        return lrm
     
     def check_real(self, x):
         '''Check training has not diverged'''
@@ -329,24 +368,25 @@ if __name__ == '__main__':
         
     args = {
         'algorithm' : 'SGD',
-        'RMScoeff' : 0.9,
-        'RMSreg' : 1e-3,
         'learning_type' : 'classification',
         'num_classes' : 10,
         'train_cost_type' : 'nll',
         'valid_cost_type' : 'accuracy',
-        'layer_sizes' : (784, 1000, 1000, 1000, 10),
-        'nonlinearities' : ('ReLU', 'ReLU', 'ReLU', 'SoftMax'),
+        'layer_sizes' : (784, 800, 800, 10),
+        'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
         'data_address' : './data/mnist.pkl.gz',
-        'learning_rate' : 0.043,
-        'learning_rate_margin' : 53,
-        'momentum' : 0.91,
-        'batch_size' : 220,
-        'num_epochs' : 200,
-        'max_col_norm' : 2.15,
+        'learning_rate' : 1e-1,
+        'lr_bias_multiplier' : 2.,
+        'learning_rate_margin' : (0,10,20),
+        'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
+        'momentum' : 0.9,
+        'batch_size' : 128,
+        'num_epochs' : 40,
+        'norm' : 'L2',
+        'max_row_norm' : 3.5,
         'dropout_dict' : None, 
         'validation_freq' : 5,
-        'save_freq' : 50,
+        'save_freq' : 5,
         'save_name' : 'train.pkl'
         }
     
@@ -364,7 +404,7 @@ if __name__ == '__main__':
                              'type' : 'unbiased',
                              'values' : v}}
         dropout_dict.update(sub_dict)
-
+    args['dropout_dict'] = dropout_dict
     #numpy.random.seed(seed=234)
     
     tr = Train()
@@ -373,51 +413,5 @@ if __name__ == '__main__':
     monitor = tr.train(args)
     
     '''
-    TODO: PRETRAINING, CONVOLUTIONS
-    
-    A problem with dropout is in deciding whether it is part of the model or
-    the optimisation. I am going to side with the view that an optimisation is
-    independent of the model (as much as possible) and has the sole aim of
-    reaching a local minimum. Apart from early stopping, regularised SGD is
-    actually SGD on a regularised objective, where the regularised objective
-    is the model instead of an optimisation trick.
+    TODO: LR-SCHEDULING, PRETRAINING, CONVOLUTIONS
     ''' 
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
