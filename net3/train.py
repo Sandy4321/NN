@@ -60,9 +60,6 @@ class Train():
         train_set[1] = train_set[1][:,numpy.newaxis]
         valid_set[1] = valid_set[1][:,numpy.newaxis]
         test_set[1] = test_set[1][:,numpy.newaxis]
-        train_set = tuple(train_set)
-        valid_set = tuple(valid_set)
-        test_set = tuple(test_set)
         return (train_set, valid_set, test_set)
     
     def load2gpu(self, data_address, args):
@@ -70,11 +67,23 @@ class Train():
         learning_type = args['learning_type']
         
         train_set, valid_set, test_set = self.load(data_address)
+        self.num_train = train_set[0].shape[0]
+        self.num_valid = valid_set[0].shape[0]
+        self.num_test = test_set[0].shape[0] 
+        # Shuffle data
+        shuffle_train = numpy.random.permutation(self.num_train)
+        shuffle_valid = numpy.random.permutation(self.num_valid)
+        shuffle_test = numpy.random.permutation(self.num_test)
+        train_set[0] = train_set[0][shuffle_train,:]
+        train_set[1] = train_set[1][shuffle_train,:]
+        valid_set[0] = valid_set[0][shuffle_valid,:]
+        valid_set[1] = valid_set[1][shuffle_valid,:]
+        test_set[0] = test_set[0][shuffle_test,:]
+        test_set[1] = test_set[1][shuffle_test,:]
         # Data should be stored columnwise
         self.train_x = self.gpu_type(train_set[0].T)
         self.valid_x = self.gpu_type(valid_set[0].T)
         self.test_x = self.gpu_type(test_set[0].T)
-        
         if learning_type == 'supervised':
             self.train_y = self.gpu_type(train_set[1].T)
             self.valid_y = self.gpu_type(valid_set[1].T)
@@ -99,11 +108,7 @@ class Train():
             self.test_y = self.gpu_type(test_y.T)
         else:
             print('Invalid learning type')
-            sys.exit(1)
-        
-        self.num_train = train_set[0].shape[0]
-        self.num_valid = valid_set[0].shape[0]
-        self.num_test = test_set[0].shape[0]          
+            sys.exit(1)         
         
     def build(self, model, args):
         '''Construct the model'''
@@ -111,6 +116,10 @@ class Train():
         self.model = model(args)
         self.input = T.matrix(name='input', dtype=Tconf.floatX)
         self.output = self.model.predict(self.input, args)
+        # Separate validation output is copy of train network with no dropout 
+        test_args = args
+        test_args['dropout_dict'] = None 
+        self.test_output = self.model.predict(self.input, test_args)
         self.target = T.matrix(name='target', dtype=Tconf.floatX)
     
     def load_data(self, args):
@@ -123,16 +132,21 @@ class Train():
         '''Train the model'''
         batch_size = int(args['batch_size'])
         params = self.model._params
+        # The learning rate scheduler is rather complicated, need to sort this
         self.learning_rate_margin = numpy.asarray(args['learning_rate_margin'])
-        self.learning_rate_schedule = args['learning_rate_schedule']       
+        self.learning_rate_schedule = args['learning_rate_schedule']
+        self.last_best = 0      # Last time we had a best cost
+        self.lr_idx = 0
+        self.last_idx = 0
+        self.current_lr_idx = 0
  
         print('Constructing flow graph')
         index = T.lscalar()
         train_cost_type = args['train_cost_type']
         valid_cost_type = args['valid_cost_type']
         
-        train_cost = self.cost(train_cost_type)
-        valid_cost = self.cost(valid_cost_type)
+        train_cost = self.cost(train_cost_type, self.target, self.output)
+        valid_cost = self.cost(valid_cost_type, self.target, self.test_output)
         
         updates = self.updates(train_cost, params, args)
         Tfuncs = {}
@@ -149,8 +163,8 @@ class Train():
             inputs=[index],
             outputs=valid_cost,
             givens={
-                self.input: self.valid_x[:,index*batch_size:(index+1)*batch_size],
-                self.target: self.valid_y[:,index*batch_size:(index+1)*batch_size]
+                self.input: self.test_x[:,index*batch_size:(index+1)*batch_size],
+                self.target: self.test_y[:,index*batch_size:(index+1)*batch_size]
             }
         )
         # Train
@@ -179,7 +193,7 @@ class Train():
         # Timing, displays and monitoring
         s = self.set_start()
         n = self.now
-        self.last_best = 0      # Last time we had a best cost
+
         for self.epoch in numpy.arange(num_epochs):
             ep = '[EPOCH %05d]' % (self.epoch,)
             
@@ -189,14 +203,15 @@ class Train():
                 train_cost[batch] = train_model(batch)
             tc = train_cost.mean()
             monitor['train_cost'].append(tc)
-            print('%s%s Training cost: %f' % (ep, n(s), tc,))
+            print('%s%s Training cost: %f' % (ep, n(s), tc,)),
             self.check_real(tc)
+            print self.learning_rate_correction()
             
             # Validate
             if self.epoch % validation_freq == 0:
                 valid_cost = numpy.zeros(num_valid_batches)
                 for batch in numpy.arange(num_valid_batches):
-                    valid_cost[batch] = validate_model(batch) 
+                    valid_cost[batch] = validate_model(batch)
                 vc = valid_cost.mean()
                 monitor['valid_cost'].append(vc)
                 
@@ -223,10 +238,8 @@ class Train():
         self.save_state(save_name, args, monitor)
         return monitor
         
-    def cost(self, cost_type):
+    def cost(self, cost_type, Y, Yhat):
         '''Evaluate the loss between prediction and target'''
-        Yhat = self.output
-        Y = self.target
         if cost_type == 'MSE':
             loss = 0.5*((Y-Yhat)**2).sum(axis=0)
         elif cost_type == 'cross_entropy':
@@ -281,17 +294,6 @@ class Train():
                 updates.append((ms, RMScoeff*ms + (1-RMScoeff)*(g_param**2)))
                 param_update = lr*g_param/(T.sqrt(ms) + RMSreg)
                 updates.append((param, param - param_update))
-        elif args['algorithm'] == 'SGSD':
-            for param in params:
-                g_param = T.sgn(T.grad(cost, param))
-                # If no momentum set variable to None
-                if mmtm != None:
-                    param_update = TsharedX(param.get_value()*0.,
-                                            broadcastable=param.broadcastable)
-                    updates.append((param_update, mmtm*param_update + lr*g_param))
-                else:
-                    param_update = lr*g_param
-                updates.append((param, param - param_update))
         else:
             print('Invalid training algorithm')
             sys.exit(1)
@@ -331,10 +333,31 @@ class Train():
                         updates[i] = tuple(updates_i)
     
     def learning_rate_correction(self):
-        '''Learning rate schedule'''
+        '''Learning rate schedule - COMPLICATED, NEED TO SORT OUR'''
+        # Get learning rate tuple for this epoch
         idx = [x[0] for x in enumerate(self.learning_rate_margin) if x[1] <= self.epoch]
         idx = numpy.amax(idx)
-        lrm = self.learning_rate_schedule[idx][0]
+        lr_idx_temp = self.lr_idx
+        # Has learning rate tuple changed?
+        if self.last_idx != idx:
+            # Yes
+            self.lr_idx = 0
+            self.current_lr_idx = 0
+        else:
+            # No - how long since last best cost?
+            best_marg = self.epoch - self.last_best
+            # Only go to next element in tuple when best_marg >= 100 AND been at
+            # current rate for >= 100
+            if (best_marg >= 100) and (self.current_lr_idx >= 30):
+                lr_idx_temp = numpy.minimum(self.lr_idx + 1, len(self.learning_rate_schedule[idx])-1)
+        lrm = self.learning_rate_schedule[idx][lr_idx_temp]
+        # Update caches
+        self.last_idx = idx
+        if self.lr_idx == lr_idx_temp:
+            self.current_lr_idx += 1
+        else:
+            self.current_lr_idx = 0
+        self.lr_idx = lr_idx_temp
         return lrm
     
     def check_real(self, x):
@@ -367,26 +390,31 @@ class Train():
 if __name__ == '__main__':
         
     args = {
-        'algorithm' : 'SGD',
+        'algorithm' : 'RMSprop',
+        'RMScoeff' : 0.9,
+        'RMSreg' : 1e-3,
         'learning_type' : 'classification',
         'num_classes' : 10,
         'train_cost_type' : 'nll',
         'valid_cost_type' : 'accuracy',
         'layer_sizes' : (784, 800, 800, 10),
-        'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
+        'nonlinearities' : ('wrapped_ReLU', 'wrapped_ReLU', 'SoftMax'),
+        'period' : 2*numpy.pi,
+        'deadband' : 0.05,
         'data_address' : './data/mnist.pkl.gz',
-        'learning_rate' : 1e-1,
+        'learning_rate' : 1e-3,
         'lr_bias_multiplier' : 2.,
-        'learning_rate_margin' : (0,10,20),
+        'learning_rate_margin' : (0,150,300),
         'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
         'momentum' : 0.9,
         'batch_size' : 128,
-        'num_epochs' : 40,
+        'num_epochs' : 500,
         'norm' : 'L2',
-        'max_row_norm' : 3.5,
-        'dropout_dict' : None, 
+        'max_row_norm' : 3.87,
+        'dropout_dict' : None,
+        'logit_anneal' : None,
         'validation_freq' : 5,
-        'save_freq' : 5,
+        'save_freq' : 25,
         'save_name' : 'train.pkl'
         }
     
@@ -396,7 +424,7 @@ if __name__ == '__main__':
 
         if i == 0:
             # Need to cast to floatX or the computation gets pushed to the CPU
-            v = 0.8*numpy.ones((784,1)).astype(Tconf.floatX)
+            v = 0.95*numpy.ones((784,1)).astype(Tconf.floatX)
         else:
             #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
             v = 0.5*numpy.ones((args['layer_sizes'][i],1)).astype(Tconf.floatX)
@@ -413,5 +441,5 @@ if __name__ == '__main__':
     monitor = tr.train(args)
     
     '''
-    TODO: LR-SCHEDULING, PRETRAINING, CONVOLUTIONS
+    TODO: PRETRAINING, CONVOLUTIONS
     ''' 

@@ -12,7 +12,7 @@ import cPickle
 import gzip
 import numpy
 
-from train_dev import DivergenceError, Train
+from train import DivergenceError, Train
 from hyperopt import fmin, hp, STATUS_FAIL, STATUS_OK, tpe, Trials
 from matplotlib import pyplot as plt
 from mlp import Mlp
@@ -26,38 +26,40 @@ class Hyp_dropprior():
     def main(self, experiment):
         '''Sample hyperparameter space and run'''
         trials = Trials()
-        rj = RejectionSample()
-        lower, upper = rj.uniform()
         
         self.save_name = './pkl_lecun/dropprior' + str(experiment) +'.pkl'
         self.save_best = './pkl_lecun/best_dropprior' + str(experiment) +'.pkl'
         self.best_serial = './pkl_lecun/best_serial' + str(experiment) +'.pkl'
         
         args = {
-            'algorithm' : 'SGD',
-            'learning_type' : 'classification',
-            'num_classes' : 10,
-            'train_cost_type' : 'nll',
-            'valid_cost_type' : 'accuracy',
-            'layer_sizes' : (784, 800, 800, 10),
-            'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
-            'data_address' : './data/mnist.pkl.gz',
-            'learning_rate' : hp.loguniform('learning_rate', numpy.log(1e-5),
-                                            numpy.log(1e0)),
-            'learning_rate_margin' : 600,
-            'momentum' : hp.uniform('momentum', 0.88, 0.999),
-            'batch_size' : hp.quniform('batch_size', 20, 200, 10),
-            'num_epochs' : 600,
-            'norm' : 'L2',
-            'max_row_norm' : hp.uniform('max_row_norm', 3, 4),
-            'dropout_dict' : None,
-            'lower' : lower,
-            'upper' : upper,
-            'validation_freq' : 5,
-            'save_freq' : 50,
-            'save_name' : self.save_name
+                'algorithm' : 'SGD',
+                'RMScoeff' : hp.uniform('RMScoeff', 0.85, 0.999),
+                'RMSreg' : 1e-3,
+                'learning_type' : 'classification',
+                'num_classes' : 10,
+                'train_cost_type' : 'nll',
+                'valid_cost_type' : 'accuracy',
+                'layer_sizes' : (784, 800, 800, 10),
+                'nonlinearities' : ('wrapped_ReLU', 'wrapped_ReLU', 'SoftMax'),
+                'period' : hp.uniform('period', 2., 10.),
+                'deadband' : hp.uniform('deadband', 0., 1.),
+                'data_address' : './data/mnist.pkl.gz',
+                'learning_rate' : hp.loguniform('learning_rate', numpy.log(1e-4),
+                                                    numpy.log(1e1)),
+                'lr_bias_multiplier' : 2.,
+                'learning_rate_margin' : (0,250,350),
+                'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
+                'momentum' : 0.9,
+                'batch_size' : 128,
+                'num_epochs' : 500,
+                'norm' : 'L2',
+                'max_row_norm' : hp.uniform('max_row_norm', 3, 4),
+                'dropout_dict' : None, 
+                'validation_freq' : 5,
+                'save_freq' : 200,
+                'save_name' : self.save_name
         }
-        
+
         if args['valid_cost_type'] == 'accuracy':
             self.best_cost = -numpy.inf
 
@@ -82,17 +84,15 @@ class Hyp_dropprior():
             # come up with a more elegant solution in future, but for now, we
             # simply define the dropout prior outside
             dropout_dict = {}
-            lower = args['lower']
-            upper = args['upper']
             
             for i in numpy.arange(len(args['nonlinearities'])):
                 name = 'layer' + str(i)
                 ls = args['layer_sizes'][i]
                 if i == 0:
                     # Need to cast to floatX or the computation gets pushed to the CPU
-                    v = 0.8*numpy.ones((784,1)).astype(Tconf.floatX)
+                    v = 1.*numpy.ones((784,1)).astype(Tconf.floatX)
                 else:
-                    v = numpy.linspace(lower,upper,ls)[:,numpy.newaxis].astype(Tconf.floatX)
+                    v = 0.5*numpy.ones((args['layer_sizes'][i],1)).astype(Tconf.floatX)
                 sub_dict = { name : {'seed' : 234,
                                      'type' : 'unbiased',
                                      'values' : v}}
@@ -138,35 +138,9 @@ class Hyp_dropprior():
         return return_dict
 
 
-class RejectionSample():
-    def __init__(self):
-        pass
-    
-    def uniform(self):
-        '''Draw a uniform distribution uniformly'''
-        # Sample mu in [0.0,0.5]
-        mu = 0
-        var = numpy.inf
-        # Rejection sample variance
-        '''
-        while var > (mu**2)/3:
-            mu = numpy.random.random_sample()/2
-            std = numpy.random.random_sample()/numpy.sqrt(12.)
-            var = std**2
-        '''
-        mu = numpy.random.random_sample()/2
-        var = 0
-        # With prob. 0.5 lift mu into [0.5,1.0]
-        if numpy.random.random_sample() < 0.5:
-            mu = 1. - mu
-        a = mu - numpy.sqrt(3*var)
-        b = mu + numpy.sqrt(3*var)
-        return (a,b)
-
 if __name__ == '__main__':
     hd = Hyp_dropprior()
-    for i in numpy.arange(100):
-        hd.main(i)
+    hd.main(1)
     
         
     

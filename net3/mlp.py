@@ -36,11 +36,12 @@ class Mlp():
             coeff = numpy.sqrt(6/(self.ls[i] + (self.ls[i+1])))
             W_value = 2*coeff*(numpy.random.uniform(size=(self.ls[i+1],
                                                           self.ls[i]))-0.5)
+            #W_value = numpy.sqrt(0.1)*numpy.random.randn(self.ls[i+1],self.ls[i])
             W_value = numpy.asarray(W_value, dtype=Tconf.floatX)
             Wname = 'W' + str(i)
             self.W.append(TsharedX(W_value, Wname, borrow=True))
             
-            b_value = 0.1*numpy.ones((self.ls[i+1],))[:,numpy.newaxis]
+            b_value = 0.5*numpy.ones((self.ls[i+1],))[:,numpy.newaxis]
             b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
             bname = 'b' + str(i)
             self.b.append(TsharedX(b_value, bname, borrow=True,
@@ -67,6 +68,11 @@ class Mlp():
             s = lambda x : (x > 0) * x
         elif nonlinearity == 'SoftMax':
             s = Tnet.softmax
+        elif nonlinearity == 'wrapped_ReLU':
+            period = args['period']
+            b = args['deadband']
+            pre_act = pre_act % period
+            s = lambda x : T.minimum(((x - b) > 0) * (x - b), ((period - x - b) > 0) * (period - x - b))
         else:
             print('Invalid nonlinearity')
             sys.exit(1)

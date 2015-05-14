@@ -8,7 +8,7 @@ import utils
 from matplotlib import pyplot as plt
 from PIL import Image
 
-fname = './train_dev.pkl'
+fname = './pkl_lecun/best_dropprior1.pkl'
 stream = open(fname, 'r')
 state = cPickle.load(stream)
 stream.close()
@@ -30,14 +30,17 @@ for param in params:
 
 
 fig = plt.figure()
-plt.plot(monitor['train_cost'])
+plt.semilogx(monitor['valid_cost'])
 plt.show()
 
+fig = plt.figure()
+plt.semilogx(monitor['train_cost'])
+plt.show()
 for arg in args:
     if arg != 'dropout_dict':
         print arg, args[arg]
 
-n = 30
+n = 20
 for param in params:
     W = param.get_value()
     Wsh = W.shape
