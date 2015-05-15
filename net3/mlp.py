@@ -52,13 +52,14 @@ class Mlp():
             # Dropout
             name = 'layer' + str(i)
             vname = 'dropout' + str(i)
-            if name in self.dropout_dict:
-                # Dropout rates - this formulation means we must have dropout in
-                # every layer. Will need to change this later
-                sub_dict = self.dropout_dict[name]
-                q_value = TsharedX(sub_dict['values'], vname,
-                                   broadcastable=(False,True))
-                self.q.append(q_value)
+            if self.dropout_dict != None:
+                if name in self.dropout_dict:
+                    # Dropout rates - this formulation means we must have dropout in
+                    # every layer. Will need to change this later
+                    sub_dict = self.dropout_dict[name]
+                    q_value = TsharedX(sub_dict['values'], vname,
+                                       broadcastable=(False,True))
+                    self.q.append(q_value)
             
         for W, b in zip(self.W, self.b):
             self._params.append(W)

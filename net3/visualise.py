@@ -8,7 +8,7 @@ import utils
 from matplotlib import pyplot as plt
 from PIL import Image
 
-fname = './train_test.pkl'
+fname = './pkl/drop0.pkl'
 stream = open(fname, 'r')
 state = cPickle.load(stream)
 stream.close()
@@ -17,7 +17,7 @@ monitor = state['monitor']
 args = state['hyperparams']
 print('Validation cost %f' % (monitor['best_cost'],))
 
-params = monitor['best_model']
+params, hypparams = monitor['best_model']
 
 
 for param in params:
@@ -26,7 +26,9 @@ for param in params:
     print('Min: %f' % (numpy.amin(param.get_value()),))
     pylab.figure()
     pylab.hist(param.get_value().flatten(), 50, normed=1)
+    pylab.suptitle(param, fontsize=20)
     pylab.show()
+
 
 
 fig = plt.figure()

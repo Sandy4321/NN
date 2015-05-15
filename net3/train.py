@@ -148,7 +148,7 @@ class Train():
         self.lr_idx = 0
         self.last_idx = 0
         self.current_lr_idx = 0
-        # Variation dropout mask
+        # Variational dropout mask
         masks = self.model.G
         self.dropout_dict = args['dropout_dict']
  
@@ -158,11 +158,13 @@ class Train():
         subnet_cost_type = args['subnet_cost_type']
         valid_cost_type = args['valid_cost_type']
         
+        # Costs and gradients
         train_cost, train_cost_raw = self.cost(train_cost_type, self.target, self.output)
-        subnet_grads = self.subnet(subnet_cost_type, train_cost_raw, masks)
         valid_cost, valid_costs = self.cost(valid_cost_type, self.target, self.test_output)
-        
-        updates = self.updates(train_cost, subnet_grads, params, hypparams, args)
+        subnet_grads = self.subnet(subnet_cost_type, train_cost_raw, masks, args)
+            
+        updates = self.updates(train_cost, params, args,
+                               hypparam_grads=subnet_grads, hypparams=hypparams)
         Tfuncs = {}
         Tfuncs['train_model'] = Tfunction(
             inputs=[index],
@@ -233,13 +235,13 @@ class Train():
                 if args['valid_cost_type'] == 'accuracy':
                     if vc > monitor['best_cost']:
                         monitor['best_cost'] = vc
-                        monitor['best_model'] = self.model._params
+                        monitor['best_model'] = (self.model._params, self.model._hypparams)
                         self.last_best = self.epoch
                         print('BEST MODEL: '),
                 elif args['valid_cost_type'] != 'accuracy':
                     if vc < monitor['best_cost']:
                         monitor['best_cost'] = vc
-                        monitor['best_model'] = self.model._params
+                        monitor['best_model'] = (self.model._params, self.model._hypparams)
                         self.last_best = self.epoch
                         print('BEST MODEL: '),
                 print('%s%s Validation cost: %f' % (ep, n(s), vc,))
@@ -270,17 +272,16 @@ class Train():
             sys.exit(1)
         return (loss.mean(), loss)
     
-    def subnet(self, subnet_cost_type, train_cost_raw, masks):
+    def subnet(self, subnet_cost_type, train_cost, masks, args):
         '''Compute the variation dropout parameters'''
         gradient = []
         if subnet_cost_type == None:
-            pass
+            gradient = None
         elif subnet_cost_type == 'factored_bernoulli':
             # p is the prior, q is the variational dropout distribution
             qs = self.model.q
             ps = []
             Gs = []
-            dropout_dict = args
             num_dropout_layers = 0
             for name in self.dropout_dict:
                 num_dropout_layers += 1
@@ -291,24 +292,26 @@ class Train():
                 ps.append(sub_dict['values'])
                 Gs.append(masks[mask_name].astype(dtype=Tconf.floatX))
             for q, G, p in zip(qs, Gs, ps):
-                #loss_pos = T.sum(train_cost[numpy.newaxis,:]*G,axis=1)
-                #loss_neg = T.sum(train_cost[numpy.newaxis,:]*(1-G),axis=1)
-                #loss = (loss_pos - loss_neg)/(1.*G.shape[1])
-                #KL_reg = -T.log(q*(1-p)/(p*(1-q)))
-                #gradient.append((loss + KL_reg).astype(dtype=Tconf.floatX))
-                loss_pos = T.sum(G,axis=1,keepdims=True)/10000
-                gradient.append(loss_pos.astype(dtype=Tconf.floatX))
+                loss_pos = T.sum(train_cost[numpy.newaxis,:]*G, axis=1, keepdims=True)
+                loss_neg = T.sum(train_cost[numpy.newaxis,:]*(1-G), axis=1, keepdims=True)
+                loss = (loss_pos - loss_neg)/(1.*G.shape[1]) 
+                KL_reg = T.log(q*(1-p)/(p*(1-q)))
+                gradient.append((loss + KL_reg).astype(dtype=Tconf.floatX))
         return gradient
     
-    def updates(self, cost, hypparam_grads, params, hypparams, args):
+    def updates(self, cost, params, args, hypparam_grads=None, hypparams=None):
         '''Get parameter updates given cost'''
         # Load variables a check valid
         lr = args['learning_rate']*self.learning_rate_correction()
         lrb = args['lr_bias_multiplier']
+        if args['subnet_cost_type'] != None:
+            lrd = args['dropout_lr']*self.learning_rate_correction()
         assert lr >= 0
         assert lrb >= 0
-        mmtm = args['momentum']
-        assert (mmtm >= 0 and mmtm < 1) or (mmtm == None)
+        momentum = args['momentum']
+        ramp = args['momentum_ramp']
+        assert (momentum >= 0 and momentum < 1) or (momentum == None)
+        mmtm = self.momentum_ramp(0.5, momentum, ramp)
 
         # File updates
         updates = []
@@ -325,14 +328,16 @@ class Train():
             print('Invalid training algorithm')
             sys.exit(1)
         # Dropout optimization
-        if hypparam_grads != None:
-            self.hypparam_updates(hypparam_grads, hypparams, lr, updates)
-        else:
-            print('Invalid subnet cost')
-            sys.exit(1)
-        
+        if args['subnet_cost_type'] != None:
+            self.hypparam_updates(hypparam_grads, hypparams, lrd, updates)
         self.max_norm(updates, args)
         return updates
+    
+    def momentum_ramp(self, start, end, ramp):
+        '''Use a momentum ramp at the beginning'''
+        mult = numpy.minimum(self.epoch, ramp) / numpy.maximum(ramp*1., 1.)
+        momentum = mult*end + (1-mult)*start
+        return momentum.astype(Tconf.floatX)
     
     def SGD_updates(self, cost, params, args, lr, lrb, mmtm, updates):
         '''Stochastic gradient descent'''
@@ -375,8 +380,7 @@ class Train():
         RMSreg = args['RMSreg']
         for param in params:
             g_param = T.grad(cost, param)
-            ms = TsharedX(param.get_value()*0.,
-                                            broadcastable=param.broadcastable)
+            ms = TsharedX(param.get_value()*0.,broadcastable=param.broadcastable)
             updates.append((ms, RMScoeff*ms + (1-RMScoeff)*(g_param**2)))
             param_update = lr*g_param/(T.sqrt(ms) + RMSreg)
             updates.append((param, param - param_update))
@@ -407,10 +411,10 @@ class Train():
             # Update parameters
             updates.append((param, param - lr2*g_param + mmtm*velocity))
     
-    def hypparam_updates(self, hypparam_grads, hypparams, lr, updates):
+    def hypparam_updates(self, hypparam_grads, hypparams, lrd, updates):
         '''Perfrom SGD in the hyperparameters'''
         for hyp, hypparam_grad in zip(hypparams, hypparam_grads):
-            updates.append((hyp, hyp + lr*hypparam_grad))
+            updates.append((hyp, hyp + lrd*hypparam_grad))
     
     def max_norm(self, updates, args):
         '''Apply max norm constraint to the updates on weights'''
@@ -458,7 +462,7 @@ class Train():
             best_marg = self.epoch - self.last_best
             # Only go to next element in tuple when best_marg >= 100 AND been at
             # current rate for >= 100
-            if (best_marg >= 100) and (self.current_lr_idx >= 30):
+            if (best_marg >= 100) and (self.current_lr_idx >= 40):
                 lr_idx_temp = numpy.minimum(self.lr_idx + 1, len(self.learning_rate_schedule[idx])-1)
         lrm = self.learning_rate_schedule[idx][lr_idx_temp]
         # Update caches
@@ -500,7 +504,7 @@ class Train():
 if __name__ == '__main__':
         
     args = {
-        'algorithm' : 'RMSNAG',
+        'algorithm' : 'SGD',
         'RMScoeff' : 0.9,
         'RMSreg' : 1e-3,
         'learning_type' : 'classification',
@@ -514,11 +518,13 @@ if __name__ == '__main__':
         'deadband' : None,
         'data_address' : './data/mnist.pkl.gz',
         'binarize': False,
-        'learning_rate' : 1e-4,
+        'learning_rate' : 1e-1,
+        'dropout_lr' : 1e-8,
         'lr_bias_multiplier' : 2.,
         'learning_rate_margin' : (0,200,300),
         'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
         'momentum' : 0.9,
+        'momentum_ramp' : 0,
         'batch_size' : 128,
         'num_epochs' : 500,
         'norm' : 'L2',
@@ -527,7 +533,7 @@ if __name__ == '__main__':
         'logit_anneal' : None,
         'validation_freq' : 5,
         'save_freq' : 100,
-        'save_name' : 'train.pkl'
+        'save_name' : 'train_var.pkl'
         }
     
     dropout_dict = {}
