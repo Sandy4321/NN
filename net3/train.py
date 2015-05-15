@@ -296,9 +296,8 @@ class Train():
                 #loss = (loss_pos - loss_neg)/(1.*G.shape[1])
                 #KL_reg = -T.log(q*(1-p)/(p*(1-q)))
                 #gradient.append((loss + KL_reg).astype(dtype=Tconf.floatX))
-                #loss_pos = T.sum(G,axis=0)/10000
-                #gradient.append(loss_pos.astype(dtype=Tconf.floatX))
-                gradient.append(T.sum(G,axis=0)/10000)
+                loss_pos = T.sum(G,axis=1,keepdims=True)/10000
+                gradient.append(loss_pos.astype(dtype=Tconf.floatX))
         return gradient
     
     def updates(self, cost, hypparam_grads, params, hypparams, args):
