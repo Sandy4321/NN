@@ -17,6 +17,7 @@ from autoencoder import Autoencoder
 from mlp import Mlp
 from matplotlib import pylab
 from matplotlib import pyplot as plt
+from preprocess import Preprocess
 from theano import config as Tconf
 from theano.tensor.extra_ops import to_one_hot
 from theano import function as Tfunction
@@ -29,6 +30,7 @@ class DivergenceError(Exception): pass
 class Train():
     def __init__(self):
         self.epoch = 0
+        self.pre = Preprocess()
         
     # Some handy timing functions
     def set_start(self):
@@ -65,8 +67,12 @@ class Train():
     def load2gpu(self, data_address, args):
         '''Load the data into the gpu'''
         learning_type = args['learning_type']
-        
+        binarize = args['binarize']
         train_set, valid_set, test_set = self.load(data_address)
+        if binarize == True:
+            train_set[0] = self.pre.binarize(train_set[0])
+            valid_set[0] = self.pre.binarize(valid_set[0])
+            test_set[0] = self.pre.binarize(test_set[0])
         self.num_train = train_set[0].shape[0]
         self.num_valid = valid_set[0].shape[0]
         self.num_test = test_set[0].shape[0] 
@@ -115,7 +121,8 @@ class Train():
         print('Building model')
         self.model = model(args)
         self.input = T.matrix(name='input', dtype=Tconf.floatX)
-        self.output = self.model.predict(self.input, args)
+        # Return the prediction and the subnetwork mask
+        self.output, self.mask = self.model.predict(self.input, args)
         # Separate validation output is copy of train network with no dropout 
         test_args = args
         test_args['dropout_dict'] = None 
@@ -143,16 +150,18 @@ class Train():
         print('Constructing flow graph')
         index = T.lscalar()
         train_cost_type = args['train_cost_type']
+        subnet_cost_type = args['subnet_cost_type']
         valid_cost_type = args['valid_cost_type']
         
         train_cost = self.cost(train_cost_type, self.target, self.output)
+        #subnet_cost= self.subnet(subnet_cost_type, self.output, self.mask)
         valid_cost = self.cost(valid_cost_type, self.target, self.test_output)
         
         updates = self.updates(train_cost, params, args)
         Tfuncs = {}
         Tfuncs['train_model'] = Tfunction(
             inputs=[index],
-            outputs=train_cost,
+            outputs=[train_cost],
             updates=updates,
             givens={
                 self.input: self.train_x[:,index*batch_size:(index+1)*batch_size],
@@ -255,6 +264,10 @@ class Train():
             sys.exit(1)
         return loss.mean()
     
+    def subnet(self, subnet_cost_type, output, mask):
+        '''Compute the variation dropout parameters'''
+        return 1
+    
     def updates(self, cost, params, args):
         '''Get parameter updates given cost'''
         # Load variables a check valid
@@ -279,12 +292,28 @@ class Train():
                 if mmtm != None:
                     param_update = TsharedX(param.get_value()*0.,
                                             broadcastable=param.broadcastable)
-                    updates.append((param_update, mmtm*param_update + lr2*g_param))
+                    updates.append((param_update, mmtm*param_update - lr2*g_param))
                 else:
                     param_update = lr2*g_param
-                updates.append((param, param - param_update))
-        # Hinton's RMSprop (Coursera lecture 6) without Nesterov momentum            
+                updates.append((param, param + param_update))
+        elif args['algorithm'] == 'NAG':
+            for param in params:
+                if param in self.model.b:
+                    lr2 = lr * lrb
+                else:
+                    lr2 = lr
+                if mmtm == None:
+                    print('For NAG require momentum in [0.,1.)')
+                    sys.exit(1)
+                velocity = TsharedX(param.get_value()*0.,
+                                    broadcastable=param.broadcastable)
+                # Updates
+                g_param = T.grad(cost, param)
+                # Update momentum
+                updates.append((velocity, mmtm*velocity - lr2*g_param))
+                updates.append((param, param - lr2*g_param + mmtm*velocity))           
         elif args['algorithm'] == 'RMSprop':
+            # Hinton's RMSprop (Coursera lecture 6) without Nesterov momentum 
             RMScoeff = args['RMScoeff']
             RMSreg = args['RMSreg']
             for param in params:
@@ -294,6 +323,31 @@ class Train():
                 updates.append((ms, RMScoeff*ms + (1-RMScoeff)*(g_param**2)))
                 param_update = lr*g_param/(T.sqrt(ms) + RMSreg)
                 updates.append((param, param - param_update))
+        elif args['algorithm'] == 'RMSNAG':
+            # Hinton's RMSprop (Coursera lecture 6) with Nesterov momentum
+            RMScoeff = args['RMScoeff']
+            RMSreg = args['RMSreg']
+            for param in params:
+                if param in self.model.b:
+                    lr2 = lr * lrb
+                else:
+                    lr2 = lr
+                if mmtm == None:
+                    print('For NAG require momentum in [0.,1.)')
+                    sys.exit(1)
+                velocity = TsharedX(param.get_value()*0.,
+                                    broadcastable=param.broadcastable)
+                ms = TsharedX(param.get_value()*0.,
+                                            broadcastable=param.broadcastable)
+                # Updates
+                g_param = T.grad(cost, param)
+                # Update RMS
+                updates.append((ms, RMScoeff*ms + (1-RMScoeff)*(g_param**2)))
+                param_update = g_param/(T.sqrt(ms) + RMSreg)
+                # Update momentum
+                updates.append((velocity, mmtm*velocity - lr2*param_update))
+                # Update parameters
+                updates.append((param, param - lr2*g_param + mmtm*velocity))
         else:
             print('Invalid training algorithm')
             sys.exit(1)
@@ -390,21 +444,23 @@ class Train():
 if __name__ == '__main__':
         
     args = {
-        'algorithm' : 'RMSprop',
+        'algorithm' : 'RMSNAG',
         'RMScoeff' : 0.9,
         'RMSreg' : 1e-3,
         'learning_type' : 'classification',
         'num_classes' : 10,
         'train_cost_type' : 'nll',
+        'subnet_cost_type' : None,
         'valid_cost_type' : 'accuracy',
         'layer_sizes' : (784, 800, 800, 10),
-        'nonlinearities' : ('wrapped_ReLU', 'wrapped_ReLU', 'SoftMax'),
-        'period' : 2*numpy.pi,
-        'deadband' : 0.05,
+        'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
+        'period' : None,
+        'deadband' : None,
         'data_address' : './data/mnist.pkl.gz',
-        'learning_rate' : 1e-3,
+        'binarize': False,
+        'learning_rate' : 1e-4,
         'lr_bias_multiplier' : 2.,
-        'learning_rate_margin' : (0,150,300),
+        'learning_rate_margin' : (0,200,300),
         'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
         'momentum' : 0.9,
         'batch_size' : 128,
@@ -413,8 +469,8 @@ if __name__ == '__main__':
         'max_row_norm' : 3.87,
         'dropout_dict' : None,
         'logit_anneal' : None,
-        'validation_freq' : 5,
-        'save_freq' : 25,
+        'validation_freq' : 1,
+        'save_freq' : 100,
         'save_name' : 'train.pkl'
         }
     
