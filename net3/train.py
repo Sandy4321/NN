@@ -122,9 +122,10 @@ class Train():
         self.model = model(args)
         self.input = T.matrix(name='input', dtype=Tconf.floatX)
         # Return the prediction and the subnetwork mask
-        self.output, self.mask = self.model.predict(self.input, args)
+        #self.output, self.masks = self.model.predict_with_mask(self.input, args)
+        self.output = self.model.predict(self.input, args)
         # Separate validation output is copy of train network with no dropout 
-        test_args = args
+        test_args = args.copy()
         test_args['dropout_dict'] = None 
         self.test_output = self.model.predict(self.input, test_args)
         self.target = T.matrix(name='target', dtype=Tconf.floatX)
@@ -139,6 +140,7 @@ class Train():
         '''Train the model'''
         batch_size = int(args['batch_size'])
         params = self.model._params
+        hypparams = self.model._hypparams
         # The learning rate scheduler is rather complicated, need to sort this
         self.learning_rate_margin = numpy.asarray(args['learning_rate_margin'])
         self.learning_rate_schedule = args['learning_rate_schedule']
@@ -146,6 +148,9 @@ class Train():
         self.lr_idx = 0
         self.last_idx = 0
         self.current_lr_idx = 0
+        # Variation dropout mask
+        masks = self.model.G
+        self.dropout_dict = args['dropout_dict']
  
         print('Constructing flow graph')
         index = T.lscalar()
@@ -153,15 +158,15 @@ class Train():
         subnet_cost_type = args['subnet_cost_type']
         valid_cost_type = args['valid_cost_type']
         
-        train_cost = self.cost(train_cost_type, self.target, self.output)
-        #subnet_cost= self.subnet(subnet_cost_type, self.output, self.mask)
-        valid_cost = self.cost(valid_cost_type, self.target, self.test_output)
+        train_cost, train_cost_raw = self.cost(train_cost_type, self.target, self.output)
+        subnet_grads = self.subnet(subnet_cost_type, train_cost_raw, masks)
+        valid_cost, valid_costs = self.cost(valid_cost_type, self.target, self.test_output)
         
-        updates = self.updates(train_cost, params, args)
+        updates = self.updates(train_cost, subnet_grads, params, hypparams, args)
         Tfuncs = {}
         Tfuncs['train_model'] = Tfunction(
             inputs=[index],
-            outputs=[train_cost],
+            outputs=train_cost,
             updates=updates,
             givens={
                 self.input: self.train_x[:,index*batch_size:(index+1)*batch_size],
@@ -249,6 +254,7 @@ class Train():
         
     def cost(self, cost_type, Y, Yhat):
         '''Evaluate the loss between prediction and target'''
+        # Remember data is stored column-wise
         if cost_type == 'MSE':
             loss = 0.5*((Y-Yhat)**2).sum(axis=0)
         elif cost_type == 'cross_entropy':
@@ -262,13 +268,40 @@ class Train():
         else:
             print('Invalid cost')
             sys.exit(1)
-        return loss.mean()
+        return (loss.mean(), loss)
     
-    def subnet(self, subnet_cost_type, output, mask):
+    def subnet(self, subnet_cost_type, train_cost_raw, masks):
         '''Compute the variation dropout parameters'''
-        return 1
+        gradient = []
+        if subnet_cost_type == None:
+            pass
+        elif subnet_cost_type == 'factored_bernoulli':
+            # p is the prior, q is the variational dropout distribution
+            qs = self.model.q
+            ps = []
+            Gs = []
+            dropout_dict = args
+            num_dropout_layers = 0
+            for name in self.dropout_dict:
+                num_dropout_layers += 1
+            for layer in numpy.arange(num_dropout_layers):
+                name = 'layer' + str(layer)
+                mask_name = 'mask' + str(layer)
+                sub_dict = args['dropout_dict'][name]
+                ps.append(sub_dict['values'])
+                Gs.append(masks[mask_name].astype(dtype=Tconf.floatX))
+            for q, G, p in zip(qs, Gs, ps):
+                #loss_pos = T.sum(train_cost[numpy.newaxis,:]*G,axis=1)
+                #loss_neg = T.sum(train_cost[numpy.newaxis,:]*(1-G),axis=1)
+                #loss = (loss_pos - loss_neg)/(1.*G.shape[1])
+                #KL_reg = -T.log(q*(1-p)/(p*(1-q)))
+                #gradient.append((loss + KL_reg).astype(dtype=Tconf.floatX))
+                #loss_pos = T.sum(G,axis=0)/10000
+                #gradient.append(loss_pos.astype(dtype=Tconf.floatX))
+                gradient.append(T.sum(G,axis=0)/10000)
+        return gradient
     
-    def updates(self, cost, params, args):
+    def updates(self, cost, hypparam_grads, params, hypparams, args):
         '''Get parameter updates given cost'''
         # Load variables a check valid
         lr = args['learning_rate']*self.learning_rate_correction()
@@ -280,24 +313,48 @@ class Train():
 
         # File updates
         updates = []
-        # Standard SGD with momentum
+        # Standard parameter updates
         if args['algorithm'] == 'SGD':
-            for param in params:
-                if param in self.model.b:
-                    lr2 = lr * lrb
-                else:
-                    lr2 = lr
-                g_param = T.grad(cost, param)
-                # If no momentum set variable to None
-                if mmtm != None:
-                    param_update = TsharedX(param.get_value()*0.,
-                                            broadcastable=param.broadcastable)
-                    updates.append((param_update, mmtm*param_update - lr2*g_param))
-                else:
-                    param_update = lr2*g_param
-                updates.append((param, param + param_update))
+            self.SGD_updates(cost, params, args, lr, lrb, mmtm, updates)
         elif args['algorithm'] == 'NAG':
-            for param in params:
+            self.NAG_updates(cost, params, args, lr, lrb, mmtm, updates)      
+        elif args['algorithm'] == 'RMSprop':
+            self.RMSprop_updates(cost, params, args, lr, lrb, updates)     
+        elif args['algorithm'] == 'RMSNAG':
+            self.RMSNAG_updates(cost, params, args, lr, lrb, mmtm, updates)     
+        else:
+            print('Invalid training algorithm')
+            sys.exit(1)
+        # Dropout optimization
+        if hypparam_grads != None:
+            self.hypparam_updates(hypparam_grads, hypparams, lr, updates)
+        else:
+            print('Invalid subnet cost')
+            sys.exit(1)
+        
+        self.max_norm(updates, args)
+        return updates
+    
+    def SGD_updates(self, cost, params, args, lr, lrb, mmtm, updates):
+        '''Stochastic gradient descent'''
+        for param in params:
+            if param in self.model.b:
+                lr2 = lr * lrb
+            else:
+                lr2 = lr
+            g_param = T.grad(cost, param)
+            # If no momentum set variable to None
+            if mmtm != None:
+                param_update = TsharedX(param.get_value()*0.,
+                                        broadcastable=param.broadcastable)
+                updates.append((param_update, mmtm*param_update - lr2*g_param))
+            else:
+                param_update = lr2*g_param
+            updates.append((param, param + param_update))
+    
+    def NAG_updates(self, cost, params, args, lr, lrb, mmtm, updates):
+        '''Nesterov's Accelerated gradient'''
+        for param in params:
                 if param in self.model.b:
                     lr2 = lr * lrb
                 else:
@@ -311,50 +368,50 @@ class Train():
                 g_param = T.grad(cost, param)
                 # Update momentum
                 updates.append((velocity, mmtm*velocity - lr2*g_param))
-                updates.append((param, param - lr2*g_param + mmtm*velocity))           
-        elif args['algorithm'] == 'RMSprop':
-            # Hinton's RMSprop (Coursera lecture 6) without Nesterov momentum 
-            RMScoeff = args['RMScoeff']
-            RMSreg = args['RMSreg']
-            for param in params:
-                g_param = T.grad(cost, param)
-                ms = TsharedX(param.get_value()*0.,
-                                            broadcastable=param.broadcastable)
-                updates.append((ms, RMScoeff*ms + (1-RMScoeff)*(g_param**2)))
-                param_update = lr*g_param/(T.sqrt(ms) + RMSreg)
-                updates.append((param, param - param_update))
-        elif args['algorithm'] == 'RMSNAG':
-            # Hinton's RMSprop (Coursera lecture 6) with Nesterov momentum
-            RMScoeff = args['RMScoeff']
-            RMSreg = args['RMSreg']
-            for param in params:
-                if param in self.model.b:
-                    lr2 = lr * lrb
-                else:
-                    lr2 = lr
-                if mmtm == None:
-                    print('For NAG require momentum in [0.,1.)')
-                    sys.exit(1)
-                velocity = TsharedX(param.get_value()*0.,
-                                    broadcastable=param.broadcastable)
-                ms = TsharedX(param.get_value()*0.,
-                                            broadcastable=param.broadcastable)
-                # Updates
-                g_param = T.grad(cost, param)
-                # Update RMS
-                updates.append((ms, RMScoeff*ms + (1-RMScoeff)*(g_param**2)))
-                param_update = g_param/(T.sqrt(ms) + RMSreg)
-                # Update momentum
-                updates.append((velocity, mmtm*velocity - lr2*param_update))
-                # Update parameters
                 updates.append((param, param - lr2*g_param + mmtm*velocity))
-        else:
-            print('Invalid training algorithm')
-            sys.exit(1)
-        
-        self.max_norm(updates, args)
-        
-        return updates
+    
+    def RMSprop_updates(self, cost, params, args, lr, lrb, updates):
+        '''Hinton's RMSprop (Coursera lecture 6)'''
+        RMScoeff = args['RMScoeff']
+        RMSreg = args['RMSreg']
+        for param in params:
+            g_param = T.grad(cost, param)
+            ms = TsharedX(param.get_value()*0.,
+                                            broadcastable=param.broadcastable)
+            updates.append((ms, RMScoeff*ms + (1-RMScoeff)*(g_param**2)))
+            param_update = lr*g_param/(T.sqrt(ms) + RMSreg)
+            updates.append((param, param - param_update))
+    
+    def RMSNAG_updates(self, cost, params, args, lr, lrb, mmtm, updates):
+        '''RMSpropr with NAG'''
+        RMScoeff = args['RMScoeff']
+        RMSreg = args['RMSreg']
+        for param in params:
+            if param in self.model.b:
+                lr2 = lr * lrb
+            else:
+                lr2 = lr
+            if mmtm == None:
+                print('For NAG require momentum in [0.,1.)')
+                sys.exit(1)
+            velocity = TsharedX(param.get_value()*0.,
+                                broadcastable=param.broadcastable)
+            ms = TsharedX(param.get_value()*0.,
+                                broadcastable=param.broadcastable)
+            # Updates
+            g_param = T.grad(cost, param)
+            # Update RMS
+            updates.append((ms, RMScoeff*ms + (1-RMScoeff)*(g_param**2)))
+            param_update = g_param/(T.sqrt(ms) + RMSreg)
+            # Update momentum
+            updates.append((velocity, mmtm*velocity - lr2*param_update))
+            # Update parameters
+            updates.append((param, param - lr2*g_param + mmtm*velocity))
+    
+    def hypparam_updates(self, hypparam_grads, hypparams, lr, updates):
+        '''Perfrom SGD in the hyperparameters'''
+        for hyp, hypparam_grad in zip(hypparams, hypparam_grads):
+            updates.append((hyp, hyp + lr*hypparam_grad))
     
     def max_norm(self, updates, args):
         '''Apply max norm constraint to the updates on weights'''
@@ -387,7 +444,7 @@ class Train():
                         updates[i] = tuple(updates_i)
     
     def learning_rate_correction(self):
-        '''Learning rate schedule - COMPLICATED, NEED TO SORT OUR'''
+        '''Learning rate schedule - COMPLICATED, NEED TO SORT OUT'''
         # Get learning rate tuple for this epoch
         idx = [x[0] for x in enumerate(self.learning_rate_margin) if x[1] <= self.epoch]
         idx = numpy.amax(idx)
@@ -450,7 +507,7 @@ if __name__ == '__main__':
         'learning_type' : 'classification',
         'num_classes' : 10,
         'train_cost_type' : 'nll',
-        'subnet_cost_type' : None,
+        'subnet_cost_type' : 'factored_bernoulli',
         'valid_cost_type' : 'accuracy',
         'layer_sizes' : (784, 800, 800, 10),
         'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
@@ -469,7 +526,7 @@ if __name__ == '__main__':
         'max_row_norm' : 3.87,
         'dropout_dict' : None,
         'logit_anneal' : None,
-        'validation_freq' : 1,
+        'validation_freq' : 5,
         'save_freq' : 100,
         'save_name' : 'train.pkl'
         }
@@ -480,13 +537,13 @@ if __name__ == '__main__':
 
         if i == 0:
             # Need to cast to floatX or the computation gets pushed to the CPU
-            v = 0.95*numpy.ones((784,1)).astype(Tconf.floatX)
+            prior = 0.8*numpy.ones((784,1)).astype(Tconf.floatX)
         else:
             #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
-            v = 0.5*numpy.ones((args['layer_sizes'][i],1)).astype(Tconf.floatX)
+            prior = 0.5*numpy.ones((args['layer_sizes'][i],1)).astype(Tconf.floatX)
         sub_dict = { name : {'seed' : 234,
                              'type' : 'unbiased',
-                             'values' : v}}
+                             'values' : prior}}
         dropout_dict.update(sub_dict)
     args['dropout_dict'] = dropout_dict
     #numpy.random.seed(seed=234)

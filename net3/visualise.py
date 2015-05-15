@@ -8,7 +8,7 @@ import utils
 from matplotlib import pyplot as plt
 from PIL import Image
 
-fname = './train.pkl'
+fname = './train_test.pkl'
 stream = open(fname, 'r')
 state = cPickle.load(stream)
 stream.close()
@@ -30,11 +30,11 @@ for param in params:
 
 
 fig = plt.figure()
-plt.semilogx(monitor['valid_cost'])
+plt.semilogx(monitor['valid_cost'],'b')
 plt.show()
 
 fig = plt.figure()
-plt.semilogx(monitor['train_cost'])
+plt.semilogx(monitor['train_cost'],'r')
 plt.show()
 for arg in args:
     if arg != 'dropout_dict':

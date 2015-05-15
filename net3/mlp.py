@@ -32,8 +32,9 @@ class Mlp():
         self.W = [] # Connection weights
         self.b = [] # Biases
         self.q = [] # Dropout rates
-        self.G = [] # Dropout masks
+        self.G = {} # Dropout masks
         self._params = []
+        self._hypparams = []
         for i in numpy.arange(self.num_layers):
             #Connection weights
             coeff = numpy.sqrt(6/(self.ls[i] + (self.ls[i+1])))
@@ -52,18 +53,18 @@ class Mlp():
             name = 'layer' + str(i)
             vname = 'dropout' + str(i)
             if name in self.dropout_dict:
-                # Dropout rates
+                # Dropout rates - this formulation means we must have dropout in
+                # every layer. Will need to change this later
                 sub_dict = self.dropout_dict[name]
                 q_value = TsharedX(sub_dict['values'], vname,
-                                   broadcastable=(False, True))
-                qname = 'q' + str(i)
+                                   broadcastable=(False,True))
                 self.q.append(q_value)
-                # Dropout masks
-                self.G.append(0)
             
         for W, b in zip(self.W, self.b):
             self._params.append(W)
             self._params.append(b)
+        for q in self.q:
+            self._hypparams.append(q)
         
     def encode_layer(self, X, layer, args):
         '''Single layer'''
@@ -74,8 +75,10 @@ class Mlp():
         elif name in self.dropout_dict:
             size = X.shape
             G = self.dropout(layer, size)
+            # Dropout masks need to be shared in order to be accessed
+            Gname = 'mask' + str(layer)
+            self.G[Gname] = G
             Xdrop = X*G
-            self.G[layer] = G
         else:
             Xdrop = X
         pre_act = T.dot(self.W[layer], Xdrop) + self.b[layer]
@@ -95,11 +98,21 @@ class Mlp():
             
         return s(pre_act) 
     
-    def predict(self, X, args):
+    """
+    def predict_with_mask(self, X, args):
         '''Full MLP'''
+        self.dropout_dict = args['dropout_dict']
         for i in numpy.arange(self.num_layers):
             X = self.encode_layer(X, i, args)
         return (X, self.G)
+    """
+    
+    def predict(self, X, args):
+        '''Full MLP'''
+        self.dropout_dict = args['dropout_dict']
+        for i in numpy.arange(self.num_layers):
+            X = self.encode_layer(X, i, args)
+        return X
     
     def dropout(self, layer, size):
         '''Return a random dropout vector'''
@@ -115,7 +128,6 @@ class Mlp():
                 rng = smrg.uniform(size=size)
                 # Evaluate RNG
                 dropmult = (rng < self.q[layer]) / self.q[layer]
-        
         return dropmult
     
     
