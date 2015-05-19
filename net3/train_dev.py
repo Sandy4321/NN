@@ -14,7 +14,7 @@ import theano.tensor as T
 import theano.tensor.nnet as Tnet
 
 from autoencoder import Autoencoder
-from mlp import Mlp
+from mlp_dev import Mlp
 from matplotlib import pylab
 from matplotlib import pyplot as plt
 from preprocess import Preprocess
@@ -166,7 +166,6 @@ class Train():
         subnet_grads = None
         if subnet_cost_type != None:
             subnet_grads = self.subnet(subnet_cost_type, train_cost_raw, masks, args)
-            max_grad, grad2, max_q, min_q, mean_q = self.subnet_gradmag(subnet_grads)
         mask = self.model.G['mask1']
         
         updates = self.updates(train_cost, params, args,
@@ -175,7 +174,7 @@ class Train():
         if subnet_cost_type != None:
             Tfuncs['train_model'] = Tfunction(
                 inputs=[index],
-                outputs=[train_cost,max_grad,grad2,max_q,min_q,mean_q,mask],
+                outputs=[train_cost,mask],
                 updates=updates,
                 givens={
                     self.input: self.train_x[:,index*batch_size:(index+1)*batch_size],
@@ -214,8 +213,7 @@ class Train():
         validation_freq = args['validation_freq']
         save_freq = args['save_freq']
         save_name = args['save_name']
-        monitor = {'train_cost' : [], 'valid_cost' : [], 'max_grad' : [],
-            'grad2' : [], 'max_q' : [], 'min_q' : [], 'mean_q' : [],
+        monitor = {'train_cost' : [], 'valid_cost' : [],
             'best_cost' : numpy.inf, 'best_model' : self.model._params}
         if args['valid_cost_type'] == 'accuracy':
             monitor['best_cost'] = -numpy.inf
@@ -232,26 +230,15 @@ class Train():
             
             # Train
             train_cost = numpy.zeros(num_train_batches)
-            max_grad = numpy.zeros(num_train_batches)
-            grad2 = numpy.zeros(num_train_batches)
-            max_q = numpy.zeros(num_train_batches)
-            min_q = numpy.zeros(num_train_batches)
-            mean_q = numpy.zeros(num_train_batches)
             masksum = numpy.zeros(num_train_batches)
             for batch in numpy.arange(num_train_batches):
                 if subnet_cost_type != None:
-                    train_cost[batch], max_grad[batch], grad2[batch], max_q[batch], \
-                    min_q[batch], mean_q[batch], mask = train_model(batch)
+                    train_cost[batch], mask = train_model(batch)
                     masksum[batch] = mask.sum()
                 else:
                     train_cost[batch] = train_model(batch)
             tc = train_cost.mean()
             monitor['train_cost'].append(train_cost)
-            monitor['max_grad'].append(max_grad)
-            monitor['grad2'].append(grad2)
-            monitor['max_q'].append(max_q)
-            monitor['min_q'].append(min_q)
-            monitor['mean_q'].append(mean_q)
             print('%s%s Training cost: %f' % (ep, n(s), tc,)),
             #print masksum
             self.check_real(tc)
@@ -314,6 +301,8 @@ class Train():
             gradient = None
         elif subnet_cost_type == 'factored_bernoulli':
             # p is the prior, q is the variational dropout distribution
+            ap = args['prior_params'][0]
+            bp = args['prior_params'][1]
             qs = self.model.q
             ps = []
             Gs = []
@@ -326,37 +315,16 @@ class Train():
                 sub_dict = args['dropout_dict'][name]
                 ps.append(sub_dict['values'])
                 Gs.append(masks[mask_name].astype(dtype=Tconf.floatX))
-            for q, G, p in zip(qs, Gs, ps):
-                loss_pos = T.sum(train_cost*G, axis=1, keepdims=True)
-                loss_neg = T.sum(train_cost*(1-G), axis=1, keepdims=True)
-                loss_pos = loss_pos / q
-                loss_neg = loss_neg / (1-q)
-                loss = -(loss_pos - loss_neg)/(1.*G.shape[1]) # Convert NLL to LL
-                KL_reg = T.log((p*(q-1))/(q*(p-1)))
+            for p, aq, bq in zip(ps, self.model.alpha, self.model.beta):
+                loss = 0
+                aq = aq.get_value()
+                bq = bq.get_value()
+                KL_rega = ap*(polygamma(1,aq+bq) - polygamma(1,aq))
+                KL_regb = bp*(polygamma(1,aq+bq) - polygamma(1,bq))
                 # Positive gradient direction
-                gradient.append((loss + KL_reg).astype(dtype=Tconf.floatX))
+                gradient.append((loss + KL_rega).astype(dtype=Tconf.floatX))
+                gradient.append((loss + KL_regb).astype(dtype=Tconf.floatX))
         return gradient
-    
-    def subnet_gradmag(self, subnet_grad):
-        '''Calculate the magnitude of the subnet gradients'''
-        max_grad = 0
-        grad2 = 0
-        q = self.model.q
-        max_q = 0
-        min_q = 1
-        mean_q = 0
-        for grad, qi in zip(subnet_grad, q):
-            local_max_grad = T.max(T.abs_(grad))
-            max_grad = T.maximum(max_grad, local_max_grad)
-            grad2 = grad2 + T.sum(grad*grad)
-            local_max_q = T.max(qi)
-            local_min_q = T.min(qi)
-            max_q = T.maximum(max_q, local_max_q)
-            min_q = T.minimum(min_q, local_min_q)
-            mean_q += T.sum(qi)
-        grad2 = T.sqrt(grad2)
-        mean_q = mean_q / 2384.
-        return (max_grad, grad2, max_q, min_q, mean_q)
     
     def updates(self, cost, params, args, hypparam_grads=None, hypparams=None):
         '''Get parameter updates given cost'''
@@ -589,6 +557,7 @@ if __name__ == '__main__':
         'prior_params' : (5,2),
         'learning_rate' : 1e-1,
         'dropout_lr' : 1e-6,
+        'variational_sample' : True, 
         'lr_bias_multiplier' : 2.,
         'learning_rate_margin' : (0,200,300),
         'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
@@ -602,7 +571,7 @@ if __name__ == '__main__':
         'logit_anneal' : None,
         'validation_freq' : 5,
         'save_freq' : 10,
-        'save_name' : 'train_var/train_vardropSGD2.pkl'
+        'save_name' : 'train_var/train_vardropSGD.pkl'
         }
     
     dropout_dict = {}
@@ -610,15 +579,18 @@ if __name__ == '__main__':
         name = 'layer' + str(i)
         prior_dist = args['prior']
         size = (args['layer_sizes'][i],1)
-        if i == 0:
-            # Need to cast to floatX or the computation gets pushed to the CPU
-            prior = 0.8*numpy.ones(size).astype(Tconf.floatX)
-        else:
-            #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
-            prior = 0.5*numpy.ones(size).astype(Tconf.floatX)
+        pp = (args['prior_params'])
+        if prior_dist == 'beta':
+            if i == 0:
+                # Need to cast to floatX or the computation gets pushed to the CPU
+                prior = numpy.random.beta(pp[0], pp[1], size=size).astype(Tconf.floatX)
+            else:
+                #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
+                prior = numpy.random.beta(pp[0], pp[1], size=size).astype(Tconf.floatX)
         sub_dict = { name : {'seed' : 234,
                              'type' : 'unbiased',
-                             'values' : prior}}
+                             'values' : prior,
+                             'prior_params' : pp}}
         dropout_dict.update(sub_dict)
     args['dropout_dict'] = dropout_dict
     

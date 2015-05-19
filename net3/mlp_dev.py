@@ -14,6 +14,7 @@ import numpy
 import theano.tensor as T
 import theano.tensor.nnet as Tnet
 
+from draw_beta import Draw_beta
 from matplotlib import pylab
 from matplotlib import pyplot as plt
 from theano import config as Tconf
@@ -31,6 +32,8 @@ class Mlp():
         
         self.W = [] # Connection weights
         self.b = [] # Biases
+        self.alpha = [] # Beta hyperparameter alpha
+        self.beta = [] # Beta hyperparameter beta
         self.q = [] # Dropout rates
         self.G = {} # Dropout masks
         self._params = []
@@ -56,18 +59,27 @@ class Mlp():
             betaname = 'beta' + str(i)
             if self.dropout_dict != None:
                 if name in self.dropout_dict:
-                    # Dropout rates - this formulation means we must have dropout in
-                    # every layer. Will need to change this later
+                    # Dropout rates - this formulation means we must have
+                    # dropout in every layer. Will need to change this later
                     sub_dict = self.dropout_dict[name]
+                    ones = numpy.ones((sub_dict['values'].shape[0],1)).astype(Tconf.floatX)
+                    a = sub_dict['prior_params'][0] * ones
+                    b = sub_dict['prior_params'][1] * ones
+                    alpha_value = TsharedX(a, alphaname)
+                    beta_value = TsharedX(b, betaname)
+                    # Initialise q to some values
                     q_value = TsharedX(sub_dict['values'], vname,
                                        broadcastable=(False,True))
                     self.q.append(q_value)
+                    self.alpha.append(alpha_value)
+                    self.beta.append(beta_value)
             
         for W, b in zip(self.W, self.b):
             self._params.append(W)
             self._params.append(b)
-        for q in self.q:
-            self._hypparams.append(q)
+        for a, b in zip(self.alpha, self.beta):
+            self._hypparams.append(a)
+            self._hypparams.append(b)
         
     def encode_layer(self, X, layer, args):
         '''Single layer'''
@@ -77,6 +89,11 @@ class Mlp():
             Xdrop = X
         elif name in self.dropout_dict:
             size = X.shape
+            # Sample q
+            if args['variational_sample'] == True:
+                a = self.alpha[layer]
+                b = self.beta[layer]
+                self.set_q(layer, a, b)
             G = self.dropout(layer, size)
             # Dropout masks need to be shared in order to be accessed
             Gname = 'mask' + str(layer)
@@ -124,9 +141,32 @@ class Mlp():
                 dropmult = (rng < self.q[layer]) / self.q[layer]
         return dropmult
     
-    
-    
-    
+    def set_q(self, layer, a, b):
+        '''Set the dropout probabilities in layer number layer to values'''
+        # Construct RNG
+        size = self.q[layer].shape
+        cseed = 100
+        smrg = MRG_RandomStreams(seed=cseed)
+        u = smrg.uniform(size=size)
+        q = Draw_beta()(a, b, u)[0]
+        q = T.patternbroadcast(q, self.q[layer].broadcastable)
+        self.q[layer] = q
+
+        
+'''
+TODO:
+- GPU BETA DISTRIBUTION SAMPLING
+- VARIATIONAL BETA SCHEME
+- LOCAL EXPECTATION GRADIENTS
+- GAUSSIAN DROPOUT
+'''
+        
+        
+        
+        
+        
+        
+        
     
     
     

@@ -9,44 +9,44 @@ import sys, time
 
 import cPickle
 import gzip
+import matplotlib.pyplot as plt
 import numpy
-import theano.tensor as T
-import theano.tensor.nnet as Tnet
+import scipy.special as spsp
+import theano
 
-from matplotlib import pyplot as plt
-from theano import config as Tconf
-from theano import function as Tfunction
-from theano import shared as TsharedX
-from theano.tensor.shared_randomstreams import RandomStreams
-from theano.sandbox.rng_mrg import MRG_RandomStreams
-from theano.sandbox.cuda.rng_curand import CURAND_RandomStreams
+from draw_beta import Draw_beta
 
 
-def add(a,b):
-    return T.sum(a,axis=1,keepdims=True) + b 
+a = theano.tensor.scalar('a')
+b = theano.tensor.scalar('b')
+u = theano.tensor.matrix('u')
 
-x = numpy.ones((4,2)).astype(Tconf.floatX)
-x_gpu = TsharedX(x, 'x_gpu', borrow=True)
+#d_a = 2*numpy.random.random_sample((1000,1)).astype(theano.config.floatX) + 1.
+#d_b = 2*numpy.random.random_sample((1000,1)).astype(theano.config.floatX) + 1.
+d_a = 5.
+d_b = 2.
+d_u = numpy.random.random_sample((1000,1)).astype(theano.config.floatX)
 
-y = numpy.ones((4,1)).astype(Tconf.floatX)
-y_gpu = TsharedX(y, 'y_gpu', borrow=True)
+p = Draw_beta()(a, b, u)
 
-add_result = add(x_gpu, y_gpu)
+Tfunc = theano.function([a, b, u], p)
 
-fnc = Tfunction([], outputs=add_result)
-
-print fnc()
+q = Tfunc(d_a, d_b, d_u)
+print q
+plt.hist(q, 50, range=[0.,1.], normed=1)
+plt.show()
 
 
 
 
-    
-    
-    
-    
-    
-    
-    
+
+
+
+
+
+
+
+
     
     
     

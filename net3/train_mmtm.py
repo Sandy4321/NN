@@ -18,7 +18,6 @@ from mlp import Mlp
 from matplotlib import pylab
 from matplotlib import pyplot as plt
 from preprocess import Preprocess
-from scipy.special import polygamma
 from theano import config as Tconf
 from theano.printing import Print as Tprint
 from theano.tensor.extra_ops import to_one_hot
@@ -163,35 +162,22 @@ class Train():
         # Costs and gradients
         train_cost, train_cost_raw = self.cost(train_cost_type, self.target, self.output)
         valid_cost, valid_costs = self.cost(valid_cost_type, self.target, self.test_output)
-        subnet_grads = None
-        if subnet_cost_type != None:
-            subnet_grads = self.subnet(subnet_cost_type, train_cost_raw, masks, args)
-            max_grad, grad2, max_q, min_q, mean_q = self.subnet_gradmag(subnet_grads)
+        subnet_grads = self.subnet(subnet_cost_type, train_cost_raw, masks, args)
+        max_grad, grad2, max_q, min_q, mean_q = self.subnet_gradmag(subnet_grads)
         mask = self.model.G['mask1']
         
         updates = self.updates(train_cost, params, args,
                                hypparam_grads=subnet_grads, hypparams=hypparams)
         Tfuncs = {}
-        if subnet_cost_type != None:
-            Tfuncs['train_model'] = Tfunction(
-                inputs=[index],
-                outputs=[train_cost,max_grad,grad2,max_q,min_q,mean_q,mask],
-                updates=updates,
-                givens={
-                    self.input: self.train_x[:,index*batch_size:(index+1)*batch_size],
-                    self.target: self.train_y[:,index*batch_size:(index+1)*batch_size]
-                }
-            )
-        else:
-            Tfuncs['train_model'] = Tfunction(
-                inputs=[index],
-                outputs=train_cost,
-                updates=updates,
-                givens={
-                    self.input: self.train_x[:,index*batch_size:(index+1)*batch_size],
-                    self.target: self.train_y[:,index*batch_size:(index+1)*batch_size]
-                }
-            )
+        Tfuncs['train_model'] = Tfunction(
+            inputs=[index],
+            outputs=[train_cost,max_grad,grad2,max_q,min_q,mean_q,mask],
+            updates=updates,
+            givens={
+                self.input: self.train_x[:,index*batch_size:(index+1)*batch_size],
+                self.target: self.train_y[:,index*batch_size:(index+1)*batch_size]
+            }
+        )
         Tfuncs['validate_model'] = Tfunction(
             inputs=[index],
             outputs=valid_cost,
@@ -206,7 +192,6 @@ class Train():
     
     def main_loop(self, Tfuncs, args):
         '''The main training loop'''
-        subnet_cost_type = args['subnet_cost_type']
         train_model = Tfuncs['train_model']
         validate_model = Tfuncs['validate_model']
         batch_size = args['batch_size']
@@ -239,12 +224,9 @@ class Train():
             mean_q = numpy.zeros(num_train_batches)
             masksum = numpy.zeros(num_train_batches)
             for batch in numpy.arange(num_train_batches):
-                if subnet_cost_type != None:
-                    train_cost[batch], max_grad[batch], grad2[batch], max_q[batch], \
-                    min_q[batch], mean_q[batch], mask = train_model(batch)
-                    masksum[batch] = mask.sum()
-                else:
-                    train_cost[batch] = train_model(batch)
+                train_cost[batch], max_grad[batch], grad2[batch], max_q[batch], \
+                min_q[batch], mean_q[batch], mask = train_model(batch)
+                masksum[batch] = mask.sum()
             tc = train_cost.mean()
             monitor['train_cost'].append(train_cost)
             monitor['max_grad'].append(max_grad)
@@ -478,9 +460,10 @@ class Train():
         '''Perfrom SGA in the hyperparameters'''
         # Gradient ascent direction
         for hyp, hypparam_grad in zip(hypparams, hypparam_grads):
-            #vc = TsharedX(hyp*0.,broadcastable=param.broadcastable)
-            #updates.append((vc, mmtm*vc + lrd*hypparam_grad))
-            updates.append((hyp, hyp + lrd*hypparam_grad))
+            vc = TsharedX(hyp.get_value()*0.,
+                                broadcastable=hyp.broadcastable)
+            updates.append((vc, mmtm*vc + lrd*hypparam_grad))
+            updates.append((hyp, hyp + vc))
         return updates
     
     def max_norm(self, updates, args):
@@ -585,10 +568,8 @@ if __name__ == '__main__':
         'deadband' : None,
         'data_address' : './data/mnist.pkl.gz',
         'binarize': False,
-        'prior' : 'beta',
-        'prior_params' : (5,2),
         'learning_rate' : 1e-1,
-        'dropout_lr' : 1e-6,
+        'dropout_lr' : 1e-2,
         'lr_bias_multiplier' : 2.,
         'learning_rate_margin' : (0,200,300),
         'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
@@ -602,25 +583,25 @@ if __name__ == '__main__':
         'logit_anneal' : None,
         'validation_freq' : 5,
         'save_freq' : 10,
-        'save_name' : 'train_var/train_vardropSGD2.pkl'
+        'save_name' : 'train_var/train_vardropSGD.pkl'
         }
     
     dropout_dict = {}
     for i in numpy.arange(len(args['nonlinearities'])):
         name = 'layer' + str(i)
-        prior_dist = args['prior']
-        size = (args['layer_sizes'][i],1)
+
         if i == 0:
             # Need to cast to floatX or the computation gets pushed to the CPU
-            prior = 0.8*numpy.ones(size).astype(Tconf.floatX)
+            prior = 0.8*numpy.ones((784,1)).astype(Tconf.floatX)
         else:
             #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
-            prior = 0.5*numpy.ones(size).astype(Tconf.floatX)
+            prior = 0.5*numpy.ones((args['layer_sizes'][i],1)).astype(Tconf.floatX)
         sub_dict = { name : {'seed' : 234,
                              'type' : 'unbiased',
                              'values' : prior}}
         dropout_dict.update(sub_dict)
     args['dropout_dict'] = dropout_dict
+    #numpy.random.seed(seed=234)
     
     tr = Train()
     tr.build(Mlp, args)

@@ -8,8 +8,8 @@ import utils
 from matplotlib import pyplot as plt
 from PIL import Image
 
-for i in numpy.arange(5):
-    fname = './pkl/drop' + str(i) + '.pkl'
+for i in numpy.arange(1):
+    fname = './train_var/train_vardropSGD2.pkl'
     stream = open(fname, 'r')
     state = cPickle.load(stream)
     stream.close()
@@ -20,7 +20,7 @@ for i in numpy.arange(5):
     
     params, hypparams = monitor['best_model']
     
-    
+    """
     for param in params:
         print param
         print('Max: %f' % (numpy.amax(param.get_value()),))
@@ -29,16 +29,62 @@ for i in numpy.arange(5):
         pylab.hist(param.get_value().flatten(), 50, normed=1)
         pylab.suptitle(param, fontsize=20)
         pylab.show()
+    """
+    train_cost = monitor['train_cost']
+    tc = numpy.zeros((0,1))
+    for cost in train_cost:
+        tc = numpy.vstack((tc,cost[:,numpy.newaxis]))
+    fig = plt.figure()
+    plt.plot(tc,'r')
+    plt.show()
     
+    """
+    train_cost = monitor['max_grad']
+    tc = numpy.zeros((0,1))
+    for cost in train_cost:
+        tc = numpy.vstack((tc,cost[:,numpy.newaxis]))
+    fig = plt.figure()
+    plt.plot(tc,'r')
+    plt.show()
     
+    max_q = monitor['max_q']
+    min_q = monitor['min_q']
+    mean_q = monitor['mean_q']
+    iq = numpy.zeros((0,1))
+    aq = numpy.zeros((0,1))
+    eq = numpy.zeros((0,1))
+    for i, a, e in zip(min_q, max_q, mean_q):
+        iq = numpy.vstack((iq,i[:,numpy.newaxis]))
+        aq = numpy.vstack((aq,a[:,numpy.newaxis]))
+        eq = numpy.vstack((eq,e[:,numpy.newaxis]))
+    fig = plt.figure()
+    plt.plot(aq,'b')
+    plt.plot(iq,'r')
+    plt.plot(eq,'g')
+    plt.show()
+    
+    train_cost = monitor['grad2']
+    tc = numpy.zeros((0,1))
+    for cost in train_cost:
+        tc = numpy.vstack((tc,cost[:,numpy.newaxis]))
+    fig = plt.figure()
+    plt.plot(tc,'r')
+    plt.show()
+    """
     
     fig = plt.figure()
     plt.semilogx(monitor['valid_cost'],'b')
     plt.show()
     
-    fig = plt.figure()
-    plt.semilogx(monitor['train_cost'],'r')
-    plt.show()
+    for param in hypparams:
+        print param
+        print('Max: %f' % (numpy.amax(param.get_value()),))
+        print('Min: %f' % (numpy.amin(param.get_value()),))
+        pylab.figure()
+        n, bins, patches = pylab.hist(param.get_value().flatten(), 100, histtype='step')
+        pylab.suptitle(param, fontsize=20)
+        pylab.show()
+    
     for arg in args:
         if arg != 'dropout_dict':
             print arg, args[arg]
