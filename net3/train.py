@@ -14,7 +14,7 @@ import theano.tensor as T
 import theano.tensor.nnet as Tnet
 
 from autoencoder import Autoencoder
-from mlp_dev import Mlp
+from mlp import Mlp
 from matplotlib import pylab
 from matplotlib import pyplot as plt
 from preprocess import Preprocess
@@ -123,10 +123,8 @@ class Train():
         print('Building model')
         self.model = model(args)
         self.input = T.matrix(name='input', dtype=Tconf.floatX)
-        # Return the prediction and the subnetwork mask
-        #self.output, self.masks = self.model.predict_with_mask(self.input, args)
         self.output = self.model.predict(self.input, args)
-        # Separate validation output is copy of train network with no dropout 
+        # Separate validation/test output is copy of train network with no dropout 
         test_args = args.copy()
         test_args['dropout_dict'] = None 
         self.test_output = self.model.predict(self.input, test_args)
@@ -142,7 +140,6 @@ class Train():
         '''Train the model'''
         batch_size = int(args['batch_size'])
         params = self.model._params
-        hypparams = self.model._hypparams
         # The learning rate scheduler is rather complicated, need to sort this
         self.learning_rate_margin = numpy.asarray(args['learning_rate_margin'])
         self.learning_rate_schedule = args['learning_rate_schedule']
@@ -151,7 +148,6 @@ class Train():
         self.last_idx = 0
         self.current_lr_idx = 0
         # Variational dropout mask
-        masks = self.model.G
         self.dropout_dict = args['dropout_dict']
  
         print('Constructing flow graph')
@@ -163,34 +159,19 @@ class Train():
         # Costs and gradients
         train_cost, train_cost_raw = self.cost(train_cost_type, self.target, self.output)
         valid_cost, valid_costs = self.cost(valid_cost_type, self.target, self.test_output)
-        subnet_grads = None
-        if subnet_cost_type != None:
-            subnet_grads = self.subnet(subnet_cost_type, train_cost_raw, masks, args)
-        mask = self.model.G['mask1']
         
         updates = self.updates(train_cost, params, args,
                                hypparam_grads=subnet_grads, hypparams=hypparams)
         Tfuncs = {}
-        if subnet_cost_type != None:
-            Tfuncs['train_model'] = Tfunction(
-                inputs=[index],
-                outputs=[train_cost,mask],
-                updates=updates,
-                givens={
-                    self.input: self.train_x[:,index*batch_size:(index+1)*batch_size],
-                    self.target: self.train_y[:,index*batch_size:(index+1)*batch_size]
-                }
-            )
-        else:
-            Tfuncs['train_model'] = Tfunction(
-                inputs=[index],
-                outputs=train_cost,
-                updates=updates,
-                givens={
-                    self.input: self.train_x[:,index*batch_size:(index+1)*batch_size],
-                    self.target: self.train_y[:,index*batch_size:(index+1)*batch_size]
-                }
-            )
+        Tfuncs['train_model'] = Tfunction(
+            inputs=[index],
+            outputs=train_cost,
+            updates=updates,
+            givens={
+                self.input: self.train_x[:,index*batch_size:(index+1)*batch_size],
+                self.target: self.train_y[:,index*batch_size:(index+1)*batch_size]
+            }
+        )
         Tfuncs['validate_model'] = Tfunction(
             inputs=[index],
             outputs=valid_cost,
@@ -205,7 +186,6 @@ class Train():
     
     def main_loop(self, Tfuncs, args):
         '''The main training loop'''
-        subnet_cost_type = args['subnet_cost_type']
         train_model = Tfuncs['train_model']
         validate_model = Tfuncs['validate_model']
         batch_size = args['batch_size']
@@ -230,19 +210,13 @@ class Train():
             
             # Train
             train_cost = numpy.zeros(num_train_batches)
-            masksum = numpy.zeros(num_train_batches)
             for batch in numpy.arange(num_train_batches):
-                if subnet_cost_type != None:
-                    train_cost[batch], mask = train_model(batch)
-                    masksum[batch] = mask.sum()
-                else:
-                    train_cost[batch] = train_model(batch)
+                train_cost[batch] = train_model(batch)
             tc = train_cost.mean()
             monitor['train_cost'].append(train_cost)
             print('%s%s Training cost: %f' % (ep, n(s), tc,)),
-            #print masksum
             self.check_real(tc)
-            print self.learning_rate_correction()
+            print('\t LR scaling: %f' % (self.learning_rate_correction(),))
             
             # Validate
             if self.epoch % validation_freq == 0:
@@ -294,38 +268,6 @@ class Train():
             sys.exit(1)
         return (loss.mean(), loss)
     
-    def subnet(self, subnet_cost_type, train_cost, masks, args):
-        '''Compute the variation dropout parameters'''
-        gradient = []
-        if subnet_cost_type == None:
-            gradient = None
-        elif subnet_cost_type == 'factored_bernoulli':
-            # p is the prior, q is the variational dropout distribution
-            ap = args['prior_params'][0]
-            bp = args['prior_params'][1]
-            qs = self.model.q
-            ps = []
-            Gs = []
-            num_dropout_layers = 0
-            for name in self.dropout_dict:
-                num_dropout_layers += 1
-            for layer in numpy.arange(num_dropout_layers):
-                name = 'layer' + str(layer)
-                mask_name = 'mask' + str(layer)
-                sub_dict = args['dropout_dict'][name]
-                ps.append(sub_dict['values'])
-                Gs.append(masks[mask_name].astype(dtype=Tconf.floatX))
-            for p, aq, bq in zip(ps, self.model.alpha, self.model.beta):
-                loss = 0
-                aq = aq.get_value()
-                bq = bq.get_value()
-                KL_rega = ap*(polygamma(1,aq+bq) - polygamma(1,aq))
-                KL_regb = bp*(polygamma(1,aq+bq) - polygamma(1,bq))
-                # Positive gradient direction
-                gradient.append((loss + KL_rega).astype(dtype=Tconf.floatX))
-                gradient.append((loss + KL_regb).astype(dtype=Tconf.floatX))
-        return gradient
-    
     def updates(self, cost, params, args, hypparam_grads=None, hypparams=None):
         '''Get parameter updates given cost'''
         # Load variables a check valid
@@ -354,9 +296,6 @@ class Train():
         else:
             print('Invalid training algorithm')
             sys.exit(1)
-        # Dropout optimization
-        if args['subnet_cost_type'] != None:
-            updates = self.hypparam_updates(hypparam_grads, hypparams, lrd, mmtm, updates)
         self.max_norm(updates, args)
         return updates
     
@@ -440,15 +379,6 @@ class Train():
             updates.append((velocity, mmtm*velocity - lr2*param_update))
             # Update parameters
             updates.append((param, param - lr2*g_param + mmtm*velocity))
-        return updates
-    
-    def hypparam_updates(self, hypparam_grads, hypparams, lrd, mmtm, updates):
-        '''Perfrom SGA in the hyperparameters'''
-        # Gradient ascent direction
-        for hyp, hypparam_grad in zip(hypparams, hypparam_grads):
-            #vc = TsharedX(hyp*0.,broadcastable=param.broadcastable)
-            #updates.append((vc, mmtm*vc + lrd*hypparam_grad))
-            updates.append((hyp, hyp + lrd*hypparam_grad))
         return updates
     
     def max_norm(self, updates, args):
@@ -545,7 +475,6 @@ if __name__ == '__main__':
         'learning_type' : 'classification',
         'num_classes' : 10,
         'train_cost_type' : 'nll',
-        'subnet_cost_type' : 'factored_bernoulli',
         'valid_cost_type' : 'accuracy',
         'layer_sizes' : (784, 800, 800, 10),
         'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
@@ -553,11 +482,7 @@ if __name__ == '__main__':
         'deadband' : None,
         'data_address' : './data/mnist.pkl.gz',
         'binarize': False,
-        'prior' : 'beta',
-        'prior_params' : (5,2),
         'learning_rate' : 1e-1,
-        'dropout_lr' : 1e-6,
-        'variational_sample' : True, 
         'lr_bias_multiplier' : 2.,
         'learning_rate_margin' : (0,200,300),
         'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
@@ -571,26 +496,22 @@ if __name__ == '__main__':
         'logit_anneal' : None,
         'validation_freq' : 5,
         'save_freq' : 10,
-        'save_name' : 'train_var/train_vardropSGD.pkl'
+        'save_name' : 'train_var/trainSGD.pkl'
         }
     
     dropout_dict = {}
     for i in numpy.arange(len(args['nonlinearities'])):
         name = 'layer' + str(i)
-        prior_dist = args['prior']
-        size = (args['layer_sizes'][i],1)
-        pp = (args['prior_params'])
-        if prior_dist == 'beta':
-            if i == 0:
-                # Need to cast to floatX or the computation gets pushed to the CPU
-                prior = numpy.random.beta(pp[0], pp[1], size=size).astype(Tconf.floatX)
-            else:
-                #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
-                prior = numpy.random.beta(pp[0], pp[1], size=size).astype(Tconf.floatX)
+        shape = (args['layer_sizes'][i],1)
+        if i == 0:
+            # Need to cast to floatX or the computation gets pushed to the CPU
+            prior = 0.8*numpy.ones(shape).astype(Tconf.floatX)
+        else:
+            #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
+            prior = 0.5*numpy.ones.beta(shape).astype(Tconf.floatX)
         sub_dict = { name : {'seed' : 234,
                              'type' : 'unbiased',
-                             'values' : prior,
-                             'prior_params' : pp}}
+                             'values' : prior}}
         dropout_dict.update(sub_dict)
     args['dropout_dict'] = dropout_dict
     
