@@ -89,6 +89,7 @@ class Mlp():
                 W = self.W[layer]*G
                 Xdrop = X
         else:
+            W = self.W[layer]
             Xdrop = X
         pre_act = T.dot(W, Xdrop) + self.b[layer]
         
