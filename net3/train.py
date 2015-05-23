@@ -466,8 +466,8 @@ if __name__ == '__main__':
         
     args = {
         'algorithm' : 'SGD',
-        'RMScoeff' : 0.9,
-        'RMSreg' : 1e-3,
+        'RMScoeff' : None,
+        'RMSreg' : None,
         'learning_type' : 'classification',
         'num_classes' : 10,
         'train_cost_type' : 'nll',
@@ -483,7 +483,7 @@ if __name__ == '__main__':
         'learning_rate_margin' : (0,200,300),
         'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
         'momentum' : 0.9,
-        'momentum_ramp' : 0,
+        'momentum_ramp' : 10,
         'batch_size' : 128,
         'num_epochs' : 500,
         'norm' : 'L2',
