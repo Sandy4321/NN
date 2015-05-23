@@ -508,7 +508,7 @@ if __name__ == '__main__':
             prior = 0.8*numpy.ones(shape).astype(Tconf.floatX)
         else:
             #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
-            prior = 0.5*numpy.ones.beta(shape).astype(Tconf.floatX)
+            prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
         sub_dict = { name : {'seed' : 234,
                              'type' : 'unbiased',
                              'values' : prior}}
