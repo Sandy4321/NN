@@ -512,15 +512,14 @@ if __name__ == '__main__':
                                  'values' : prior}}
             dropout_dict.update(sub_dict)
         elif drop_type == 'dropconnect':
-            for i in numpy.arange(len(args['nonlinearities'])):
-                name = 'layer' + str(i)
-                shape = (args['layer_sizes'][i],args['layer_sizes'][i-1])
-                if i > 0:
-                    #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
-                    prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
-                sub_dict = { name : {'seed' : 234,
-                                     'values' : prior}}
-                dropout_dict.update(sub_dict)
+            name = 'layer' + str(i)
+            shape = (args['layer_sizes'][i],args['layer_sizes'][i-1])
+            if i > 0:
+                #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
+                prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
+            sub_dict = { name : {'seed' : 234,
+                                 'values' : prior}}
+            dropout_dict.update(sub_dict)
     args['dropout_dict'] = dropout_dict
     
     tr = Train()
