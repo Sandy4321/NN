@@ -484,7 +484,7 @@ if __name__ == '__main__':
         'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
         'momentum' : 0.9,
         'momentum_ramp' : 0,
-        'batch_size' : 1,
+        'batch_size' : 128,
         'num_epochs' : 500,
         'norm' : 'L2',
         'max_row_norm' : 3.87,
@@ -514,7 +514,7 @@ if __name__ == '__main__':
             name = 'layer' + str(i)
             shape = (args['layer_sizes'][i+1],args['layer_sizes'][i])
             if (i < len(args['layer_sizes'])-2):
-                prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
+                prior = 1.*numpy.ones(shape).astype(Tconf.floatX)
                 sub_dict = { name : {'seed' : 234,
                                      'values' : prior}}
                 dropout_dict.update(sub_dict)
