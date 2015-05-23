@@ -63,7 +63,8 @@ class Mlp():
                         q_value = TsharedX(sub_dict['values'], vname,
                                            broadcastable=(False,True))
                     elif drop_type == 'dropconnect':
-                        q_value = TsharedX(sub_dict['values'], vname)
+                        q_value = TsharedX(sub_dict['values'], vname,
+                                           broadcastable=(False,False,True))
                     self.q.append(q_value)
             
         for W, b in zip(self.W, self.b):
@@ -77,7 +78,7 @@ class Mlp():
         name = 'layer' + str(layer)
         if self.dropout_dict == None:
             W = self.W[layer]
-            Xdrop = X
+            pre_act = T.dot(W, X) + self.b[layer]
         elif name in self.dropout_dict:
             if drop_type == 'dropout':
                 size = X.shape
@@ -85,16 +86,18 @@ class Mlp():
                 self.G.append(G > 0)        # To access mask values
                 W = self.W[layer]
                 Xdrop = X*G
+                pre_act = T.dot(W, Xdrop) + self.b[layer]
             elif drop_type == 'dropconnect':
-                size = self.W[layer].shape
+                size = (self.W[layer].shape,X.shape[1])
                 G = self.dropconnect(layer, size)
-                self.G.append(G > 0)        # To access mask values
-                W = self.W[layer]*G
-                Xdrop = X
+                #self.G.append(G > 0)        # To access mask values
+                W = T.patternbroadcast(self.W[layer],(False,False,True))
+                W = W*G
+                pre_act = T.tensordot(W,X,axes=[1,0])
         else:
             W = self.W[layer]
             Xdrop = X
-        pre_act = T.dot(W, Xdrop) + self.b[layer]
+            pre_act = T.dot(W, Xdrop) + self.b[layer]
         
         if nonlinearity == 'ReLU':
             s = lambda x : (x > 0) * x
@@ -141,7 +144,7 @@ class Mlp():
             smrg = MRG_RandomStreams(seed=cseed)
             rng = smrg.uniform(size=size)
             # Evaluate RNG
-            dropmult = (rng < self.q[layer]) / self.q[layer]
+            dropmult = (rng < self.q[layer])
         return dropmult
     
         
