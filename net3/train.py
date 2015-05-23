@@ -483,7 +483,7 @@ if __name__ == '__main__':
         'learning_rate_margin' : (0,200,300),
         'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
         'momentum' : 0.9,
-        'momentum_ramp' : 10,
+        'momentum_ramp' : 0,
         'batch_size' : 128,
         'num_epochs' : 500,
         'norm' : 'L2',
@@ -492,7 +492,7 @@ if __name__ == '__main__':
         'drop_type' : None, #'dropconnect',
         'logit_anneal' : None,
         'validation_freq' : 5,
-        'save_freq' : 10,
+        'save_freq' : 50,
         'save_name' : 'train_var/trainSGD.pkl'
         }
     
