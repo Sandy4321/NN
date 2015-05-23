@@ -46,7 +46,7 @@ class Mlp():
             Wname = 'W' + str(i)
             self.W.append(TsharedX(W_value, Wname, borrow=True))
             # Biases
-            b_value = 0.5*numpy.ones((self.ls[i+1],))[:,numpy.newaxis]
+            b_value = numpy.zeros((self.ls[i+1],))[:,numpy.newaxis]
             b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
             bname = 'b' + str(i)
             self.b.append(TsharedX(b_value, bname, borrow=True,
