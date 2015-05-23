@@ -84,7 +84,7 @@ class Mlp():
                 W = self.W[layer]
                 Xdrop = X*G
             elif drop_type == 'dropconnect':
-                size = W.shape
+                size = self.W[layer].shape
                 G = self.dropconnect(layer, size)
                 self.G.append(G > 0)        # To access mask values
                 W = self.W[layer]*G
