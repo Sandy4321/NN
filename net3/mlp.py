@@ -139,7 +139,7 @@ class Mlp():
             smrg = MRG_RandomStreams(seed=cseed)
             rng = smrg.uniform(size=size)
             # Evaluate RNG
-            dropmult = (rng < self.q[layer]) / self.q[layer]
+            dropmult = (rng < self.q[layer-1]) / self.q[layer-1]
         return dropmult
     
         
