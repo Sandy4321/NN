@@ -514,7 +514,7 @@ if __name__ == '__main__':
         elif drop_type == 'dropconnect':
             name = 'layer' + str(i)
             shape = (args['layer_sizes'][i],args['layer_sizes'][i-1])
-            if i > 0:
+            if (i > 0) and (i < len(args['layer_sizes'])-1):
                 #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
                 prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
                 sub_dict = { name : {'seed' : 234,
