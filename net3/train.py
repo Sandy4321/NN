@@ -519,7 +519,7 @@ if __name__ == '__main__':
                 prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
                 sub_dict = { name : {'seed' : 234,
                                      'values' : prior}}
-            dropout_dict.update(sub_dict)
+                dropout_dict.update(sub_dict)
     args['dropout_dict'] = dropout_dict
     
     tr = Train()
