@@ -153,7 +153,6 @@ class Train():
         print('Constructing flow graph')
         index = T.lscalar()
         train_cost_type = args['train_cost_type']
-        subnet_cost_type = args['subnet_cost_type']
         valid_cost_type = args['valid_cost_type']
         
         # Costs and gradients
