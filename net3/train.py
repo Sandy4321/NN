@@ -421,9 +421,9 @@ class Train():
         else:
             # No - how long since last best cost?
             best_marg = self.epoch - self.last_best
-            # Only go to next element in tuple when best_marg >= 100 AND been at
-            # current rate for >= 100
-            if (best_marg >= 100) and (self.current_lr_idx >= 40):
+            # Only go to next element in tuple when best_marg >= 40 AND been at
+            # current rate for >= 40
+            if (best_marg >= 40) and (self.current_lr_idx >= 40):
                 lr_idx_temp = numpy.minimum(self.lr_idx + 1, len(self.learning_rate_schedule[idx])-1)
         lrm = self.learning_rate_schedule[idx][lr_idx_temp]
         # Update caches
