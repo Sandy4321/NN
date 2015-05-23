@@ -92,7 +92,6 @@ class Mlp():
         else:
             W = self.W[layer]
             Xdrop = X
-        print W.shape, X.shape
         pre_act = T.dot(W, Xdrop) + self.b[layer]
         
         if nonlinearity == 'ReLU':
@@ -140,7 +139,7 @@ class Mlp():
             smrg = MRG_RandomStreams(seed=cseed)
             rng = smrg.uniform(size=size)
             # Evaluate RNG
-            dropmult = (rng < self.q[layer-1]) / self.q[layer-1]
+            dropmult = (rng < self.q[layer]) / self.q[layer]
         return dropmult
     
         
