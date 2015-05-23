@@ -489,7 +489,7 @@ if __name__ == '__main__':
         'norm' : 'L2',
         'max_row_norm' : 3.87,
         'dropout_dict' : None,
-        'drop_type' : 'dropconnect',
+        'drop_type' : 'dropout',
         'logit_anneal' : None,
         'validation_freq' : 5,
         'save_freq' : 10,
