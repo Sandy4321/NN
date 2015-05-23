@@ -88,7 +88,7 @@ class Mlp():
                 Xdrop = X*G
                 pre_act = T.dot(W, Xdrop) + self.b[layer]
             elif drop_type == 'dropconnect':
-                size = (self.W[layer].shape,X.shape[1])
+                size = (self.W[layer].shape[0],self.W[layer].shape[1],X.shape[1])
                 G = self.dropconnect(layer, size)
                 #self.G.append(G > 0)        # To access mask values
                 W = T.patternbroadcast(self.W[layer],(False,False,True))
