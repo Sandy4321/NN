@@ -159,8 +159,7 @@ class Train():
         train_cost, train_cost_raw = self.cost(train_cost_type, self.target, self.output)
         valid_cost, valid_costs = self.cost(valid_cost_type, self.target, self.test_output)
         
-        updates = self.updates(train_cost, params, args,
-                               hypparam_grads=subnet_grads, hypparams=hypparams)
+        updates = self.updates(train_cost, params, args)
         Tfuncs = {}
         Tfuncs['train_model'] = Tfunction(
             inputs=[index],
@@ -267,7 +266,7 @@ class Train():
             sys.exit(1)
         return (loss.mean(), loss)
     
-    def updates(self, cost, params, args, hypparam_grads=None, hypparams=None):
+    def updates(self, cost, params, args):
         '''Get parameter updates given cost'''
         # Load variables a check valid
         lr = args['learning_rate']*self.learning_rate_correction()
