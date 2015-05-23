@@ -489,7 +489,7 @@ if __name__ == '__main__':
         'norm' : 'L2',
         'max_row_norm' : 3.87,
         'dropout_dict' : None,
-        'drop_type' : 'dropout',
+        'drop_type' : 'dropconnect',
         'logit_anneal' : None,
         'validation_freq' : 5,
         'save_freq' : 10,
@@ -497,18 +497,30 @@ if __name__ == '__main__':
         }
     
     dropout_dict = {}
+    drop_type = args['drop_type']
     for i in numpy.arange(len(args['nonlinearities'])):
-        name = 'layer' + str(i)
-        shape = (args['layer_sizes'][i],1)
-        if i == 0:
-            # Need to cast to floatX or the computation gets pushed to the CPU
-            prior = 0.8*numpy.ones(shape).astype(Tconf.floatX)
-        else:
-            #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
-            prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
-        sub_dict = { name : {'seed' : 234,
-                             'values' : prior}}
-        dropout_dict.update(sub_dict)
+        if drop_type == 'dropout':
+            name = 'layer' + str(i)
+            shape = (args['layer_sizes'][i],1)
+            if i == 0:
+                # Need to cast to floatX or the computation gets pushed to the CPU
+                prior = 0.8*numpy.ones(shape).astype(Tconf.floatX)
+            else:
+                #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
+                prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
+            sub_dict = { name : {'seed' : 234,
+                                 'values' : prior}}
+            dropout_dict.update(sub_dict)
+        elif drop_type == 'dropconnect':
+            for i in numpy.arange(len(args['nonlinearities'])):
+                name = 'layer' + str(i)
+                shape = (args['layer_sizes'][i],args['layer_sizes'][i-1])
+                if i > 0:
+                    #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
+                    prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
+                sub_dict = { name : {'seed' : 234,
+                                     'values' : prior}}
+                dropout_dict.update(sub_dict)
     args['dropout_dict'] = dropout_dict
     
     tr = Train()
