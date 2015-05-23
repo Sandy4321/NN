@@ -489,6 +489,7 @@ if __name__ == '__main__':
         'norm' : 'L2',
         'max_row_norm' : 3.87,
         'dropout_dict' : None,
+        'drop_type' : 'dropout',
         'logit_anneal' : None,
         'validation_freq' : 5,
         'save_freq' : 10,
@@ -506,7 +507,6 @@ if __name__ == '__main__':
             #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
             prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
         sub_dict = { name : {'seed' : 234,
-                             'type' : 'unbiased',
                              'values' : prior}}
         dropout_dict.update(sub_dict)
     args['dropout_dict'] = dropout_dict
@@ -517,5 +517,10 @@ if __name__ == '__main__':
     monitor = tr.train(args)
     
     '''
-    TODO: PRETRAINING, CONVOLUTIONS
+    TODO:
+    - DROPCONNECT
+    - VARIATIONAL
+    - FAST
+    - PRETRAINING
+    - CONVOLUTIONS
     ''' 

@@ -49,9 +49,9 @@ class Mlp():
             bname = 'b' + str(i)
             self.b.append(TsharedX(b_value, bname, borrow=True,
                                    broadcastable=(False,True)))
-            # Dropout
+            # Dropout/connect
             name = 'layer' + str(i)
-            vname = 'dropout' + str(i)
+            vname = 'drop' + str(i)
             if self.dropout_dict != None:
                 if name in self.dropout_dict:
                     # Dropout rates - this formulation means we must have
@@ -69,17 +69,26 @@ class Mlp():
     def encode_layer(self, X, layer, args):
         '''Single layer'''
         nonlinearity = args['nonlinearities'][layer]
+        drop_type = arg['drop_type']
         name = 'layer' + str(layer)
         if self.dropout_dict == None:
+            W = self.W[layer]
             Xdrop = X
         elif name in self.dropout_dict:
             size = X.shape
-            G = self.dropout(layer, size)
-            self.G.append(G > 0)        # To access mask values
-            Xdrop = X*G
+            if drop_type == 'dropout':
+                G = self.dropout(layer, size)
+                self.G.append(G > 0)        # To access mask values
+                W = self.W[layer]
+                Xdrop = X*G
+            elif drop_type == 'dropconnect':
+                G = self.dropconnect(layer, size)
+                self.G.append(G > 0)        # To access mask values
+                W = self.W[layer]*G
+                Xdrop = X
         else:
             Xdrop = X
-        pre_act = T.dot(self.W[layer], Xdrop) + self.b[layer]
+        pre_act = T.dot(W, Xdrop) + self.b[layer]
         
         if nonlinearity == 'ReLU':
             s = lambda x : (x > 0) * x
@@ -106,17 +115,27 @@ class Mlp():
     def dropout(self, layer, size):
         '''Return a random dropout vector'''
         name = 'layer' + str(layer)
-        vname = 'dropout' + str(layer)
         if name in self.dropout_dict:
             sub_dict = self.dropout_dict[name]
             cseed = sub_dict['seed']
-            ctype = sub_dict['type']
-            if ctype == 'unbiased':
-                # Construct RNG
-                smrg = MRG_RandomStreams(seed=cseed)
-                rng = smrg.uniform(size=size)
-                # Evaluate RNG
-                dropmult = (rng < self.q[layer]) / self.q[layer]
+            # Construct RNG
+            smrg = MRG_RandomStreams(seed=cseed)
+            rng = smrg.uniform(size=size)
+            # Evaluate RNG
+            dropmult = (rng < self.q[layer]) / self.q[layer]
+        return dropmult
+    
+    def dropconnect(self, layer, size):
+        '''Return a random dropout matrix'''
+        name = 'layer' + str(layer)
+        if name in self.dropout_dict:
+            sub_dict = self.dropout_dict[name]
+            cseed = sub_dict['seed']
+            # Construct RNG
+            smrg = MRG_RandomStreams(seed=cseed)
+            rng = smrg.uniform(size=size)
+            # Evaluate RNG
+            dropmult = (rng < self.q[layer]) / self.q[layer]
         return dropmult
     
         
