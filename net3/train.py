@@ -473,7 +473,7 @@ if __name__ == '__main__':
         'train_cost_type' : 'nll',
         'valid_cost_type' : 'accuracy',
         'layer_sizes' : (784, 800, 10),
-        'nonlinearities' : ('ReLu', 'SoftMax'),
+        'nonlinearities' : ('ReLU', 'SoftMax'),
         'period' : None,
         'deadband' : None,
         'data_address' : './data/mnist.pkl.gz',
