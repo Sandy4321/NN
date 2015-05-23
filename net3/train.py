@@ -484,7 +484,7 @@ if __name__ == '__main__':
         'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
         'momentum' : 0.9,
         'momentum_ramp' : 0,
-        'batch_size' : 128,
+        'batch_size' : 12,
         'num_epochs' : 500,
         'norm' : 'L2',
         'max_row_norm' : 3.87,
