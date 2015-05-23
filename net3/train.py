@@ -489,7 +489,7 @@ if __name__ == '__main__':
         'norm' : 'L2',
         'max_row_norm' : 3.87,
         'dropout_dict' : None,
-        'drop_type' : 'dropout',
+        'drop_type' : 'dropconnect',
         'logit_anneal' : None,
         'validation_freq' : 5,
         'save_freq' : 10,
@@ -506,7 +506,6 @@ if __name__ == '__main__':
                 # Need to cast to floatX or the computation gets pushed to the CPU
                 prior = 0.8*numpy.ones(shape).astype(Tconf.floatX)
             else:
-                #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
                 prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
             sub_dict = { name : {'seed' : 234,
                                  'values' : prior}}
@@ -515,7 +514,6 @@ if __name__ == '__main__':
             name = 'layer' + str(i)
             shape = (args['layer_sizes'][i+1],args['layer_sizes'][i])
             if (i < len(args['layer_sizes'])-2):
-                #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
                 prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
                 sub_dict = { name : {'seed' : 234,
                                      'values' : prior}}
