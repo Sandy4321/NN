@@ -52,14 +52,16 @@ class Mlp():
             # Dropout/connect
             name = 'layer' + str(i)
             vname = 'drop' + str(i)
+            drop_type = args['drop_type']
             if self.dropout_dict != None:
                 if name in self.dropout_dict:
-                    # Dropout rates - this formulation means we must have
-                    # dropout in every layer. Will need to change this later
                     sub_dict = self.dropout_dict[name]
                     # Initialise q to some values
-                    q_value = TsharedX(sub_dict['values'], vname,
-                                       broadcastable=(False,True))
+                    if drop_type == 'dropout':
+                        q_value = TsharedX(sub_dict['values'], vname,
+                                           broadcastable=(False,True))
+                    elif drop_type == 'dropconnect':
+                        q_value = TsharedX(sub_dict['values'], vname)
                     self.q.append(q_value)
             
         for W, b in zip(self.W, self.b):
