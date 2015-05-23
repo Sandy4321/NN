@@ -271,8 +271,6 @@ class Train():
         # Load variables a check valid
         lr = args['learning_rate']*self.learning_rate_correction()
         lrb = args['lr_bias_multiplier']
-        if args['subnet_cost_type'] != None:
-            lrd = args['dropout_lr']*self.learning_rate_correction()
         assert lr >= 0
         assert lrb >= 0
         momentum = args['momentum']
