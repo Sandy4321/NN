@@ -92,6 +92,7 @@ class Mlp():
         else:
             W = self.W[layer]
             Xdrop = X
+        print W.shape, X.shape
         pre_act = T.dot(W, Xdrop) + self.b[layer]
         
         if nonlinearity == 'ReLU':
