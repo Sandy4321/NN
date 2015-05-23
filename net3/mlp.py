@@ -32,6 +32,7 @@ class Mlp():
         
         self.W = [] # Connection weights
         self.b = [] # Biases
+        self.q = [] # Dropout rates/prior
         self.G = {} # Dropout masks
         self._params = []
         for i in numpy.arange(self.num_layers):
