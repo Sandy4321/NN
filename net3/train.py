@@ -472,7 +472,7 @@ if __name__ == '__main__':
         'num_classes' : 10,
         'train_cost_type' : 'nll',
         'valid_cost_type' : 'accuracy',
-        'layer_sizes' : (784, 800, 800, 10),
+        'layer_sizes' : (784, 800, 10),
         'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
         'period' : None,
         'deadband' : None,
