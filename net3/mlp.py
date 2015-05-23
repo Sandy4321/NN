@@ -69,7 +69,7 @@ class Mlp():
     def encode_layer(self, X, layer, args):
         '''Single layer'''
         nonlinearity = args['nonlinearities'][layer]
-        drop_type = arg['drop_type']
+        drop_type = args['drop_type']
         name = 'layer' + str(layer)
         if self.dropout_dict == None:
             W = self.W[layer]
