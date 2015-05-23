@@ -228,13 +228,13 @@ class Train():
                 if args['valid_cost_type'] == 'accuracy':
                     if vc > monitor['best_cost']:
                         monitor['best_cost'] = vc
-                        monitor['best_model'] = (self.model._params, self.model._hypparams)
+                        monitor['best_model'] = (self.model._params)
                         self.last_best = self.epoch
                         print('BEST MODEL: '),
                 elif args['valid_cost_type'] != 'accuracy':
                     if vc < monitor['best_cost']:
                         monitor['best_cost'] = vc
-                        monitor['best_model'] = (self.model._params, self.model._hypparams)
+                        monitor['best_model'] = (self.model._params)
                         self.last_best = self.epoch
                         print('BEST MODEL: '),
                 print('%s%s Validation cost: %f' % (ep, n(s), vc,))
