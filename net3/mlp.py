@@ -37,9 +37,11 @@ class Mlp():
         self._params = []
         for i in numpy.arange(self.num_layers):
             #Connection weights
-            coeff = numpy.sqrt(6/(self.ls[i] + (self.ls[i+1])))
-            W_value = 2*coeff*(numpy.random.uniform(size=(self.ls[i+1],
-                                                          self.ls[i]))-0.5)
+            #coeff = numpy.sqrt(6/(self.ls[i] + (self.ls[i+1])))
+            #W_value = 2*coeff*(numpy.random.uniform(size=(self.ls[i+1],
+                                                          #self.ls[i]))-0.5)
+            coeff = numpy.sqrt(0.1)
+            W_value = coeff*numpy.random.randn((self.ls[i+1],self.ls[i]))
             W_value = numpy.asarray(W_value, dtype=Tconf.floatX)
             Wname = 'W' + str(i)
             self.W.append(TsharedX(W_value, Wname, borrow=True))
