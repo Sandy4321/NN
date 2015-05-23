@@ -517,8 +517,8 @@ if __name__ == '__main__':
             if i > 0:
                 #v = numpy.random.beta(a, b, size=(2000,1)).astype(Tconf.floatX)
                 prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
-            sub_dict = { name : {'seed' : 234,
-                                 'values' : prior}}
+                sub_dict = { name : {'seed' : 234,
+                                     'values' : prior}}
             dropout_dict.update(sub_dict)
     args['dropout_dict'] = dropout_dict
     
