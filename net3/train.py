@@ -14,7 +14,7 @@ import theano.tensor as T
 import theano.tensor.nnet as Tnet
 
 from autoencoder import Autoencoder
-from mlp import Mlp
+from mlp import Mlp, layer_from_sparsity
 from matplotlib import pylab
 from matplotlib import pyplot as plt
 from preprocess import Preprocess
