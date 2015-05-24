@@ -14,7 +14,7 @@ import theano.tensor as T
 import theano.tensor.nnet as Tnet
 
 from autoencoder import Autoencoder
-from mlp import Mlp, layer_from_sparsity
+from mlp import Mlp, layer_from_sparsity, total_weights, write_neurons
 from matplotlib import pylab
 from matplotlib import pyplot as plt
 from preprocess import Preprocess
@@ -472,7 +472,7 @@ if __name__ == '__main__':
         'num_classes' : 10,
         'train_cost_type' : 'nll',
         'valid_cost_type' : 'accuracy',
-        'layer_sizes' : (784, 1244, 1244, 10),
+        'layer_sizes' : (784, 800, 800, 10),
         'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
         'period' : None,
         'deadband' : None,
@@ -496,8 +496,12 @@ if __name__ == '__main__':
         'save_name' : 'train_var/trainSGD.pkl'
         }
     
-    layer_sizes = layer_from_sparsity(784,10,1275200,1.,1-args['sparsity'],1)
-    print layer_sizes
+    N = args['layer_sizes'][0]
+    Y = arg['layer_sizes'][-1]
+    T = total_weights(args['layer_sizes'])
+    layer_sizes = layer_from_sparsity(N, Y, T, 1., 1-args['sparsity'], 1)
+    args['layer_sizes'] = write_neurons(N, H, Y, c)
+    print args['layer_sizes'], T
     
     dropout_dict = {}
     for i in numpy.arange(len(args['nonlinearities'])):
