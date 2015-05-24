@@ -107,7 +107,7 @@ class Mlp():
             W = self.W[layer]
             print W.broadcastable
             print X.broadcastable
-            pre_act = T.dot(W, X) + self.b[layer
+            pre_act = T.dot(W, X) + self.b[layer]
             print pre_act.broadcastable
         
         if nonlinearity == 'ReLU':
