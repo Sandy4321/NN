@@ -496,11 +496,12 @@ if __name__ == '__main__':
         'save_name' : 'train_var/trainSGD.pkl'
         }
     
+    c = 1
     N = args['layer_sizes'][0]
     Y = args['layer_sizes'][-1]
     T = total_weights(args['layer_sizes'])
-    layer_sizes = layer_from_sparsity(N, Y, T, 1., 1-args['sparsity'], 1)
-    args['layer_sizes'] = write_neurons(N, H, Y, c)
+    H = layer_from_sparsity(N, Y, T, 1., 1-args['sparsity'], c)
+    args['layer_sizes'] = write_neurons(N, H, Y, 1)
     print args['layer_sizes'], T
     
     dropout_dict = {}
