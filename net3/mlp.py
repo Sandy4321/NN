@@ -100,6 +100,7 @@ class Mlp():
             print('Non-drop layer')
             W = self.W[layer]
             pre_act = T.dot(W, X) + self.b[layer]
+            print('Bad')
         
         if nonlinearity == 'ReLU':
             s = lambda x : (x > 0) * x
