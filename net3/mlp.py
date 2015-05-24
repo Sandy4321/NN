@@ -54,7 +54,6 @@ class Mlp():
             # Dropout/connect
             name = 'layer' + str(i)
             vname = 'drop' + str(i)
-            drop_type = args['drop_type']
             if self.dropout_dict != None:
                 if name in self.dropout_dict:
                     sub_dict = self.dropout_dict[name]
