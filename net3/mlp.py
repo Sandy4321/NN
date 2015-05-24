@@ -143,7 +143,7 @@ def layer_from_sparsity(N, Y, T, a, b, c):
 def total_weights(neurons):
     '''Compute the total number of weights in the network'''
     T = 0
-    for i in numpy.arange(len(neuron)-1):
+    for i in numpy.arange(len(neurons)-1):
         T += n[i]*n[i+1]
     return T
 
