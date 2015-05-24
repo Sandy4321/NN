@@ -497,7 +497,7 @@ if __name__ == '__main__':
         }
     
     # Just for now until we sort ourselves out. Promise xx
-    c = 2
+    c = 1
     N = args['layer_sizes'][0]
     Y = args['layer_sizes'][-1]
     t = total_weights(args['layer_sizes'])
