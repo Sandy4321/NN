@@ -274,7 +274,7 @@ class Train():
         assert lr >= 0
         assert lrb >= 0
         mmtm = args['momentum']
-        assert (momentum >= 0 and momentum < 1) or (momentum == None)
+        assert (mmtm >= 0 and mmtm < 1) or (mmtm == None)
 
         # File updates
         updates = []
