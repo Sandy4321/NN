@@ -34,6 +34,7 @@ class Mlp():
         self.b = [] # Biases
         self.q = [] # Dropout rates/prior
         self.G = [] # Dropout masks
+        self.S = [] # Sparsity masks
         self._params = []
         for i in numpy.arange(self.num_layers):
             #Connection weights
@@ -60,6 +61,15 @@ class Mlp():
                                        broadcastable=(False,True))
                     self.q.append(q_value)
             
+            # Sparsity
+            if (args['sparsity'] != None) and (i < self.num_layers - 1):
+                sp = args['sparsity']
+                sname = 'sparse' + str(i)
+                sparse_mask = numpy.random.rand(self.ls[i+1],self.ls[i])<(1-sp)
+                sparse_mask = Tshared(sparse_mask.astype(Tconf.floatX),
+                                      sname, borrow=True)
+                self.S.append(sparse_mask)
+            
         for W, b in zip(self.W, self.b):
             self._params.append(W)
             self._params.append(b)
@@ -68,20 +78,23 @@ class Mlp():
         '''Single layer'''
         nonlinearity = args['nonlinearities'][layer]
         name = 'layer' + str(layer)
-        if self.dropout_dict == None:
-            W = self.W[layer]
-            pre_act = T.dot(W, X) + self.b[layer]
-        elif name in self.dropout_dict:
-            size = X.shape
-            G = self.dropout(layer, size)
-            self.G.append(G > 0)        # To access mask values
-            W = self.W[layer]
-            Xdrop = X*G
-            pre_act = T.dot(W, Xdrop) + self.b[layer]
+        # Sparsity
+        if (args['sparsity'] != None) and (i < self.num_layers - 1):
+            W = self.W[layer]*self.S[layer]
         else:
             W = self.W[layer]
+            
+        # Dropout
+        if self.dropout_dict == None:
+            pre_act = T.dot(W, X) + self.b[layer]
+        elif name in self.dropout_dict:
+            G = self.dropout(layer, X.shape)
+            self.G.append(G > 0)                    # To access mask values
+            pre_act = T.dot(W, X*G) + self.b[layer]
+        else:
             pre_act = T.dot(W, X) + self.b[layer]
         
+        # Nonlinearity
         if nonlinearity == 'ReLU':
             s = lambda x : (x > 0) * x
         elif nonlinearity == 'SoftMax':
