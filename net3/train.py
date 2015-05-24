@@ -496,6 +496,9 @@ if __name__ == '__main__':
         'save_name' : 'train_var/trainSGD.pkl'
         }
     
+    layer_sizes = Mlp.layer_from_sparsity(784,10,1275200,1.,1-args['sparsity'],1)
+    print layer_sizes
+    
     dropout_dict = {}
     for i in numpy.arange(len(args['nonlinearities'])):
         name = 'layer' + str(i)
