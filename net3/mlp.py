@@ -40,6 +40,8 @@ class Mlp():
         for i in numpy.arange(self.num_layers):
             if 'connectivity' in args:
                 beta = args['connectivity'][i]
+            else:
+                beta = 1.
             #Connection weights
             coeff = numpy.sqrt(6/(beta*(self.ls[i] + self.ls[i+1])))
             W_value = 2*coeff*(numpy.random.uniform(size=(self.ls[i+1],
