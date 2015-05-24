@@ -489,7 +489,6 @@ if __name__ == '__main__':
         'norm' : 'L2',
         'max_row_norm' : 3.87,
         'dropout_dict' : None,
-        'drop_type' : 'dropconnect',
         'logit_anneal' : None,
         'validation_freq' : 5,
         'save_freq' : 50,
@@ -499,25 +498,16 @@ if __name__ == '__main__':
     dropout_dict = {}
     drop_type = args['drop_type']
     for i in numpy.arange(len(args['nonlinearities'])):
-        if drop_type == 'dropout':
-            name = 'layer' + str(i)
-            shape = (args['layer_sizes'][i],1)
-            if i == 0:
-                # Need to cast to floatX or the computation gets pushed to the CPU
-                prior = 0.8*numpy.ones(shape).astype(Tconf.floatX)
-            else:
-                prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
-            sub_dict = { name : {'seed' : 234,
-                                 'values' : prior}}
-            dropout_dict.update(sub_dict)
-        elif drop_type == 'dropconnect':
-            name = 'layer' + str(i)
-            shape = (args['layer_sizes'][i+1],args['layer_sizes'][i],1)
-            if (i < len(args['layer_sizes'])-2):
-                prior = 1.*numpy.ones(shape).astype(Tconf.floatX)
-                sub_dict = { name : {'seed' : 234,
-                                     'values' : prior}}
-                dropout_dict.update(sub_dict)
+        name = 'layer' + str(i)
+        shape = (args['layer_sizes'][i],1)
+        if i == 0:
+            # Need to cast to floatX or the computation gets pushed to the CPU
+            prior = 0.8*numpy.ones(shape).astype(Tconf.floatX)
+        else:
+            prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
+        sub_dict = { name : {'seed' : 234,
+                             'values' : prior}}
+        dropout_dict.update(sub_dict)
     args['dropout_dict'] = dropout_dict
     
     tr = Train()

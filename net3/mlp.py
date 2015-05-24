@@ -59,12 +59,8 @@ class Mlp():
                 if name in self.dropout_dict:
                     sub_dict = self.dropout_dict[name]
                     # Initialise q to some values
-                    if drop_type == 'dropout':
-                        q_value = TsharedX(sub_dict['values'], vname,
-                                           broadcastable=(False,True))
-                    elif drop_type == 'dropconnect':
-                        q_value = TsharedX(sub_dict['values'], vname,
-                                           broadcastable=(False,False,True))
+                    q_value = TsharedX(sub_dict['values'], vname,
+                                       broadcastable=(False,True))
                     self.q.append(q_value)
             
         for W, b in zip(self.W, self.b):
@@ -76,37 +72,19 @@ class Mlp():
         nonlinearity = args['nonlinearities'][layer]
         drop_type = args['drop_type']
         name = 'layer' + str(layer)
-        print name
         if self.dropout_dict == None:
-            print('No dropout at all')
             W = self.W[layer]
             pre_act = T.dot(W, X) + self.b[layer]
         elif name in self.dropout_dict:
-            if drop_type == 'dropout':
-                size = X.shape
-                G = self.dropout(layer, size)
-                self.G.append(G > 0)        # To access mask values
-                W = self.W[layer]
-                Xdrop = X*G
-                pre_act = T.dot(W, Xdrop) + self.b[layer]
-            elif drop_type == 'dropconnect':
-                size = (self.W[layer].shape[0],self.W[layer].shape[1],X.shape[1])
-                G = self.dropconnect(layer, size)
-                #self.G.append(G > 0)        # To access mask values
-                print X.broadcastable
-                W = self.W[layer].dimshuffle(0,1,'x')
-                H = W*G
-                print H.broadcastable
-                pre_act = T.tensordot(H,X,axes=[[1],[0]])
-                pre_act = pre_act.diagonal(offset=0,axis1=1,axis2=2) + self.b[layer]
-                print pre_act.broadcastable
-        else:
-            print('Non-drop layer')
+            size = X.shape
+            G = self.dropout(layer, size)
+            self.G.append(G > 0)        # To access mask values
             W = self.W[layer]
-            print W.broadcastable
-            print X.broadcastable
+            Xdrop = X*G
+            pre_act = T.dot(W, Xdrop) + self.b[layer]
+        else:
+            W = self.W[layer]
             pre_act = T.dot(W, X) + self.b[layer]
-            print pre_act.broadcastable
         
         if nonlinearity == 'ReLU':
             s = lambda x : (x > 0) * x
@@ -142,19 +120,7 @@ class Mlp():
             # Evaluate RNG
             dropmult = (rng < self.q[layer]) / self.q[layer]
         return dropmult
-    
-    def dropconnect(self, layer, size):
-        '''Return a random dropout matrix'''
-        name = 'layer' + str(layer)
-        if name in self.dropout_dict:
-            sub_dict = self.dropout_dict[name]
-            cseed = sub_dict['seed']
-            # Construct RNG
-            smrg = MRG_RandomStreams(seed=cseed)
-            rng = smrg.uniform(size=size)
-            # Evaluate RNG
-            dropmult = (rng < self.q[layer])
-        return dropmult
+
     
         
 '''
