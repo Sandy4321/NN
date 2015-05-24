@@ -138,22 +138,22 @@ def layer_from_sparsity(N, Y, T, a, b, c):
     P = a*N + Y
     H = (numpy.sqrt((P**2) + 4*b*T) - P)/(2*b*c)
     H = numpy.floor(H)
-    return H
+    return int(H)
 
 def total_weights(neurons):
     '''Compute the total number of weights in the network'''
     T = 0
     for i in numpy.arange(len(neurons)-1):
         T += neurons[i]*neurons[i+1]
-    return T
+    return int(T)
 
 def write_neurons(N, H, Y, c):
     '''Write a neuron list'''
     L = []
-    L.append(N)
-    for i in numpy.arange(c):
-        L.append(H)
-    L.append(Y)
+    L.append(int(N))
+    for i in numpy.arange(c+1):
+        L.append(int(H))
+    L.append(int(Y))
     return L
         
 '''
