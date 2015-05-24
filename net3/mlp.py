@@ -98,7 +98,7 @@ class Mlp():
                 H = W*G
                 print H.broadcastable
                 pre_act = T.tensordot(H,X,axes=[[1],[0]])
-                pre_act = pre_act.diagonal(axis1=1,axis2=2) + self.b[layer]
+                pre_act = pre_act.diagonal(offset=0,axis1=1,axis2=2) + self.b[layer]
                 print pre_act.broadcastable
         else:
             print('Non-drop layer')
