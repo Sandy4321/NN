@@ -114,6 +114,7 @@ class Mlp():
         else:
             print('Invalid nonlinearity')
             sys.exit(1)
+        print('Bad2')
             
         return s(pre_act) 
     
