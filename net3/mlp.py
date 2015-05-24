@@ -47,6 +47,7 @@ class Mlp():
             
             # Sparsity
             if (args['sparsity'] != None) and (i < self.num_layers - 1):
+                sp = args['sparsity']
                 sparse_mask = numpy.random.rand(self.ls[i+1],self.ls[i])<(1-sp)
                 sparse_mask = sparse_mask.astype(Tconf.floatX)
                 W_value = sparse.csc_from_dense(Wvalue*sparse_mask)
