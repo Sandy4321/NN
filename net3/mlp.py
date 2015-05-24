@@ -99,7 +99,8 @@ class Mlp():
         else:
             print('Non-drop layer')
             W = self.W[layer]
-            W = W.dimshuffle(0,1,)
+            print W.broadcastable
+            print X.broadcastable
             pre_act = T.dot(W, X) + self.b[layer]
         
         if nonlinearity == 'ReLU':
