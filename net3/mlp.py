@@ -76,6 +76,7 @@ class Mlp():
         nonlinearity = args['nonlinearities'][layer]
         drop_type = args['drop_type']
         name = 'layer' + str(layer)
+        print name
         if self.dropout_dict == None:
             W = self.W[layer]
             pre_act = T.dot(W, X) + self.b[layer]
