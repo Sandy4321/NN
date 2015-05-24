@@ -93,7 +93,7 @@ class Mlp():
                 size = (self.W[layer].shape[0],self.W[layer].shape[1],X.shape[1])
                 G = self.dropconnect(layer, size)
                 #self.G.append(G > 0)        # To access mask values
-                print W.broadcastable
+                print self.W[layer].broadcastable
                 print X.broadcastable
                 print G.broadcastable
                 W = self.W[layer].dimshuffle(0,1,'x')
