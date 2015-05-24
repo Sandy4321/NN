@@ -144,7 +144,7 @@ def total_weights(neurons):
     '''Compute the total number of weights in the network'''
     T = 0
     for i in numpy.arange(len(neurons)-1):
-        T += n[i]*n[i+1]
+        T += neurons[i]*neurons[i+1]
     return T
 
 def write_neurons(N, H, Y, c):
