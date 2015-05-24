@@ -473,7 +473,7 @@ if __name__ == '__main__':
         'train_cost_type' : 'nll',
         'valid_cost_type' : 'accuracy',
         'layer_sizes' : (784, 800, 800, 10),
-        'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
+        'nonlinearities' : ('ReLU', 'ReLU', 'ReLU', 'SoftMax'),
         'period' : None,
         'deadband' : None,
         'data_address' : './data/mnist.pkl.gz',
@@ -497,7 +497,7 @@ if __name__ == '__main__':
         }
     
     # Just for now until we sort ourselves out. Promise xx
-    c = 1
+    c = 2
     N = args['layer_sizes'][0]
     Y = args['layer_sizes'][-1]
     t = total_weights(args['layer_sizes'])
