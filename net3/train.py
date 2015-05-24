@@ -273,10 +273,8 @@ class Train():
         lrb = args['lr_bias_multiplier']
         assert lr >= 0
         assert lrb >= 0
-        momentum = args['momentum']
-        ramp = args['momentum_ramp']
+        mmtm = args['momentum']
         assert (momentum >= 0 and momentum < 1) or (momentum == None)
-        mmtm = self.momentum_ramp(0.5, momentum, ramp)
 
         # File updates
         updates = []
@@ -294,12 +292,6 @@ class Train():
             sys.exit(1)
         self.max_norm(updates, args)
         return updates
-    
-    def momentum_ramp(self, start, end, ramp):
-        '''Use a momentum ramp at the beginning'''
-        mult = numpy.minimum(self.epoch, ramp) / numpy.maximum(ramp*1., 1.)
-        momentum = mult*end + (1-mult)*start
-        return momentum.astype(Tconf.floatX)
     
     def SGD_updates(self, cost, params, args, lr, lrb, mmtm, updates):
         '''Stochastic gradient descent'''
@@ -483,7 +475,6 @@ if __name__ == '__main__':
         'learning_rate_margin' : (0,200,300),
         'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
         'momentum' : None, #0.9,
-        'momentum_ramp' : 0,
         'batch_size' : 128,
         'num_epochs' : 500,
         'norm' : 'L2',
