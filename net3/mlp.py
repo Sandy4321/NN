@@ -78,12 +78,7 @@ class Mlp():
         '''Single layer'''
         nonlinearity = args['nonlinearities'][layer]
         name = 'layer' + str(layer)
-        # Sparsity
-        if (args['sparsity'] != None) and (layer < self.num_layers - 1):
-            W = self.W[layer]*self.S[layer]
-        else:
-            W = self.W[layer]
-            
+        W = self.W[layer]     
         # Dropout
         if self.dropout_dict == None:
             pre_act = T.dot(W, X) + self.b[layer]
