@@ -497,14 +497,14 @@ if __name__ == '__main__':
         }
     
     # Just for now until we sort ourselves out. Promise xx
-    c = 1
+    c = 2
     N = args['layer_sizes'][0]
     Y = args['layer_sizes'][-1]
     t = total_weights(args['layer_sizes'])
     H = layer_from_sparsity(N, Y, t, 1., 1-args['sparsity'], c)
     args['layer_sizes'] = write_neurons(N, H, Y, c)
     args['connectivity'] = (1.,) + (1-args['sparsity'],)*c + (1.,)
-    print args['layer_sizes'], args['connectivity']
+    print args['layer_sizes']
     
     dropout_dict = {}
     for i in numpy.arange(len(args['nonlinearities'])):
