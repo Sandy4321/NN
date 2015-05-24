@@ -131,14 +131,14 @@ class Mlp():
             dropmult = (rng < self.q[layer]) / self.q[layer]
         return dropmult
     
-    def layer_from_sparsity(N, Y, T, a, b, c):
-        '''Compute the hidden layer sizes'''
-        # N input, Y output, T total weights (roughly)
-        # a input connectivity, b core connectivity, c number core layers
-        P = a*N + Y
-        H = (numpy.sqrt((P**2)*H + 4*b*T) - P)/(2*b*c)
-        H = numpy.floor(H)
-        return H
+def layer_from_sparsity(N, Y, T, a, b, c):
+    '''Compute the hidden layer sizes'''
+    # N input, Y output, T total weights (roughly)
+    # a input connectivity, b core connectivity, c number core layers
+    P = a*N + Y
+    H = (numpy.sqrt((P**2)*H + 4*b*T) - P)/(2*b*c)
+    H = numpy.floor(H)
+    return H
     
         
 '''
