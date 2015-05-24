@@ -79,7 +79,7 @@ class Mlp():
         nonlinearity = args['nonlinearities'][layer]
         name = 'layer' + str(layer)
         # Sparsity
-        if (args['sparsity'] != None) and (i < self.num_layers - 1):
+        if (args['sparsity'] != None) and (layer < self.num_layers - 1):
             W = self.W[layer]*self.S[layer]
         else:
             W = self.W[layer]
