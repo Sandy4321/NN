@@ -488,7 +488,7 @@ if __name__ == '__main__':
         'num_epochs' : 500,
         'norm' : 'L2',
         'max_row_norm' : 3.87,
-        'sparsity' : 0.75, 
+        'sparsity' : 0.5, 
         'dropout_dict' : None,
         'logit_anneal' : None,
         'validation_freq' : 5,
