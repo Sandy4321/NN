@@ -91,7 +91,7 @@ class Mlp():
                 size = (self.W[layer].shape[0],self.W[layer].shape[1],X.shape[1])
                 G = self.dropconnect(layer, size)
                 #self.G.append(G > 0)        # To access mask values
-                W = self.W[layer].dimshuffle((False,False,True),(0,1,'x'))
+                W = self.W[layer].dimshuffle(0,1,'x')
                 W = W*G
                 pre_act = T.tensordot(W,X,axes=[1,0])
         else:
