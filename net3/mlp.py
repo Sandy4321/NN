@@ -94,12 +94,11 @@ class Mlp():
                 #self.G.append(G > 0)        # To access mask values
                 W = self.W[layer].dimshuffle(0,1,'x')
                 H = W*G
-                pre_act = T.tensordot(H,X,axes=[1,0])
+                pre_act = T.tensordot(H,X,axes=[1,0]) + self.b[layer]
         else:
             print('Non-drop layer')
             W = self.W[layer]
-            Xdrop = X
-            pre_act = T.dot(W, Xdrop) + self.b[layer]
+            pre_act = T.dot(W, X) + self.b[layer]
         
         if nonlinearity == 'ReLU':
             s = lambda x : (x > 0) * x
