@@ -496,7 +496,6 @@ if __name__ == '__main__':
         }
     
     dropout_dict = {}
-    drop_type = args['drop_type']
     for i in numpy.arange(len(args['nonlinearities'])):
         name = 'layer' + str(i)
         shape = (args['layer_sizes'][i],1)
