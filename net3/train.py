@@ -514,7 +514,7 @@ if __name__ == '__main__':
             # Need to cast to floatX or the computation gets pushed to the CPU
             prior = 0.8*numpy.ones(shape).astype(Tconf.floatX)
         else:
-            prior = 0.66*numpy.ones(shape).astype(Tconf.floatX)
+            prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
         sub_dict = { name : {'seed' : 234,
                              'values' : prior}}
         dropout_dict.update(sub_dict)
