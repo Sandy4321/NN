@@ -80,7 +80,7 @@ class Mlp():
         name = 'layer' + str(layer)
         W = self.W[layer]
         # Sparsity requires a special dot product
-        if (args['sparsity'] != None) and (i < self.num_layers - 1):
+        if (args['sparsity'] != None) and (layer < self.num_layers - 1):
             dot  = sparse.basic.dot
         else:
             dot = T.dot
