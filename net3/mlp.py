@@ -35,7 +35,6 @@ class Mlp():
         self.b = [] # Biases
         self.q = [] # Dropout rates/prior
         self.G = [] # Dropout masks
-        self.S = [] # Sparsity masks
         self._params = []
         for i in numpy.arange(self.num_layers):
             #Connection weights
@@ -51,7 +50,7 @@ class Mlp():
             bname = 'b' + str(i)
             self.b.append(TsharedX(b_value, bname, borrow=True,
                                    broadcastable=(False,True)))
-            # Dropout/connect
+            # Dropout
             name = 'layer' + str(i)
             vname = 'drop' + str(i)
             if self.dropout_dict != None:
