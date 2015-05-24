@@ -497,7 +497,7 @@ if __name__ == '__main__':
         }
     
     N = args['layer_sizes'][0]
-    Y = arg['layer_sizes'][-1]
+    Y = args['layer_sizes'][-1]
     T = total_weights(args['layer_sizes'])
     layer_sizes = layer_from_sparsity(N, Y, T, 1., 1-args['sparsity'], 1)
     args['layer_sizes'] = write_neurons(N, H, Y, c)
