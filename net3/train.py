@@ -482,7 +482,7 @@ if __name__ == '__main__':
         'lr_bias_multiplier' : 2.,
         'learning_rate_margin' : (0,200,300),
         'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
-        'momentum' : 0.9,
+        'momentum' : None, #0.9,
         'momentum_ramp' : 0,
         'batch_size' : 128,
         'num_epochs' : 500,
