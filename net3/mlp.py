@@ -96,6 +96,7 @@ class Mlp():
                 H = W*G
                 pre_act = T.tensordot(H,X,axes=[1,0])
         else:
+            print('Non-drop layer')
             W = self.W[layer]
             Xdrop = X
             pre_act = T.dot(W, Xdrop) + self.b[layer]
