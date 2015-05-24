@@ -78,16 +78,21 @@ class Mlp():
         '''Single layer'''
         nonlinearity = args['nonlinearities'][layer]
         name = 'layer' + str(layer)
-        W = self.W[layer]     
+        W = self.W[layer]
+        # Sparsity requires a special dot product
+        if (args['sparsity'] != None) and (i < self.num_layers - 1):
+            dot  = sparse.basic.dot
+        else:
+            dot = T.dot
         # Dropout
         if self.dropout_dict == None:
-            pre_act = T.dot(W, X) + self.b[layer]
+            pre_act = dot(W, X) + self.b[layer]
         elif name in self.dropout_dict:
             G = self.dropout(layer, X.shape)
             self.G.append(G > 0)                    # To access mask values
-            pre_act = T.dot(W, X*G) + self.b[layer]
+            pre_act = dot(W, X*G) + self.b[layer]
         else:
-            pre_act = T.dot(W, X) + self.b[layer]
+            pre_act = dot(W, X) + self.b[layer]
         
         # Nonlinearity
         if nonlinearity == 'ReLU':
