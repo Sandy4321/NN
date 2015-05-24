@@ -38,8 +38,10 @@ class Mlp():
         self.S = [] # Sparsity masks
         self._params = []
         for i in numpy.arange(self.num_layers):
+            if 'connectivity' in args:
+                beta = args['connectivity'][i]
             #Connection weights
-            coeff = numpy.sqrt(6/(self.ls[i] + (self.ls[i+1])))
+            coeff = numpy.sqrt(6/(beta*(self.ls[i] + (self.ls[i+1]))))
             W_value = 2*coeff*(numpy.random.uniform(size=(self.ls[i+1],
                                                           self.ls[i]))-0.5)
             W_value = numpy.asarray(W_value, dtype=Tconf.floatX)
