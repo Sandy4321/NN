@@ -502,8 +502,8 @@ if __name__ == '__main__':
     Y = args['layer_sizes'][-1]
     t = total_weights(args['layer_sizes'])
     H = layer_from_sparsity(N, Y, t, 1., 1-args['sparsity'], c)
-    args['layer_sizes'] = write_neurons(N, H, Y, 1)
-    args['connectivity'] = (1., 1-args['sparsity'], 1.)
+    args['layer_sizes'] = write_neurons(N, H, Y, c)
+    args['connectivity'] = (1.,) + (1-args['sparsity'],)*c + (1.,)
     print args['layer_sizes']
     
     dropout_dict = {}
