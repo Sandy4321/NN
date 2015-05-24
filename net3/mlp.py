@@ -50,8 +50,8 @@ class Mlp():
                 sp = args['sparsity']
                 sparse_mask = numpy.random.rand(self.ls[i+1],self.ls[i])<(1-sp)
                 sparse_mask = sparse_mask.astype(Tconf.floatX)
-                sparse_mask = TsharedX(sparse.csc_from_dense(W_value*sparse_mask),
-                                       Wname, borrow=True)
+                sparse_mask = sparse.csc_from_dense(TsharedX(W_value*sparse_mask,
+                                                             Wname, borrow=True))
                 self.W.append(sparse_mask)
             else:
                 self.W.append(TsharedX(W_value, Wname, borrow=True))
