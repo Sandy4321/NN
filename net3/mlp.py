@@ -22,7 +22,7 @@ from theano import function as Tfunction
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 from theano import shared as TsharedX
 from theano.tensor.shared_randomstreams import RandomStreams
-from theano import sparse
+
 
 class Mlp():
     def __init__(self, args):
@@ -35,6 +35,7 @@ class Mlp():
         self.b = [] # Biases
         self.q = [] # Dropout rates/prior
         self.G = [] # Dropout masks
+        self.S = [] # Sparsity masks
         self._params = []
         for i in numpy.arange(self.num_layers):
             #Connection weights
@@ -50,7 +51,7 @@ class Mlp():
             bname = 'b' + str(i)
             self.b.append(TsharedX(b_value, bname, borrow=True,
                                    broadcastable=(False,True)))
-            # Dropout
+            # Dropout/connect
             name = 'layer' + str(i)
             vname = 'drop' + str(i)
             if self.dropout_dict != None:
@@ -61,6 +62,15 @@ class Mlp():
                                        broadcastable=(False,True))
                     self.q.append(q_value)
             
+            # Sparsity
+            if (args['sparsity'] != None) and (i < self.num_layers - 1):
+                sp = args['sparsity']
+                sname = 'sparse' + str(i)
+                sparse_mask = numpy.random.rand(self.ls[i+1],self.ls[i])<(1-sp)
+                sparse_mask = TsharedX(sparse_mask.astype(Tconf.floatX),
+                                      sname, borrow=True)
+                self.S.append(sparse_mask)
+            
         for W, b in zip(self.W, self.b):
             self._params.append(W)
             self._params.append(b)
@@ -69,7 +79,12 @@ class Mlp():
         '''Single layer'''
         nonlinearity = args['nonlinearities'][layer]
         name = 'layer' + str(layer)
-        W = self.W[layer]
+        # Sparsity
+        if (args['sparsity'] != None) and (layer < self.num_layers - 1):
+            W = self.W[layer]*self.S[layer]
+        else:
+            W = self.W[layer]
+            
         # Dropout
         if self.dropout_dict == None:
             pre_act = T.dot(W, X) + self.b[layer]
