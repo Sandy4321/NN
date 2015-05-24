@@ -78,6 +78,7 @@ class Mlp():
         name = 'layer' + str(layer)
         print name
         if self.dropout_dict == None:
+            print('No dropout at all')
             W = self.W[layer]
             pre_act = T.dot(W, X) + self.b[layer]
         elif name in self.dropout_dict:
