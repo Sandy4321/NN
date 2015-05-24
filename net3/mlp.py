@@ -44,17 +44,7 @@ class Mlp():
                                                           self.ls[i]))-0.5)
             W_value = numpy.asarray(W_value, dtype=Tconf.floatX)
             Wname = 'W' + str(i)
-            
-            # Sparsity
-            if (args['sparsity'] != None) and (i < self.num_layers - 1):
-                sp = args['sparsity']
-                sparse_mask = numpy.random.rand(self.ls[i+1],self.ls[i])<(1-sp)
-                sparse_mask = sparse_mask.astype(Tconf.floatX)
-                sparse_mask = sparse.csc_from_dense(TsharedX(W_value*sparse_mask,
-                                                             Wname, borrow=True))
-                self.W.append(sparse_mask)
-            else:
-                self.W.append(TsharedX(W_value, Wname, borrow=True))
+            self.W.append(TsharedX(W_value, Wname, borrow=True))
             # Biases
             b_value = 0.5*numpy.ones((self.ls[i+1],))[:,numpy.newaxis]
             b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
@@ -81,20 +71,15 @@ class Mlp():
         nonlinearity = args['nonlinearities'][layer]
         name = 'layer' + str(layer)
         W = self.W[layer]
-        # Sparsity requires a special dot product
-        if (args['sparsity'] != None) and (layer < self.num_layers - 1):
-            dot  = sparse.basic.dot
-        else:
-            dot = T.dot
         # Dropout
         if self.dropout_dict == None:
-            pre_act = dot(W, X) + self.b[layer]
+            pre_act = T.dot(W, X) + self.b[layer]
         elif name in self.dropout_dict:
             G = self.dropout(layer, X.shape)
             self.G.append(G > 0)                    # To access mask values
-            pre_act = dot(W, X*G) + self.b[layer]
+            pre_act = T.dot(W, X*G) + self.b[layer]
         else:
-            pre_act = dot(W, X) + self.b[layer]
+            pre_act = T.dot(W, X) + self.b[layer]
         
         # Nonlinearity
         if nonlinearity == 'ReLU':
