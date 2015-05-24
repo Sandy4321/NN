@@ -516,7 +516,6 @@ if __name__ == '__main__':
     
     '''
     TODO:
-    - DROPCONNECT BROADCASTING
     - VARIATIONAL
     - FAST
     - PRETRAINING
