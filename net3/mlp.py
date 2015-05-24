@@ -22,6 +22,7 @@ from theano import function as Tfunction
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 from theano import shared as TsharedX
 from theano.tensor.shared_randomstreams import RandomStreams
+from theano import sparse
 
 class Mlp():
     def __init__(self, args):
@@ -43,6 +44,13 @@ class Mlp():
                                                           self.ls[i]))-0.5)
             W_value = numpy.asarray(W_value, dtype=Tconf.floatX)
             Wname = 'W' + str(i)
+            
+            # Sparsity
+            if (args['sparsity'] != None) and (i < self.num_layers - 1):
+                sparse_mask = numpy.random.rand(self.ls[i+1],self.ls[i])<(1-sp)
+                sparse_mask = sparse_mask.astype(Tconf.floatX)
+                W_value = sparse.csc_from_dense(Wvalue*sparse_mask)
+            
             self.W.append(TsharedX(W_value, Wname, borrow=True))
             # Biases
             b_value = 0.5*numpy.ones((self.ls[i+1],))[:,numpy.newaxis]
@@ -60,15 +68,6 @@ class Mlp():
                     q_value = TsharedX(sub_dict['values'], vname,
                                        broadcastable=(False,True))
                     self.q.append(q_value)
-            
-            # Sparsity
-            if (args['sparsity'] != None) and (i < self.num_layers - 1):
-                sp = args['sparsity']
-                sname = 'sparse' + str(i)
-                sparse_mask = numpy.random.rand(self.ls[i+1],self.ls[i])<(1-sp)
-                sparse_mask = TsharedX(sparse_mask.astype(Tconf.floatX),
-                                      sname, borrow=True)
-                self.S.append(sparse_mask)
             
         for W, b in zip(self.W, self.b):
             self._params.append(W)
