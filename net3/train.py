@@ -488,7 +488,7 @@ if __name__ == '__main__':
         'num_epochs' : 500,
         'norm' : 'L2',
         'max_row_norm' : 3.87,
-        'sparsity' : 0.5, 
+        'sparsity' : 0.75, 
         'dropout_dict' : None,
         'logit_anneal' : None,
         'validation_freq' : 5,
@@ -504,6 +504,7 @@ if __name__ == '__main__':
     H = layer_from_sparsity(N, Y, t, 1., 1-args['sparsity'], c)
     args['layer_sizes'] = write_neurons(N, H, Y, 1)
     args['connectivity'] = (1., 1-args['sparsity'], 1.)
+    print args['layer_sizes']
     
     dropout_dict = {}
     for i in numpy.arange(len(args['nonlinearities'])):
