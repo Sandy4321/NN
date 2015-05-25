@@ -37,7 +37,7 @@ class Dgwn():
         self._params = []
         for i in numpy.arange(self.num_layers):
             # Biases
-            b_value = 0.1*numpy.ones((self.ls[i+1],))[:,numpy.newaxis]
+            b_value = -0.1*numpy.ones((self.ls[i+1],))[:,numpy.newaxis]
             b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
             bname = 'b' + str(i)
             self.b.append(TsharedX(b_value, bname, borrow=True,
