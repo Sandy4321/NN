@@ -159,6 +159,11 @@ class Train():
         train_cost, train_cost_raw = self.cost(train_cost_type, self.target, self.output)
         valid_cost, valid_costs = self.cost(valid_cost_type, self.target, self.test_output)
         
+        if args['cov'] == True:
+            outputs = [valid_cost, self.model.X[1], self.model.XXT[1]]
+        else:
+            outputs = valid_cost
+        
         updates = self.updates(train_cost, params, args)
         Tfuncs = {}
         Tfuncs['train_model'] = Tfunction(
@@ -172,7 +177,7 @@ class Train():
         )
         Tfuncs['validate_model'] = Tfunction(
             inputs=[index],
-            outputs=valid_cost,
+            outputs=outputs,
             givens={
                 self.input: self.test_x[:,index*batch_size:(index+1)*batch_size],
                 self.target: self.test_y[:,index*batch_size:(index+1)*batch_size]
@@ -192,7 +197,8 @@ class Train():
         save_freq = args['save_freq']
         save_name = args['save_name']
         monitor = {'train_cost' : [], 'valid_cost' : [],
-            'best_cost' : numpy.inf, 'best_model' : self.model._params}
+            'best_cost' : numpy.inf, 'best_model' : self.model._params,
+            'XXT' : []}
         if args['valid_cost_type'] == 'accuracy':
             monitor['best_cost'] = -numpy.inf
         
@@ -214,15 +220,28 @@ class Train():
             monitor['train_cost'].append(train_cost)
             print('%s%s Training cost: %f' % (ep, n(s), tc,)),
             self.check_real(tc)
-            print('\t LR scaling: %f' % (self.learning_rate_correction(),))
+            print('\t LR scaling: %0.3f' % (self.learning_rate_correction(),))
             
             # Validate
             if self.epoch % validation_freq == 0:
                 valid_cost = numpy.zeros(num_valid_batches)
+                if args['cov'] == True:
+                    X = 0 
+                    XXT = 0
+                    Xtemp = 0
+                    XXTtemp = 0
                 for batch in numpy.arange(num_valid_batches):
-                    valid_cost[batch] = validate_model(batch)
+                    if args['cov'] == True:
+                        valid_cost[batch], Xtemp, XXTtemp = validate_model(batch)
+                        X += Xtemp
+                        XXT += XXTtemp
+                    else:
+                        valid_cost[batch] = validate_model(batch)
                 vc = valid_cost.mean()
                 monitor['valid_cost'].append(vc)
+                if args['cov'] == True:
+                    XXT = XXT/self.num_valid - numpy.dot(X,X.T)/(self.num_valid**2)
+                    monitor['XXT'].append(XXT)
                 
                 # Best model
                 if args['valid_cost_type'] == 'accuracy':
@@ -473,9 +492,7 @@ if __name__ == '__main__':
         'train_cost_type' : 'nll',
         'valid_cost_type' : 'accuracy',
         'layer_sizes' : (784, 800, 800, 10),
-        'nonlinearities' : ('ReLU', 'ReLU', 'ReLU', 'SoftMax'),
-        'period' : None,
-        'deadband' : None,
+        'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
         'data_address' : './data/mnist.pkl.gz',
         'binarize': False,
         'learning_rate' : 1e-1,
@@ -488,23 +505,27 @@ if __name__ == '__main__':
         'num_epochs' : 500,
         'norm' : 'L2',
         'max_row_norm' : 3.87,
-        'sparsity' : 0.5, 
+        'sparsity' : None, 
         'dropout_dict' : None,
         'logit_anneal' : None,
+        'cov' : False,
         'validation_freq' : 5,
         'save_freq' : 50,
-        'save_name' : 'train_var/trainSGD.pkl'
+        'save_name' : 'train_var/RMSsparse09.pkl'
         }
     
-    # Just for now until we sort ourselves out. Promise xx
-    c = 1
-    N = args['layer_sizes'][0]
-    Y = args['layer_sizes'][-1]
-    t = total_weights(args['layer_sizes'])
-    H = layer_from_sparsity(N, Y, t, 1., 1-args['sparsity'], c)
-    args['layer_sizes'] = write_neurons(N, H, Y, c)
-    args['connectivity'] = (1.,) + (1-args['sparsity'],)*c + (1.,)
-    print args['layer_sizes'], args['connectivity']
+    if args['sparsity'] != None:
+        # Just for now until we sort ourselves out. Promise xx
+        c = 1
+        N = args['layer_sizes'][0]
+        Y = args['layer_sizes'][-1]
+        t = total_weights(args['layer_sizes'])
+        H = layer_from_sparsity(N, Y, t, 1., 1-args['sparsity'], c)
+        args['layer_sizes'] = write_neurons(N, H, Y, c)
+        args['connectivity'] = (1.,) + (1-args['sparsity'],)*c + (1.,)
+        args['nonlinearities'] = ('ReLU',) + ('ReLU',)*c + ('SoftMax',)
+        print args['layer_sizes'], args['connectivity']
+    
     
     dropout_dict = {}
     for i in numpy.arange(len(args['nonlinearities'])):
@@ -519,6 +540,7 @@ if __name__ == '__main__':
                              'values' : prior}}
         dropout_dict.update(sub_dict)
     args['dropout_dict'] = dropout_dict
+    
     
     tr = Train()
     tr.build(Mlp, args)

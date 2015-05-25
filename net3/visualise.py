@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from PIL import Image
 
 for i in numpy.arange(1):
-    fname = './train_var/train_vardropSGD2.pkl'
+    fname = './train_var/RMSsparse09.pkl'
     stream = open(fname, 'r')
     state = cPickle.load(stream)
     stream.close()
@@ -18,7 +18,7 @@ for i in numpy.arange(1):
     args = state['hyperparams']
     print('Validation cost %f' % (monitor['best_cost'],))
     
-    params, hypparams = monitor['best_model']
+    params = monitor['best_model']
     
     """
     for param in params:

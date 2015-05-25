@@ -14,7 +14,6 @@ import numpy
 import theano.tensor as T
 import theano.tensor.nnet as Tnet
 
-from draw_beta import Draw_beta
 from matplotlib import pylab
 from matplotlib import pyplot as plt
 from theano import config as Tconf
@@ -36,13 +35,19 @@ class Mlp():
         self.q = [] # Dropout rates/prior
         self.G = [] # Dropout masks
         self.S = [] # Sparsity masks
+        self.X = [] # Activity storage
+        self.XXT = [] # Covariance storage
         self._params = []
         for i in numpy.arange(self.num_layers):
             if 'connectivity' in args:
                 beta = args['connectivity'][i]
             else:
                 beta = 1.
-            #Connection weights
+            # Covariance analysis
+            if args['cov'] == True:
+                self.X.append([])
+                self.XXT.append([])
+            # Connection weights
             coeff = numpy.sqrt(6/(beta*(self.ls[i] + self.ls[i+1])))
             W_value = 2*coeff*(numpy.random.uniform(size=(self.ls[i+1],
                                                           self.ls[i]))-0.5)
@@ -104,11 +109,6 @@ class Mlp():
             s = lambda x : (x > 0) * x
         elif nonlinearity == 'SoftMax':
             s = Tnet.softmax
-        elif nonlinearity == 'wrapped_ReLU':
-            period = args['period']
-            b = args['deadband']
-            pre_act = pre_act % period
-            s = lambda x : T.minimum(((x - b) > 0) * (x - b), ((period - x - b) > 0) * (period - x - b))
         else:
             print('Invalid nonlinearity')
             sys.exit(1)
@@ -120,6 +120,9 @@ class Mlp():
         self.dropout_dict = args['dropout_dict']
         for i in numpy.arange(self.num_layers):
             X = self.encode_layer(X, i, args)
+            if args['cov'] == True:
+                self.X[i] = X
+                self.XXT[i] = T.dot(X,X.T)
         return X
     
     def dropout(self, layer, size):
