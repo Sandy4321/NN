@@ -43,7 +43,7 @@ class Dgwn():
             self.b.append(TsharedX(b_value, bname, borrow=True,
                                    broadcastable=(False,True)))
             # Connection weight means
-            coeff = numpy.sqrt(6/(self.ls[i] + self.ls[i+1]))
+            coeff = self.prior_variance
             M_value = coeff*(numpy.random.rand(self.ls[i+1],self.ls[i]))
             M_value = numpy.asarray(M_value, dtype=Tconf.floatX)
             Mname = 'M' + str(i)
