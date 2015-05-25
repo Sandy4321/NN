@@ -92,7 +92,7 @@ class Dgwn():
         for i in numpy.arange(self.num_layers):
             X = self.encode_layer(X, i, args)
         if args['mode'] == 'training':
-            X = (X,0) # -self.regularisation()) 
+            X = (X, -self.regularisation()) 
         elif args['mode'] == 'validation':
             X = (X,)
         return X
