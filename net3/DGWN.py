@@ -43,13 +43,13 @@ class Dgwn():
             self.b.append(TsharedX(b_value, bname, borrow=True,
                                    broadcastable=(False,True)))
             # Connection weight means
-            coeff = numpy.sqrt(2/(self.ls[i] + self.ls[i+1]))
+            coeff = 0.001*numpy.sqrt(2/(self.ls[i] + self.ls[i+1]))
             M_value = coeff*(numpy.random.randn(self.ls[i+1],self.ls[i]))
             M_value = numpy.asarray(M_value, dtype=Tconf.floatX)
             Mname = 'M' + str(i)
             self.M.append(TsharedX(M_value, Mname, borrow=True))
             # Connection weight root variances
-            coeff = numpy.log(numpy.exp(numpy.sqrt(self.prior_variance)) - 1.)
+            coeff = numpy.sqrt(2/(self.ls[i] + self.ls[i+1]))
             R_value = coeff*numpy.ones((self.ls[i+1],self.ls[i]))
             R_value = numpy.asarray(R_value, dtype=Tconf.floatX)
             Rname = 'R' + str(i)
