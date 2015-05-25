@@ -65,7 +65,7 @@ class Dgwn():
         M = T.dot(self.M[layer],X)
         S = T.dot(T.log(1 + T.exp(self.R[layer])),X)
         E = self.gaussian_sampler(layer, S.shape)
-        H = M + S*E + self.b[layer]
+        H = M + 0*S*E + self.b[layer]
         
         # Nonlinearity
         if nonlinearity == 'ReLU':
