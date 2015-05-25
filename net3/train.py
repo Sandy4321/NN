@@ -497,7 +497,7 @@ if __name__ == '__main__':
         'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
         'data_address' : './data/mnist.pkl.gz',
         'binarize': False,
-        'learning_rate' : 1e-4,
+        'learning_rate' : 1e-1,
         'lr_bias_multiplier' : 2.,
         'learning_rate_margin' : (0,200,300),
         'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
