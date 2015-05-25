@@ -43,8 +43,8 @@ class Dgwn():
             self.b.append(TsharedX(b_value, bname, borrow=True,
                                    broadcastable=(False,True)))
             # Connection weight means
-            coeff = 0.01
-            M_value = 2*coeff*(numpy.random.randn(self.ls[i+1],self.ls[i])) - 0.1
+            coeff = numpy.sqrt(2/(self.ls[i] + self.ls[i+1]))
+            M_value = coeff*(numpy.random.randn(self.ls[i+1],self.ls[i]))
             M_value = numpy.asarray(M_value, dtype=Tconf.floatX)
             Mname = 'M' + str(i)
             self.M.append(TsharedX(M_value, Mname, borrow=True))
@@ -94,7 +94,7 @@ class Dgwn():
         for i in numpy.arange(self.num_layers):
             X = self.encode_layer(X, i, args)
         if args['mode'] == 'training':
-            X = (X, -self.regularisation()) 
+            X = (X,) # -self.regularisation()) 
         elif args['mode'] == 'validation':
             X = (X,)
         return X
@@ -110,7 +110,7 @@ class Dgwn():
         
 '''
 TODO:
-- WRITE THE BASIC PROGRAMME
+- REGULARISATION
 - NUMBER OF SAMPLES
 - EXPLORE INITIALISATION
 - COMBINE WITH DROPOUT
