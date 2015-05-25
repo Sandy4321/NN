@@ -15,6 +15,7 @@ import theano.tensor.nnet as Tnet
 
 from autoencoder import Autoencoder
 from mlp import Mlp, layer_from_sparsity, total_weights, write_neurons
+from DGWN import Dgwn
 from matplotlib import pylab
 from matplotlib import pyplot as plt
 from preprocess import Preprocess
@@ -126,7 +127,8 @@ class Train():
         self.output = self.model.predict(self.input, args)
         # Separate validation/test output is copy of train network with no dropout 
         test_args = args.copy()
-        test_args['dropout_dict'] = None 
+        test_args['dropout_dict'] = None
+        test_args['mode'] = 'validation'
         self.test_output = self.model.predict(self.input, test_args)
         self.target = T.matrix(name='target', dtype=Tconf.floatX)
     
@@ -503,15 +505,15 @@ if __name__ == '__main__':
         'momentum_ramp' : 0,
         'batch_size' : 128,
         'num_epochs' : 500,
-        'norm' : 'L2',
-        'max_row_norm' : 3.87,
+        'norm' : None,
+        'max_row_norm' : None,
         'sparsity' : None, 
         'dropout_dict' : None,
         'logit_anneal' : None,
         'cov' : False,
         'validation_freq' : 5,
         'save_freq' : 50,
-        'save_name' : 'train_var/RMSsparse09.pkl'
+        'save_name' : 'pkl/DWGN.pkl'
         }
     
     if args['sparsity'] != None:
@@ -526,24 +528,23 @@ if __name__ == '__main__':
         args['nonlinearities'] = ('ReLU',) + ('ReLU',)*c + ('SoftMax',)
         print args['layer_sizes'], args['connectivity']
     
-    
-    dropout_dict = {}
-    for i in numpy.arange(len(args['nonlinearities'])):
-        name = 'layer' + str(i)
-        shape = (args['layer_sizes'][i],1)
-        if i == 0:
-            # Need to cast to floatX or the computation gets pushed to the CPU
-            prior = 0.8*numpy.ones(shape).astype(Tconf.floatX)
-        else:
-            prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
-        sub_dict = { name : {'seed' : 234,
-                             'values' : prior}}
-        dropout_dict.update(sub_dict)
-    args['dropout_dict'] = dropout_dict
-    
+    if args['dropout_dict'] == True:
+        dropout_dict = {}
+        for i in numpy.arange(len(args['nonlinearities'])):
+            name = 'layer' + str(i)
+            shape = (args['layer_sizes'][i],1)
+            if i == 0:
+                # Need to cast to floatX or the computation gets pushed to the CPU
+                prior = 0.8*numpy.ones(shape).astype(Tconf.floatX)
+            else:
+                prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
+            sub_dict = { name : {'seed' : 234,
+                                 'values' : prior}}
+            dropout_dict.update(sub_dict)
+        args['dropout_dict'] = dropout_dict
     
     tr = Train()
-    tr.build(Mlp, args)
+    tr.build(Dgwn, args)
     tr.load_data(args)
     monitor = tr.train(args)
     
