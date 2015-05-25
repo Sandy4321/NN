@@ -485,7 +485,7 @@ class Train():
 if __name__ == '__main__':
         
     args = {
-        'algorithm' : 'RMSprop',
+        'algorithm' : 'RMSNAG',
         'RMScoeff' : 0.9,
         'RMSreg' : 1e-3,
         'mode' : 'training',
