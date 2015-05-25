@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from PIL import Image
 
 for i in numpy.arange(1):
-    fname = './train_var/RMSsparse09.pkl'
+    fname = './pkl/DWGN.pkl'
     stream = open(fname, 'r')
     state = cPickle.load(stream)
     stream.close()
@@ -20,7 +20,6 @@ for i in numpy.arange(1):
     
     params = monitor['best_model']
     
-    """
     for param in params:
         print param
         print('Max: %f' % (numpy.amax(param.get_value()),))
@@ -29,7 +28,7 @@ for i in numpy.arange(1):
         pylab.hist(param.get_value().flatten(), 50, normed=1)
         pylab.suptitle(param, fontsize=20)
         pylab.show()
-    """
+    
     train_cost = monitor['train_cost']
     tc = numpy.zeros((0,1))
     for cost in train_cost:

@@ -124,12 +124,12 @@ class Train():
         print('Building model')
         self.model = model(args)
         self.input = T.matrix(name='input', dtype=Tconf.floatX)
-        self.output = self.model.predict(self.input, args)
+        self.output, self.regularisation = self.model.predict(self.input, args)
         # Separate validation/test output is copy of train network with no dropout 
         test_args = args.copy()
         test_args['dropout_dict'] = None
         test_args['mode'] = 'validation'
-        self.test_output = self.model.predict(self.input, test_args)
+        self.test_output, = self.model.predict(self.input, test_args)
         self.target = T.matrix(name='target', dtype=Tconf.floatX)
     
     def load_data(self, args):
@@ -158,8 +158,8 @@ class Train():
         valid_cost_type = args['valid_cost_type']
         
         # Costs and gradients
-        train_cost, train_cost_raw = self.cost(train_cost_type, self.target, self.output)
-        valid_cost, valid_costs = self.cost(valid_cost_type, self.target, self.test_output)
+        train_cost = self.cost(train_cost_type, self.target, self.output, self.regularisation)
+        valid_cost = self.cost(valid_cost_type, self.target, self.test_output)
         
         if args['cov'] == True:
             outputs = [valid_cost, self.model.X[1], self.model.XXT[1]]
@@ -268,10 +268,9 @@ class Train():
         self.save_state(save_name, args, monitor)
         return monitor
         
-    def cost(self, cost_type, Y, Yhat):
+    def cost(self, cost_type, Y, Yhat, regularisation=0):
         '''Evaluate the loss between prediction and target'''
         # Remember data is stored column-wise
-        prelog = TsharedX(numpy.zeros((2,1)).astype(Tconf.floatX))
         if cost_type == 'MSE':
             loss = 0.5*((Y-Yhat)**2).sum(axis=0)
         elif cost_type == 'cross_entropy':
@@ -285,7 +284,7 @@ class Train():
         else:
             print('Invalid cost')
             sys.exit(1)
-        return (loss.mean(), loss)
+        return loss.mean() + regularisation
     
     def updates(self, cost, params, args):
         '''Get parameter updates given cost'''
@@ -489,6 +488,7 @@ if __name__ == '__main__':
         'algorithm' : 'SGD',
         'RMScoeff' : None,
         'RMSreg' : None,
+        'mode' : 'training',
         'learning_type' : 'classification',
         'num_classes' : 10,
         'train_cost_type' : 'nll',
@@ -497,7 +497,7 @@ if __name__ == '__main__':
         'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
         'data_address' : './data/mnist.pkl.gz',
         'binarize': False,
-        'learning_rate' : 1e-1,
+        'learning_rate' : 1e-4,
         'lr_bias_multiplier' : 2.,
         'learning_rate_margin' : (0,200,300),
         'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
@@ -505,6 +505,7 @@ if __name__ == '__main__':
         'momentum_ramp' : 0,
         'batch_size' : 128,
         'num_epochs' : 500,
+        'prior_variance' : 1e-4,
         'norm' : None,
         'max_row_norm' : None,
         'sparsity' : None, 

@@ -29,6 +29,7 @@ class Dgwn():
         self.ls = args['layer_sizes']
         self.num_layers = len(self.ls) - 1
         self.dropout_dict = args['dropout_dict']
+        self.prior_variance = args['prior_variance']
         
         self.b = [] # Neuron biases
         self.M = [] # Connection weight means
@@ -42,14 +43,13 @@ class Dgwn():
             self.b.append(TsharedX(b_value, bname, borrow=True,
                                    broadcastable=(False,True)))
             # Connection weight means
-            coeff = numpy.sqrt(6/(self.ls[i] + self.ls[i+1]))
-            M_value = 2*coeff*(numpy.random.uniform(size=(self.ls[i+1],
-                                                          self.ls[i]))-0.5)
+            coeff = 0.01
+            M_value = 2*coeff*(numpy.random.randn(self.ls[i+1],self.ls[i])) - 0.1
             M_value = numpy.asarray(M_value, dtype=Tconf.floatX)
             Mname = 'M' + str(i)
             self.M.append(TsharedX(M_value, Mname, borrow=True))
-            # Connection weight variances
-            coeff = -7
+            # Connection weight root variances
+            coeff = numpy.log(numpy.exp(numpy.sqrt(self.prior_variance)) - 1.)
             R_value = coeff*numpy.ones((self.ls[i+1],self.ls[i]))
             R_value = numpy.asarray(R_value, dtype=Tconf.floatX)
             Rname = 'R' + str(i)
@@ -79,12 +79,13 @@ class Dgwn():
             
         return f(H)
     
-    def regularisation(self, args):
+    def regularisation(self):
         '''Compute the regularisation'''
         KL = 0
         for M, R in zip(self.M, self.R):
-            S = T.log(1 + T.exp(R))
-            KL += 0.5 * T.sum(1 + T.log(S**2) - M**2 - S**2)
+            S2 = T.log(1 + T.exp(R))**2
+            P2 = self.prior_variance
+            KL += 0.5 * T.sum(1 + T.log(S2/P2) - ((M**2)/P2) - (S2/P2))
         return KL
     
     def predict(self, X, args):
@@ -93,9 +94,9 @@ class Dgwn():
         for i in numpy.arange(self.num_layers):
             X = self.encode_layer(X, i, args)
         if args['mode'] == 'training':
-            X = X + KL
+            X = (X, -self.regularisation()) 
         elif args['mode'] == 'validation':
-            pass
+            X = (X,)
         return X
     
         
@@ -110,6 +111,7 @@ class Dgwn():
 '''
 TODO:
 - WRITE THE BASIC PROGRAMME
+- NUMBER OF SAMPLES
 - EXPLORE INITIALISATION
 - COMBINE WITH DROPOUT
 - DEEP MoEs
