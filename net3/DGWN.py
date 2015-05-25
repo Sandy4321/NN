@@ -66,8 +66,7 @@ class Dgwn():
         M = T.dot(self.M[layer],X)
         S = T.dot(T.log(1 + T.exp(self.R[layer])),X)
         E = self.gaussian_sampler(layer, S.shape)
-        H = M + 0.01*S*E + self.b[layer]
-        
+        H = M + 0.1*S*E + self.b[layer]
         # Nonlinearity
         if nonlinearity == 'ReLU':
             f = lambda x : (x > 0) * x
@@ -76,7 +75,6 @@ class Dgwn():
         else:
             print('Invalid nonlinearity')
             sys.exit(1)
-            
         return f(H)
     
     def regularisation(self):
@@ -98,7 +96,6 @@ class Dgwn():
         elif args['mode'] == 'validation':
             X = (X,)
         return X
-    
         
     def gaussian_sampler(self, layer, size):
         '''Return a standard gaussian vector'''
