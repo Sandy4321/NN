@@ -37,18 +37,19 @@ class Dgwn():
         self._params = []
         for i in numpy.arange(self.num_layers):
             # Biases
-            b_value = -0.1*numpy.ones((self.ls[i+1],))[:,numpy.newaxis]
+            b_value = 0.1*numpy.ones((self.ls[i+1],))[:,numpy.newaxis]
             b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
             bname = 'b' + str(i)
             self.b.append(TsharedX(b_value, bname, borrow=True,
                                    broadcastable=(False,True)))
             # Connection weight means
-            M_value = numpy.zeros((self.ls[i+1],self.ls[i]))
+            coeff = numpy.sqrt(2/(self.ls[i] + self.ls[i+1]))
+            M_value = coeff*(numpy.random.randn(self.ls[i+1],self.ls[i]))
             M_value = numpy.asarray(M_value, dtype=Tconf.floatX)
             Mname = 'M' + str(i)
             self.M.append(TsharedX(M_value, Mname, borrow=True))
             # Connection weight root variances
-            coeff = 0.0001*numpy.sqrt(2/(self.ls[i] + self.ls[i+1]))
+            coeff = numpy.sqrt(2/(self.ls[i] + self.ls[i+1]))
             R_value = coeff*numpy.ones((self.ls[i+1],self.ls[i]))
             R_value = numpy.asarray(R_value, dtype=Tconf.floatX)
             Rname = 'R' + str(i)
