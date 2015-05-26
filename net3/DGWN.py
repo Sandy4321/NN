@@ -37,19 +37,18 @@ class Dgwn():
         self._params = []
         for i in numpy.arange(self.num_layers):
             # Biases
-            b_value = 0.1*numpy.ones((self.ls[i+1],))[:,numpy.newaxis]
+            b_value = 0.01*numpy.ones((self.ls[i+1],))[:,numpy.newaxis]
             b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
             bname = 'b' + str(i)
             self.b.append(TsharedX(b_value, bname, borrow=True,
                                    broadcastable=(False,True)))
             # Connection weight means
-            coeff = self.prior_variance
-            M_value = coeff*(numpy.random.rand(self.ls[i+1],self.ls[i]))
+            M_value = numpy.zeros((self.ls[i+1],self.ls[i]))
             M_value = numpy.asarray(M_value, dtype=Tconf.floatX)
             Mname = 'M' + str(i)
             self.M.append(TsharedX(M_value, Mname, borrow=True))
             # Connection weight root variances
-            coeff = numpy.sqrt(2/(self.ls[i] + self.ls[i+1]))
+            coeff = numpy.sqrt(self.prior_variance)
             R_value = coeff*numpy.ones((self.ls[i+1],self.ls[i]))
             R_value = numpy.asarray(R_value, dtype=Tconf.floatX)
             Rname = 'R' + str(i)
@@ -66,7 +65,7 @@ class Dgwn():
         M = T.dot(self.M[layer],X)
         S = T.dot(T.log(1 + T.exp(self.R[layer])),X)
         E = self.gaussian_sampler(layer, S.shape)
-        H = M + 0.001*S*E + self.b[layer]
+        H = M + 0.01*S*E + self.b[layer]
         # Nonlinearity
         if nonlinearity == 'ReLU':
             f = lambda x : (x > 0) * x
@@ -89,6 +88,9 @@ class Dgwn():
     def predict(self, X, args):
         '''Full MLP'''
         self.dropout_dict = args['dropout_dict']
+        if 'num_samples' in args:
+            if args['num_samples'] > 0:
+                X = self.extra_samples(X,args['num_samples'])
         for i in numpy.arange(self.num_layers):
             X = self.encode_layer(X, i, args)
         if args['mode'] == 'training':
@@ -103,7 +105,12 @@ class Dgwn():
         smrg = MRG_RandomStreams(seed=234)
         rng = smrg.normal(size=size)
         return rng
-
+    
+    def extra_samples(self, X, n):
+        '''Make parallel copies of the data'''
+        Y = T.concatenate([X,]*n, axis=1)
+        print('Number of samples: %i' % (n,))
+        return Y
         
 '''
 TODO:

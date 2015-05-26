@@ -125,7 +125,8 @@ class Train():
         self.model = model(args)
         self.input = T.matrix(name='input', dtype=Tconf.floatX)
         self.output, self.regularisation = self.model.predict(self.input, args)
-        # Separate validation/test output is copy of train network with no dropout 
+        # Separate validation/test output is copy of train network with no dropout
+        # NEED TO CHANGE
         test_args = args.copy()
         test_args['dropout_dict'] = None
         test_args['mode'] = 'validation'
@@ -290,9 +291,8 @@ class Train():
         '''Get parameter updates given cost'''
         # Load variables a check valid
         lr = args['learning_rate']*self.learning_rate_correction()
-        lrb = args['lr_bias_multiplier']
+        lrm = args['lr_multipliers']
         assert lr >= 0
-        assert lrb >= 0
         momentum = args['momentum']
         ramp = args['momentum_ramp']
         assert (momentum >= 0 and momentum < 1) or (momentum == None)
@@ -302,13 +302,13 @@ class Train():
         updates = []
         # Standard parameter updates
         if args['algorithm'] == 'SGD':
-            updates = self.SGD_updates(cost, params, args, lr, lrb, mmtm, updates)
+            updates = self.SGD_updates(cost, params, args, lr, lrm, mmtm, updates)
         elif args['algorithm'] == 'NAG':
-            updates = self.NAG_updates(cost, params, args, lr, lrb, mmtm, updates)     
+            updates = self.NAG_updates(cost, params, args, lr, lrm, mmtm, updates)     
         elif args['algorithm'] == 'RMSprop':
-            updates = self.RMSprop_updates(cost, params, args, lr, lrb, updates)  
+            updates = self.RMSprop_updates(cost, params, args, lr, lrm, updates)  
         elif args['algorithm'] == 'RMSNAG':
-            updates = self.RMSNAG_updates(cost, params, args, lr, lrb, mmtm, updates)   
+            updates = self.RMSNAG_updates(cost, params, args, lr, lrm, mmtm, updates)   
         else:
             print('Invalid training algorithm')
             sys.exit(1)
@@ -321,31 +321,35 @@ class Train():
         momentum = mult*end + (1-mult)*start
         return momentum.astype(Tconf.floatX)
     
-    def SGD_updates(self, cost, params, args, lr, lrb, mmtm, updates):
+    def lr_multipliers(self, lr_multipliers, param):
+        '''Return the learning rate multipliers for each listed parameter'''
+        lrm = 1.
+        for key in lr_multipliers:
+            if key in param.name:
+                lrm = lr_multipliers[key]
+                print('Param: %s \t LR Multiplier: %g' % (param, lrm))
+        assert lrm >= 0, "Learning rate multiplier must be nonnegative"
+        return lrm
+    
+    def SGD_updates(self, cost, params, args, lr, lrm, mmtm, updates):
         '''Stochastic gradient descent'''
         for param in params:
-            if param in self.model.b:
-                lr2 = lr * lrb
-            else:
-                lr2 = lr
+            lr = lr * self.lr_multipliers(lrm, param)
             g_param = T.grad(cost, param)
             # If no momentum set variable to None
             if mmtm != None:
                 param_update = TsharedX(param.get_value()*0.,
                                         broadcastable=param.broadcastable)
-                updates.append((param_update, mmtm*param_update - lr2*g_param))
+                updates.append((param_update, mmtm*param_update - l2*g_param))
             else:
-                param_update = lr2*g_param
+                param_update = lr*g_param
             updates.append((param, param + param_update))
         return updates
     
-    def NAG_updates(self, cost, params, args, lr, lrb, mmtm, updates):
+    def NAG_updates(self, cost, params, args, lr, lrm, mmtm, updates):
         '''Nesterov's Accelerated gradient'''
         for param in params:
-                if param in self.model.b:
-                    lr2 = lr * lrb
-                else:
-                    lr2 = lr
+                lr = lr * self.lr_multipliers(lrm, param)
                 if mmtm == None:
                     print('For NAG require momentum in [0.,1.)')
                     sys.exit(1)
@@ -354,15 +358,16 @@ class Train():
                 # Updates
                 g_param = T.grad(cost, param)
                 # Update momentum
-                updates.append((velocity, mmtm*velocity - lr2*g_param))
-                updates.append((param, param - lr2*g_param + mmtm*velocity))
+                updates.append((velocity, mmtm*velocity - lr*g_param))
+                updates.append((param, param - lr*g_param + mmtm*velocity))
         return updates
     
-    def RMSprop_updates(self, cost, params, args, lr, lrb, updates):
+    def RMSprop_updates(self, cost, params, args, lr, lrm, updates):
         '''Hinton's RMSprop (Coursera lecture 6)'''
         RMScoeff = args['RMScoeff']
         RMSreg = args['RMSreg']
         for param in params:
+            lr = lr * self.lr_multipliers(lrm, param)
             g_param = T.grad(cost, param)
             ms = TsharedX(param.get_value()*0.,broadcastable=param.broadcastable)
             updates.append((ms, RMScoeff*ms + (1-RMScoeff)*(g_param**2)))
@@ -370,15 +375,12 @@ class Train():
             updates.append((param, param - param_update))
         return updates
     
-    def RMSNAG_updates(self, cost, params, args, lr, lrb, mmtm, updates):
+    def RMSNAG_updates(self, cost, params, args, lr, lrm, mmtm, updates):
         '''RMSpropr with NAG'''
         RMScoeff = args['RMScoeff']
         RMSreg = args['RMSreg']
         for param in params:
-            if param in self.model.b:
-                lr2 = lr * lrb
-            else:
-                lr2 = lr
+            lr = lr * self.lr_multipliers(lrm, param)
             if mmtm == None:
                 print('For NAG require momentum in [0.,1.)')
                 sys.exit(1)
@@ -392,9 +394,9 @@ class Train():
             updates.append((ms, RMScoeff*ms + (1-RMScoeff)*(g_param**2)))
             param_update = g_param/(T.sqrt(ms) + RMSreg)
             # Update momentum
-            updates.append((velocity, mmtm*velocity - lr2*param_update))
+            updates.append((velocity, mmtm*velocity - lr*param_update))
             # Update parameters
-            updates.append((param, param - lr2*g_param + mmtm*velocity))
+            updates.append((param, param - lr*g_param + mmtm*velocity))
         return updates
     
     def max_norm(self, updates, args):
@@ -403,30 +405,20 @@ class Train():
         if max_row_norm == None:
             pass
         else:         
-            norm = args['norm']
-            if norm == 'L2':  
-                for i, update in enumerate(updates):
-                    param, param_update = update
-                    if param in self.model.W:
+            for i, update in enumerate(updates):
+                param, param_update = update
+                if param in self.model.W:
+                    if args['norm'] == 'L2':
                         row_norms = T.sqrt(T.sum(T.sqr(param_update), axis=1, keepdims=True))
-                        desired_norms = T.clip(row_norms, 0, max_row_norm)
-                        constrained_W = param_update * (desired_norms / (1e-7 + row_norms))
-                        # Tuples are immutable
-                        updates_i = list(updates[i])
-                        updates_i[1] = constrained_W
-                        updates[i] = tuple(updates_i)
-            elif norm == 'Linf':
-                for i, update in enumerate(updates):
-                    param, param_update = update
-                    if param in self.model.W:
+                    elif args['norm'] == 'Linf':
                         row_norms = T.max(T.abs_(param_update), axis=1, keepdims=True)
-                        desired_norms = T.clip(row_norms, 0, max_row_norm)
-                        constrained_W = param_update * (desired_norms / (1e-7 + row_norms))
-                        # Tuples are immutable
-                        updates_i = list(updates[i])
-                        updates_i[1] = constrained_W
-                        updates[i] = tuple(updates_i)
-    
+                    desired_norms = T.clip(row_norms, 0, max_row_norm)
+                    constrained_W = param_update * (desired_norms / (1e-7 + row_norms))
+                    # Tuples are immutable
+                    updates_i = list(updates[i])
+                    updates_i[1] = constrained_W
+                    updates[i] = tuple(updates_i)
+
     def learning_rate_correction(self):
         '''Learning rate schedule - COMPLICATED, NEED TO SORT OUT'''
         # Get learning rate tuple for this epoch
@@ -480,79 +472,5 @@ class Train():
     def log_stats(self):
         '''Make copies of the parameter statistics'''
         pass
-    
 
-if __name__ == '__main__':
-        
-    args = {
-        'algorithm' : 'RMSNAG',
-        'RMScoeff' : 0.9,
-        'RMSreg' : 1e-3,
-        'mode' : 'training',
-        'learning_type' : 'classification',
-        'num_classes' : 10,
-        'train_cost_type' : 'nll',
-        'valid_cost_type' : 'accuracy',
-        'layer_sizes' : (784, 800, 800, 10),
-        'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
-        'data_address' : './data/mnist.pkl.gz',
-        'binarize': False,
-        'learning_rate' : 1e-4,
-        'lr_bias_multiplier' : 2.,
-        'learning_rate_margin' : (0,200,300),
-        'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
-        'momentum' : 0.9,
-        'momentum_ramp' : 0,
-        'batch_size' : 128,
-        'num_epochs' : 500,
-        'prior_variance' : 1e-4,
-        'norm' : None,
-        'max_row_norm' : None,
-        'sparsity' : None, 
-        'dropout_dict' : None,
-        'logit_anneal' : None,
-        'cov' : False,
-        'validation_freq' : 5,
-        'save_freq' : 50,
-        'save_name' : 'pkl/DWGN.pkl'
-        }
-    
-    if args['sparsity'] != None:
-        # Just for now until we sort ourselves out. Promise xx
-        c = 1
-        N = args['layer_sizes'][0]
-        Y = args['layer_sizes'][-1]
-        t = total_weights(args['layer_sizes'])
-        H = layer_from_sparsity(N, Y, t, 1., 1-args['sparsity'], c)
-        args['layer_sizes'] = write_neurons(N, H, Y, c)
-        args['connectivity'] = (1.,) + (1-args['sparsity'],)*c + (1.,)
-        args['nonlinearities'] = ('ReLU',) + ('ReLU',)*c + ('SoftMax',)
-        print args['layer_sizes'], args['connectivity']
-    
-    if args['dropout_dict'] == True:
-        dropout_dict = {}
-        for i in numpy.arange(len(args['nonlinearities'])):
-            name = 'layer' + str(i)
-            shape = (args['layer_sizes'][i],1)
-            if i == 0:
-                # Need to cast to floatX or the computation gets pushed to the CPU
-                prior = 0.8*numpy.ones(shape).astype(Tconf.floatX)
-            else:
-                prior = 0.5*numpy.ones(shape).astype(Tconf.floatX)
-            sub_dict = { name : {'seed' : 234,
-                                 'values' : prior}}
-            dropout_dict.update(sub_dict)
-        args['dropout_dict'] = dropout_dict
-    
-    tr = Train()
-    tr.build(Dgwn, args)
-    tr.load_data(args)
-    monitor = tr.train(args)
-    
-    '''
-    TODO:
-    - VARIATIONAL
-    - FAST
-    - PRETRAINING
-    - CONVOLUTIONS
-    ''' 
+
