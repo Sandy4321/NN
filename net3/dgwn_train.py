@@ -35,7 +35,7 @@ args = {
     'cov' : False,
     'validation_freq' : 5,
     'save_freq' : 50,
-    'save_name' : 'pkl/DWGNreg.pkl'
+    'save_name' : 'pkl/DGWNreg.pkl'
     }
 
 if args['sparsity'] != None:
