@@ -34,11 +34,12 @@ SNR = []
 for i in numpy.arange(3):
     Mname = 'M' + str(i)
     Rname = 'R' + str(i)
-    SNR.append(M[Mname]/S[Rname])
-
-    fig = plt.figure()
+    SNR.append(numpy.abs([Mname])/S[Rname])
+    values, base = np.histogram(SNR[-1].flatten(), bins=100)
+    values = numpy.cumsum(values)
     
-    plt.hist(SNR[-1].flatten(), bins=100)
+    fig = plt.figure()
+    plt.plot(base[:-1],values)
     plt.show()
 
 
