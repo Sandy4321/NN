@@ -35,9 +35,10 @@ for i in numpy.arange(3):
     Mname = 'M' + str(i)
     Rname = 'R' + str(i)
     SNR.append(M[Mname]/S[Rname])
-    
+
     fig = plt.figure()
-    plt.hist(SNR[-1], bins=100)
+    
+    plt.hist(SNR[-1].flatten(), bins=100)
     plt.show()
 
 
