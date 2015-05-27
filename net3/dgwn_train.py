@@ -6,9 +6,9 @@ from DGWN import Dgwn
 from train import Train
 
 args = {
-    'algorithm' : 'RMSNAG',
-    'RMScoeff' : 0.9,
-    'RMSreg' : 1e-3,
+    'algorithm' : 'SGD',
+    'RMScoeff' : None,
+    'RMSreg' : None,
     'mode' : 'training',
     'learning_type' : 'classification',
     'num_classes' : 10,
@@ -18,7 +18,7 @@ args = {
     'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
     'data_address' : './data/mnist.pkl.gz',
     'binarize': False,
-    'learning_rate' : 1e-4,
+    'learning_rate' : 1e-1,
     'lr_multipliers' : {'b' : 2., 'R' : 1e0},
     'learning_rate_margin' : (0,200,300),
     'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
