@@ -23,9 +23,9 @@ M = {}
 S = {}
 
 for param in params:
-    if 'M' in param:
+    if 'M' in param.name:
         M[param] = param.get_value()
-    elif 'R' in param:
+    elif 'R' in param.name:
         R = param.get_value()
         S[param] = numpy.log(1. + numpy.exp(R))
 
