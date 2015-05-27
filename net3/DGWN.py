@@ -30,6 +30,7 @@ class Dgwn():
         self.num_layers = len(self.ls) - 1
         self.dropout_dict = args['dropout_dict']
         self.prior_variance = args['prior_variance']
+        #self.num_c = args['num_components']
         
         self.b = [] # Neuron biases
         self.M = [] # Connection weight means
@@ -53,6 +54,7 @@ class Dgwn():
             R_value = numpy.asarray(R_value, dtype=Tconf.floatX)
             Rname = 'R' + str(i)
             self.R.append(TsharedX(R_value, Rname, borrow=True))
+            # The mixing component mask
             
         for M, R, b in zip(self.M, self.R, self.b):
             self._params.append(M)
@@ -103,9 +105,15 @@ class Dgwn():
         
     def gaussian_sampler(self, layer, size):
         '''Return a standard gaussian vector'''
-        name = 'layer' + str(layer)
         smrg = MRG_RandomStreams(seed=234)
         rng = smrg.normal(size=size)
+        return rng
+    
+    def integer_sampler(self, layer, size, num_c):
+        '''Return a mask of ints to sample the mixing components'''
+        smrg = MRG_RandomStreams(seed=234)
+        rng = smrg.uniform(size=size)
+        rng = T.floor(rng * num_c)
         return rng
     
     def extra_samples(self, X, args):
