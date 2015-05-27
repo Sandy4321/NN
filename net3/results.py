@@ -37,7 +37,7 @@ for i in numpy.arange(3):
     SNR.append(M[Mname]/S[Rname])
     
     fig = plt.figure()
-    plt.hist(SNR[-1])
+    plt.hist(SNR[-1], 100)
     plt.show()
 
 
