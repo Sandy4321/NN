@@ -34,7 +34,7 @@ SNR = []
 for i in numpy.arange(3):
     Mname = 'M' + str(i)
     Rname = 'R' + str(i)
-    SNR.append(numpy.abs([Mname])/S[Rname])
+    SNR.append(numpy.abs(M[Mname])/S[Rname])
     values, base = np.histogram(SNR[-1].flatten(), bins=100)
     values = numpy.cumsum(values)
     
