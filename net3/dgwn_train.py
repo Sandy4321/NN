@@ -26,7 +26,7 @@ args = {
     'momentum_ramp' : 0,
     'batch_size' : 128,
     'num_epochs' : 500,
-    'prior_variance' : 1e-4,
+    'prior_variance' : 1e-3,
     'num_samples' : 1,
     'norm' : None,
     'max_row_norm' : None,
