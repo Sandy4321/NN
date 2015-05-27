@@ -1,58 +1,65 @@
 '''Plot results of dropout mixture model'''
-from __future__ import print_function
-
-import fnmatch
 import os
 
 import cPickle
-import matplotlib.cm as cm
-import numpy as np
+import numpy 
 
 from matplotlib import pyplot as plt
-from matplotlib import animation
 
-file_name = '/home/daniel/Code/NN/net3/train_var/sparsenodrop.pkl'
+
+file_name = '/home/daniel/Code/NN/net3/pkl/DWGNreg.pkl'
 
 stream = open(file_name, 'r')
 state = cPickle.load(stream)
 stream.close()
 
 monitor = state['monitor']
-XXT = monitor['XXT']
-'''
-files = []
+args = state['hyperparams']
+print('Validation cost %f' % (monitor['best_cost'],))
 
-fig, ax = plt.subplots(figsize=(10,10))
-for i in range(len(XXT)): 
-    plt.cla()
-    plt.imshow(XXT[i], interpolation='nearest', cmap='gray')
-    fname = '_tmp%03d.png'%i
-    print('Saving frame', fname)
-    plt.savefig(fname)
-    files.append(fname)
+params = monitor['best_model']
 
-print('Making movie animation.mpg - this make take a while')
-os.system("mencoder 'mf://_tmp*.png' -mf type=png:fps=10 -ovc lavc -lavcopts vcodec=wmv2 -oac copy -o animation.mpg")
-#os.system("convert _tmp*.png animation.mng")
+M = {}
+S = {}
 
-# cleanup
-for fname in files: os.remove(fname)
-'''
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
+for param in params:
+    if 'M' in param:
+        M[param] = param.get_value()
+    elif 'R' in param:
+        R = param.get_value()
+        S[param] = numpy.log(1. + numpy.exp(R))
 
-fig = plt.figure(1)
+SNR = []
 
-i = 0
+for i in numpy.arange(3):
+    Mname = 'M' + str(i)
+    Sname = 'S' + str(i)
+    SNR.append(M[Mname]/S[Sname])
+    
+    fig = plt.figure()
+    plt.hist(SNR[-1])
+    plt.show()
 
-im = plt.imshow(XXT[i], cmap='gray')
 
-def updatefig(*args):
-    global i
-    i = np.minimum(i+1,499)
-    im.set_array(XXT[i])
-    return im,
 
-ani = animation.FuncAnimation(fig, updatefig, interval=10, blit=True)
-plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
