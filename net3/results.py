@@ -40,7 +40,7 @@ for i in numpy.arange(3):
     
     fig = plt.figure()
     #plt.plot(base[:-1],values)
-    plt.hist(SNR.flatten[-1],bins=100)
+    plt.hist(SNR[-1].flatten(),bins=100)
     plt.show()
 
 
