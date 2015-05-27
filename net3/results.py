@@ -33,8 +33,8 @@ SNR = []
 
 for i in numpy.arange(3):
     Mname = 'M' + str(i)
-    Sname = 'S' + str(i)
-    SNR.append(M[Mname]/S[Sname])
+    Rname = 'R' + str(i)
+    SNR.append(M[Mname]/S[Rname])
     
     fig = plt.figure()
     plt.hist(SNR[-1])
