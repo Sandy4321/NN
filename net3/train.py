@@ -130,6 +130,7 @@ class Train():
         test_args = args.copy()
         test_args['dropout_dict'] = None
         test_args['mode'] = 'validation'
+        test_args['num_samples'] = 1
         self.test_output, = self.model.predict(self.input, test_args)
         self.target = T.matrix(name='target', dtype=Tconf.floatX)
     
@@ -158,9 +159,15 @@ class Train():
         train_cost_type = args['train_cost_type']
         valid_cost_type = args['valid_cost_type']
         
+        # CHANGE
+        test_args = args.copy()
+        test_args['dropout_dict'] = None
+        test_args['mode'] = 'validation'
+        test_args['num_samples'] = 1
+        
         # Costs and gradients
-        train_cost = self.cost(train_cost_type, self.target, self.output, self.regularisation)
-        valid_cost = self.cost(valid_cost_type, self.target, self.test_output)
+        train_cost = self.cost(train_cost_type, self.target, self.output, args, self.regularisation)
+        valid_cost = self.cost(valid_cost_type, self.target, self.test_output, test_args)
         
         if args['cov'] == True:
             outputs = [valid_cost, self.model.X[1], self.model.XXT[1]]
@@ -269,8 +276,11 @@ class Train():
         self.save_state(save_name, args, monitor)
         return monitor
         
-    def cost(self, cost_type, Y, Yhat, regularisation=0):
+    def cost(self, cost_type, Y, Yhat, args, regularisation=0):
         '''Evaluate the loss between prediction and target'''
+        if 'num_samples' in args:
+            if args['num_samples'] > 0:
+                Y = self.extra_samples(Y, args)
         # Remember data is stored column-wise
         if cost_type == 'MSE':
             loss = 0.5*((Y-Yhat)**2).sum(axis=0)
@@ -340,7 +350,7 @@ class Train():
             if mmtm != None:
                 param_update = TsharedX(param.get_value()*0.,
                                         broadcastable=param.broadcastable)
-                updates.append((param_update, mmtm*param_update - l2*g_param))
+                updates.append((param_update, mmtm*param_update - lr*g_param))
             else:
                 param_update = lr*g_param
             updates.append((param, param + param_update))
@@ -472,5 +482,11 @@ class Train():
     def log_stats(self):
         '''Make copies of the parameter statistics'''
         pass
-
+    
+    def extra_samples(self, X, args):
+        '''Make parallel copies of the data'''
+        mode = args['mode']
+        n = args['num_samples']
+        Y = T.concatenate([X,]*args['num_samples'], axis=1)
+        return Y
 

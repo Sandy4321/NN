@@ -36,19 +36,19 @@ class Dgwn():
         self.R = [] # Connection weight variances (S = log(1+exp(R)))
         self._params = []
         for i in numpy.arange(self.num_layers):
-            # Biases
-            b_value = 0.01*numpy.ones((self.ls[i+1],))[:,numpy.newaxis]
+            # Biases initialized from zero
+            b_value = numpy.zeros((self.ls[i+1],))[:,numpy.newaxis]
             b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
             bname = 'b' + str(i)
             self.b.append(TsharedX(b_value, bname, borrow=True,
                                    broadcastable=(False,True)))
-            # Connection weight means
+            # Connection weight means initialized from zero
             M_value = numpy.zeros((self.ls[i+1],self.ls[i]))
             M_value = numpy.asarray(M_value, dtype=Tconf.floatX)
             Mname = 'M' + str(i)
             self.M.append(TsharedX(M_value, Mname, borrow=True))
-            # Connection weight root variances
-            coeff = numpy.sqrt(self.prior_variance)
+            # Connection weight root variances initialized from prior
+            coeff = numpy.log(numpy.exp(numpy.sqrt(self.prior_variance))-1.)
             R_value = coeff*numpy.ones((self.ls[i+1],self.ls[i]))
             R_value = numpy.asarray(R_value, dtype=Tconf.floatX)
             Rname = 'R' + str(i)
@@ -63,14 +63,16 @@ class Dgwn():
         '''Single layer'''
         nonlinearity = args['nonlinearities'][layer]
         M = T.dot(self.M[layer],X)
-        S = T.dot(T.log(1 + T.exp(self.R[layer])),X)
+        S = T.sqrt(T.dot(T.log(1 + T.exp(self.R[layer]))**2,X**2))
         E = self.gaussian_sampler(layer, S.shape)
-        H = M + 0.01*S*E + self.b[layer]
+        H = M + S*E + self.b[layer]
         # Nonlinearity
         if nonlinearity == 'ReLU':
             f = lambda x : (x > 0) * x
         elif nonlinearity == 'SoftMax':
             f = Tnet.softmax
+        elif nonlinearity == 'linear':
+            f = lambda x : x
         else:
             print('Invalid nonlinearity')
             sys.exit(1)
@@ -78,23 +80,23 @@ class Dgwn():
     
     def regularisation(self):
         '''Compute the regularisation'''
-        KL = 0
+        reg = 0.
         for M, R in zip(self.M, self.R):
-            S2 = T.log(1 + T.exp(R))**2
-            P2 = self.prior_variance
-            KL += 0.5 * T.sum(1 + T.log(S2/P2) - ((M**2)/P2) - (S2/P2))
-        return KL
+            S2 = T.log(1. + T.exp(R))
+            P = T.sqrt(self.prior_variance)
+            reg += 0.5 * T.sum(-T.ones_like(S2/P) - 2*T.log(S2/P) + M**2 + (S2/P)**2)
+        return 0.*reg
     
     def predict(self, X, args):
         '''Full MLP'''
         self.dropout_dict = args['dropout_dict']
         if 'num_samples' in args:
             if args['num_samples'] > 0:
-                X = self.extra_samples(X,args['num_samples'])
+                X = self.extra_samples(X,args)
         for i in numpy.arange(self.num_layers):
             X = self.encode_layer(X, i, args)
         if args['mode'] == 'training':
-            X = (X, 0) # -self.regularisation()) 
+            X = (X, self.regularisation()) 
         elif args['mode'] == 'validation':
             X = (X,)
         return X
@@ -106,16 +108,16 @@ class Dgwn():
         rng = smrg.normal(size=size)
         return rng
     
-    def extra_samples(self, X, n):
+    def extra_samples(self, X, args):
         '''Make parallel copies of the data'''
-        Y = T.concatenate([X,]*n, axis=1)
-        print('Number of samples: %i' % (n,))
+        mode = args['mode']
+        n = args['num_samples']
+        Y = T.concatenate([X,]*args['num_samples'], axis=1)
+        print('Mode: %s, Number of samples: %i' % (mode, n))
         return Y
         
 '''
 TODO:
-- REGULARISATION
-- NUMBER OF SAMPLES
 - EXPLORE INITIALISATION
 - COMBINE WITH DROPOUT
 - DEEP MoEs
