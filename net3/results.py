@@ -37,7 +37,7 @@ for i in numpy.arange(3):
     SNR.append(numpy.log(1e-6+ numpy.abs(M[Mname])/S[Rname]))
     values, base = numpy.histogram(SNR[-1].flatten(), bins=100)
     values = numpy.cumsum(values)
-    values = values/values[-1]
+    values = values/float(values[-1])
     
     fig = plt.figure()
     plt.plot(base[:-1],values)
