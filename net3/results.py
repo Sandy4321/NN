@@ -35,11 +35,12 @@ for i in numpy.arange(3):
     Mname = 'M' + str(i)
     Rname = 'R' + str(i)
     SNR.append(numpy.abs(M[Mname])/S[Rname])
-    values, base = numpy.histogram(SNR[-1].flatten(), bins=100)
+    #values, base = numpy.histogram(SNR[-1].flatten(), bins=100)
     #values = numpy.cumsum(values)
     
     fig = plt.figure()
-    plt.plot(base[:-1],values)
+    #plt.plot(base[:-1],values)
+    plt.hist(SNR.flatten[-1],bins=100)
     plt.show()
 
 
