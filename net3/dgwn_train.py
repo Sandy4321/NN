@@ -6,7 +6,7 @@ from DGWN import Dgwn
 from train import Train
 
 args = {
-    'algorithm' : 'SGD',
+    'algorithm' : 'RMSNAG',
     'RMScoeff' : 0.9,
     'RMSreg' : 1e-3,
     'mode' : 'training',
