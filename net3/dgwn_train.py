@@ -6,9 +6,9 @@ from DGWN import Dgwn
 from train import Train
 
 args = {
-    'algorithm' : 'SGD',
-    'RMScoeff' : None,
-    'RMSreg' : None,
+    'algorithm' : 'RMSNAG',
+    'RMScoeff' : 0.9,
+    'RMSreg' : 1e-3,
     'mode' : 'training',
     'learning_type' : 'classification',
     'num_classes' : 10,
