@@ -1,25 +1,28 @@
 '''DWGN train file'''
 
+import os, time, sys
+
+import cPickle
 import numpy
 
 from DGWN import Dgwn
-from train import Train
+from train import DivergenceError, Train
 
 args = {
-    'algorithm' : 'RMSNAG',
-    'RMScoeff' : 0.9,
-    'RMSreg' : 1e-3,
+    'algorithm' : 'SGD',
+    'RMScoeff' : None,
+    'RMSreg' : None,
     'mode' : 'training',
     'learning_type' : 'classification',
     'num_classes' : 10,
-    'train_cost_type' : 'nll',
+    'train_cost_type' : 'cross_entropy',
     'valid_cost_type' : 'accuracy',
     'layer_sizes' : (784, 800, 800, 10),
     'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
     'data_address' : './data/mnist.pkl.gz',
     'binarize': False,
     'learning_rate' : 1e-4,
-    'lr_multipliers' : {'b' : 2., 'R' : 1e0},
+    'lr_multipliers' : {'b' : 2., 'R' : 1.},
     'learning_rate_margin' : (0,200,300),
     'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
     'momentum' : 0.9,
@@ -27,7 +30,7 @@ args = {
     'batch_size' : 128,
     'num_epochs' : 500,
     'prior_variance' : 1e-3,
-    'num_components' : 2,
+    'num_components' : 1,
     'num_samples' : 1,
     'norm' : None,
     'max_row_norm' : None,
@@ -65,8 +68,14 @@ if args['dropout_dict'] == True:
                              'values' : prior}}
         dropout_dict.update(sub_dict)
     args['dropout_dict'] = dropout_dict
-
+    
 tr = Train()
 tr.build(Dgwn, args)
 tr.load_data(args)
 monitor = tr.train(args)
+
+
+
+    
+    
+    

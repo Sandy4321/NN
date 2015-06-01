@@ -102,25 +102,15 @@ class Autoencoder():
     def dropout(self, layer, size):
         '''Return a random dropout vector'''
         name = 'layer' + str(layer)
-        vname = 'dropout' + str(layer)
         if name in self.dropout_dict:
-            print name
             sub_dict = self.dropout_dict[name]
             cseed = sub_dict['seed']
-            ctype = sub_dict['type']
-            cvalues = TsharedX(sub_dict['values'], vname, broadcastable=(False, True))
-            
-            if ctype == 'unbiased':
-                # Construct RNG
-                smrg = MRG_RandomStreams(seed=cseed)
-                rng = smrg.uniform(size=size)
-                # Evaluate RNG
-                dropmult = (rng < cvalues) / cvalues
-        else:
-            dropmult = 1.
-        
+            # Construct RNG
+            smrg = MRG_RandomStreams(seed=cseed)
+            rng = smrg.uniform(size=size)
+            # Evaluate RNG
+            dropmult = (rng < self.q[layer]) / self.q[layer]
         return dropmult
-    
     
     
     

@@ -9,13 +9,13 @@ from matplotlib import pyplot as plt
 from PIL import Image
 
 for i in numpy.arange(1):
-    fname = './pkl/DWGNreg.pkl'
+    fname = './pkl/DGWNreg.pkl'
     stream = open(fname, 'r')
     state = cPickle.load(stream)
     stream.close()
     
     monitor = state['monitor']
-    args = state['hyperparams']
+    args = state['args']
     print('Validation cost %f' % (monitor['best_cost'],))
     
     params = monitor['best_model']
@@ -35,7 +35,7 @@ for i in numpy.arange(1):
         tc = numpy.vstack((tc,cost[:,numpy.newaxis]))
     fig = plt.figure()
     plt.plot(tc,'r')
-    plt.ylim([2.,4.])
+    #plt.ylim([2.,4.])
     plt.show()
     
     fig = plt.figure()

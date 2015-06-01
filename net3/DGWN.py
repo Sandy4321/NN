@@ -83,11 +83,12 @@ class Dgwn():
     def regularisation(self):
         '''Compute the regularisation'''
         reg = 0.
-        for M, R in zip(self.M, self.R):
-            S2 = T.log(1. + T.exp(R))
+        for layer in numpy.arange(len(self.M)):
+            S2 = T.log(1. + T.exp(self.R[layer]))
             P = T.sqrt(self.prior_variance)
-            reg += 0.5 * T.sum(-T.ones_like(S2/P) - 2*T.log(S2/P) + M**2 + (S2/P)**2)
-        return 0.*reg
+            M = self.M[layer]
+            reg += T.sum(T.log(S2/P) - 0.5 + 0.5*(((P**2) + (M**2))/(S2**2)))
+        return reg
     
     def predict(self, X, args):
         '''Full MLP'''
@@ -123,6 +124,11 @@ class Dgwn():
         Y = T.concatenate([X,]*args['num_samples'], axis=1)
         print('Mode: %s, Number of samples: %i' % (mode, n))
         return Y
+    
+    def load_from_pkl(self, a):
+        '''Load the pickled network'''
+        pass
+        
         
 '''
 TODO:

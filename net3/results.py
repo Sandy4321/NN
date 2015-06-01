@@ -34,10 +34,12 @@ SNR = []
 for i in numpy.arange(3):
     Mname = 'M' + str(i)
     Rname = 'R' + str(i)
-    SNR.append(numpy.log(1e-6+ numpy.abs(M[Mname])/S[Rname]))
+    SNRreg = numpy.abs(M[Mname])/S[Rname] + numpy.log(S[Rname])
+    minSNR = numpy.amin(SNRreg)
+    SNR.append(numpy.log(1e-6 - minSNR + SNRreg))
     values, base = numpy.histogram(SNR[-1].flatten(), bins=100)
-    values = numpy.cumsum(values)
-    values = values/float(values[-1])
+    v = numpy.cumsum(values)
+    values = values/float(v[-1])
     
     fig = plt.figure()
     plt.plot(base[:-1],values)

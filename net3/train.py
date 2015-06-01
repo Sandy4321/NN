@@ -166,19 +166,19 @@ class Train():
         test_args['num_samples'] = 1
         
         # Costs and gradients
-        train_cost = self.cost(train_cost_type, self.target, self.output, args, self.regularisation)
-        valid_cost = self.cost(valid_cost_type, self.target, self.test_output, test_args)
+        train_cost, batch_train = self.cost(train_cost_type, self.target, self.output, args)
+        valid_cost, batch_valid = self.cost(valid_cost_type, self.target, self.test_output, test_args)
         
         if args['cov'] == True:
             outputs = [valid_cost, self.model.X[1], self.model.XXT[1]]
         else:
             outputs = valid_cost
         
-        updates = self.updates(train_cost, params, args)
+        updates = self.updates(train_cost, params, batch_train, args, self.regularisation)
         Tfuncs = {}
         Tfuncs['train_model'] = Tfunction(
             inputs=[index],
-            outputs=train_cost,
+            outputs=[train_cost, self.regularisation],
             updates=updates,
             givens={
                 self.input: self.train_x[:,index*batch_size:(index+1)*batch_size],
@@ -221,12 +221,14 @@ class Train():
 
         for self.epoch in numpy.arange(num_epochs):
             ep = '[EPOCH %05d]' % (self.epoch,)
-            
             # Train
             train_cost = numpy.zeros(num_train_batches)
+            reg = numpy.zeros(num_train_batches)
             for batch in numpy.arange(num_train_batches):
-                train_cost[batch] = train_model(batch)
-            tc = train_cost.mean()
+                train_cost[batch], reg[batch] = train_model(batch)
+            tc = (train_cost.sum()+reg.mean())/self.num_train
+            train_cost += (reg/reg.shape[0])
+            # I REALLY NEED TO RETHINK THE WAY HOW I DO THIS
             monitor['train_cost'].append(train_cost)
             print('%s%s Training cost: %f' % (ep, n(s), tc,)),
             self.check_real(tc)
@@ -247,7 +249,7 @@ class Train():
                         XXT += XXTtemp
                     else:
                         valid_cost[batch] = validate_model(batch)
-                vc = valid_cost.mean()
+                vc = valid_cost.sum()/self.num_valid
                 monitor['valid_cost'].append(vc)
                 if args['cov'] == True:
                     XXT = XXT/self.num_valid - numpy.dot(X,X.T)/(self.num_valid**2)
@@ -276,7 +278,7 @@ class Train():
         self.save_state(save_name, args, monitor)
         return monitor
         
-    def cost(self, cost_type, Y, Yhat, args, regularisation=0):
+    def cost(self, cost_type, Y, Yhat, args):
         '''Evaluate the loss between prediction and target'''
         if 'num_samples' in args:
             if args['num_samples'] > 0:
@@ -291,13 +293,13 @@ class Train():
         elif cost_type == 'accuracy':
             Yhatmax = T.argmax(Yhat, axis=0)
             Ymax = T.argmax(Y, axis=0)
-            loss = T.mean(T.eq(Ymax,Yhatmax))
+            loss = T.sum(T.eq(Ymax,Yhatmax))
         else:
             print('Invalid cost')
             sys.exit(1)
-        return loss.mean() + regularisation
+        return (T.sum(loss), Y.shape[1])
     
-    def updates(self, cost, params, args):
+    def updates(self, cost, params, batch_size, args, regularisation=0):
         '''Get parameter updates given cost'''
         # Load variables a check valid
         lr = args['learning_rate']*self.learning_rate_correction()
@@ -307,6 +309,7 @@ class Train():
         ramp = args['momentum_ramp']
         assert (momentum >= 0 and momentum < 1) or (momentum == None)
         mmtm = self.momentum_ramp(0.5, momentum, ramp)
+        cost = (cost + self.regulariser_weight(batch_size)*regularisation)/batch_size
 
         # File updates
         updates = []
@@ -324,6 +327,10 @@ class Train():
             sys.exit(1)
         self.max_norm(updates, args)
         return updates
+    
+    def regulariser_weight(self, batch_size):
+        '''As on the tin'''
+        return (1.*batch_size)/self.num_train
     
     def momentum_ramp(self, start, end, ramp):
         '''Use a momentum ramp at the beginning'''
@@ -466,14 +473,20 @@ class Train():
             print('INF error')
             raise DivergenceError('mc')
     
-    def load_state(self):
+    def load_state(self, address):
         '''Load data from a pkl file'''
-        pass
+        print('Loading file')
+        fp = open(address, 'r')
+        state = cPickle.load(fp)
+        args = state['args']
+        monitor = state['monitor']
+        fp.close()
+        # HMM
     
     def save_state(self, fname, args, monitor=None):
         '''Save data to a pkl file'''
         print('Pickling: %s' % (fname,))
-        state = {'hyperparams' : args,
+        state = {'args' : args,
                  'monitor' : monitor}
         stream = open(fname,'w')
         cPickle.dump(state, stream, protocol=cPickle.HIGHEST_PROTOCOL)
@@ -489,4 +502,28 @@ class Train():
         n = args['num_samples']
         Y = T.concatenate([X,]*args['num_samples'], axis=1)
         return Y
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
