@@ -117,12 +117,15 @@ class Train():
             self.test_y = self.gpu_type(test_y.T)
         else:
             print('Invalid learning type')
-            sys.exit(1)         
-        
-    def build(self, model, args):
+            sys.exit(1)
+    
+    def construct(self, model, args):
         '''Construct the model'''
-        print('Building model')
+        print('Constructing the model')
         self.model = model(args)
+        
+    def build(self, args):
+        '''Connect inputs/outputs of the model'''
         self.input = T.matrix(name='input', dtype=Tconf.floatX)
         self.output, self.regularisation = self.model.predict(self.input, args)
         # Separate validation/test output is copy of train network with no dropout
@@ -130,7 +133,6 @@ class Train():
         test_args = args.copy()
         test_args['dropout_dict'] = None
         test_args['mode'] = 'validation'
-        test_args['num_samples'] = 1
         self.test_output, = self.model.predict(self.input, test_args)
         self.target = T.matrix(name='target', dtype=Tconf.floatX)
     
@@ -151,6 +153,7 @@ class Train():
         self.lr_idx = 0
         self.last_idx = 0
         self.current_lr_idx = 0
+        self.batch = 0
         # Variational dropout mask
         self.dropout_dict = args['dropout_dict']
  
@@ -163,7 +166,6 @@ class Train():
         test_args = args.copy()
         test_args['dropout_dict'] = None
         test_args['mode'] = 'validation'
-        test_args['num_samples'] = 1
         
         # Costs and gradients
         train_cost, batch_train = self.cost(train_cost_type, self.target, self.output, args)
@@ -184,7 +186,7 @@ class Train():
                 self.input: self.train_x[:,index*batch_size:(index+1)*batch_size],
                 self.target: self.train_y[:,index*batch_size:(index+1)*batch_size]
             }
-        )
+        )    
         Tfuncs['validate_model'] = Tfunction(
             inputs=[index],
             outputs=outputs,
@@ -224,8 +226,8 @@ class Train():
             # Train
             train_cost = numpy.zeros(num_train_batches)
             reg = numpy.zeros(num_train_batches)
-            for batch in numpy.arange(num_train_batches):
-                train_cost[batch], reg[batch] = train_model(batch)
+            for self.batch in numpy.arange(num_train_batches):
+                train_cost[self.batch], reg[self.batch] = train_model(self.batch)
             tc = (train_cost.sum()+reg.mean())/self.num_train
             train_cost += (reg/reg.shape[0])
             # I REALLY NEED TO RETHINK THE WAY HOW I DO THIS
@@ -281,7 +283,7 @@ class Train():
     def cost(self, cost_type, Y, Yhat, args):
         '''Evaluate the loss between prediction and target'''
         if 'num_samples' in args:
-            if args['num_samples'] > 0:
+            if args['num_samples'] > 1:
                 Y = self.extra_samples(Y, args)
         # Remember data is stored column-wise
         if cost_type == 'MSE':
@@ -297,6 +299,9 @@ class Train():
         else:
             print('Invalid cost')
             sys.exit(1)
+        if 'num_samples' in args:
+            if args['num_samples'] > 1:
+                loss = loss/(args['num_samples']*1.)
         return (T.sum(loss), Y.shape[1])
     
     def updates(self, cost, params, batch_size, args, regularisation=0):
@@ -309,7 +314,7 @@ class Train():
         ramp = args['momentum_ramp']
         assert (momentum >= 0 and momentum < 1) or (momentum == None)
         mmtm = self.momentum_ramp(0.5, momentum, ramp)
-        cost = (cost + self.regulariser_weight(batch_size)*regularisation)/batch_size
+        cost = cost + regularisation*self.reg_mult(batch_size)
 
         # File updates
         updates = []
@@ -328,15 +333,21 @@ class Train():
         self.max_norm(updates, args)
         return updates
     
-    def regulariser_weight(self, batch_size):
-        '''As on the tin'''
-        return (1.*batch_size)/self.num_train
+    def reg_mult(self, batch_size):
+        '''The regularisation multiplier'''
+        M = self.num_train/(1.*batch_size)
+        rm = 1./M
+        return rm
     
     def momentum_ramp(self, start, end, ramp):
         '''Use a momentum ramp at the beginning'''
-        mult = numpy.minimum(self.epoch, ramp) / numpy.maximum(ramp*1., 1.)
-        momentum = mult*end + (1-mult)*start
-        return momentum.astype(Tconf.floatX)
+        if end != None:
+            mult = numpy.minimum(self.epoch, ramp) / numpy.maximum(ramp*1., 1.)
+            momentum = mult*end + (1-mult)*start
+            momentum = momentum.astype(Tconf.floatX)
+        else:
+            momentum = None
+        return momentum
     
     def lr_multipliers(self, lr_multipliers, param):
         '''Return the learning rate multipliers for each listed parameter'''
@@ -473,7 +484,7 @@ class Train():
             print('INF error')
             raise DivergenceError('mc')
     
-    def load_state(self, address):
+    def load_state(self, model, address):
         '''Load data from a pkl file'''
         print('Loading file')
         fp = open(address, 'r')
@@ -481,7 +492,9 @@ class Train():
         args = state['args']
         monitor = state['monitor']
         fp.close()
-        # HMM
+        params = monitor['best_model']
+        self.model = model(args)
+        self.model.load_params(params, args)
     
     def save_state(self, fname, args, monitor=None):
         '''Save data to a pkl file'''

@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from PIL import Image
 
 for i in numpy.arange(1):
-    fname = './pkl/DGWNreg.pkl'
+    fname = './pkl/DGWNregm2.pkl'
     stream = open(fname, 'r')
     state = cPickle.load(stream)
     stream.close()
@@ -19,7 +19,7 @@ for i in numpy.arange(1):
     print('Validation cost %f' % (monitor['best_cost'],))
     
     params = monitor['best_model']
-    
+    '''
     for param in params:
         print param
         print('Max: %f' % (numpy.amax(param.get_value()),))
@@ -42,7 +42,23 @@ for i in numpy.arange(1):
     plt.semilogx(monitor['valid_cost'],'b')
     plt.ylim([0.9,1.])
     plt.show()
+    '''
     
+    for i in numpy.arange(3):
+        Mname = 'M' + str(i)
+        j = [j for j, param in enumerate(params) if Mname == param.name][0]
+        M = params[j].get_value()
+        M_value = numpy.asarray(Mb_value, dtype=Tconf.floatX)
+        
+        Rname = 'R' + str(i)
+        j = [j for j, param in enumerate(params) if Rname == param.name][0]
+        R = params[j].get_value()
+        R_value = numpy.asarray(R_value, dtype=Tconf.floatX)
+        S_value = numpy.log(1. + numpy.exp(R_value))
+        
+        SNR = numpy.abs(M_value)/S_value
+        pylab.figure()
+        n, bins, patches = pylab.hist(x, bins, normed=1, histtype='bar', rwidth=0.8)
         
         
         

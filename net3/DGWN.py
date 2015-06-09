@@ -48,8 +48,9 @@ class Dgwn():
             M_value = numpy.asarray(M_value, dtype=Tconf.floatX)
             Mname = 'M' + str(i)
             self.M.append(TsharedX(M_value, Mname, borrow=True))
-            # Connection weight root variances initialized from prior
-            coeff = numpy.log(numpy.exp(numpy.sqrt(self.prior_variance))-1.)
+            # Xavier initialization
+            pre_coeff = 4./(self.ls[i+1] + self.ls[i])
+            coeff = numpy.log(numpy.exp(numpy.sqrt(pre_coeff))-1.)
             R_value = coeff*numpy.ones((self.ls[i+1],self.ls[i]))
             R_value = numpy.asarray(R_value, dtype=Tconf.floatX)
             Rname = 'R' + str(i)
@@ -99,14 +100,14 @@ class Dgwn():
         for i in numpy.arange(self.num_layers):
             X = self.encode_layer(X, i, args)
         if args['mode'] == 'training':
-            X = (X, self.regularisation()) 
+            X = (X, self.regularisation())
         elif args['mode'] == 'validation':
             X = (X,)
         return X
         
     def gaussian_sampler(self, layer, size):
         '''Return a standard gaussian vector'''
-        smrg = MRG_RandomStreams(seed=234)
+        smrg = MRG_RandomStreams(seed=235)
         rng = smrg.normal(size=size)
         return rng
     
@@ -125,9 +126,44 @@ class Dgwn():
         print('Mode: %s, Number of samples: %i' % (mode, n))
         return Y
     
-    def load_from_pkl(self, a):
+    def load_params(self, params, args):
         '''Load the pickled network'''
-        pass
+        '''Construct the MLP expression graph'''
+        self.ls = args['layer_sizes']
+        self.num_layers = len(self.ls) - 1
+        self.dropout_dict = args['dropout_dict']
+        self.prior_variance = args['prior_variance']
+        
+        self.b = [] # Neuron biases
+        self.M = [] # Connection weight means
+        self.R = [] # Connection weight variances (S = log(1+exp(R)))
+        self._params = []
+        for i in numpy.arange(self.num_layers):
+            bname = 'b' + str(i)
+            j = [j for j, param in enumerate(params) if bname == param.name][0]
+            b_value = params[j].get_value()
+            b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
+            self.b.append(TsharedX(b_value, bname, borrow=True,
+                                   broadcastable=(False,True)))
+            # Connection weight means initialized from zero
+            Mname = 'M' + str(i)
+            j = [j for j, param in enumerate(params) if Mname == param.name][0]
+            M_value = params[j].get_value()
+            M_value = numpy.asarray(M_value, dtype=Tconf.floatX)
+            self.M.append(TsharedX(M_value, Mname, borrow=True))
+            # Connection weight root variances initialized from prior
+            Rname = 'R' + str(i)
+            j = [j for j, param in enumerate(params) if Rname == param.name][0]
+            R_value = params[j].get_value()
+            R_value = numpy.asarray(R_value, dtype=Tconf.floatX)
+            self.R.append(TsharedX(R_value, Rname, borrow=True))
+            # The mixing component mask
+            print b_value.shape, M_value.shape, R_value.shape
+            
+        for M, R, b in zip(self.M, self.R, self.b):
+            self._params.append(M)
+            self._params.append(R)
+            self._params.append(b)
         
         
 '''
