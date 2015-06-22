@@ -19,7 +19,6 @@ from matplotlib import pyplot as plt
 from theano import config as Tconf
 from theano import function as Tfunction
 from theano.sandbox.rng_mrg import MRG_RandomStreams
-from theano import sparse as Tsp
 from theano import shared as TsharedX
 from theano.tensor.shared_randomstreams import RandomStreams
 
@@ -36,6 +35,7 @@ class Dgwn():
         self.b = [] # Neuron biases
         self.M = [] # Connection weight means
         self.R = [] # Connection weight variances (S = log(1+exp(R)))
+        self.spl = [] # Sample shape
         self._params = []
         for i in numpy.arange(self.num_layers):
             # Biases initialized from zero
@@ -45,13 +45,14 @@ class Dgwn():
             self.b.append(TsharedX(b_value, bname, borrow=True,
                                    broadcastable=(False,True)))
             # Connection weight means initialized from zero
-            pre_coeff = numpy.sqrt(4./(self.ls[i+1] + self.ls[i]))
+            #pre_coeff = numpy.sqrt(4./(self.ls[i+1] + self.ls[i]))
+            pre_coeff = 0
             M_value = pre_coeff*numpy.random.randn(self.ls[i+1],self.ls[i])
             M_value = numpy.asarray(M_value, dtype=Tconf.floatX)
             Mname = 'M' + str(i)
             self.M.append(TsharedX(M_value, Mname, borrow=True))
             # Xavier initialization
-            pre_coeff = 4./(self.ls[i+1] + self.ls[i])
+            pre_coeff = 0.04/(self.ls[i+1] + self.ls[i])
             coeff = numpy.log(numpy.exp(numpy.sqrt(pre_coeff))-1.)
             R_value = coeff*numpy.ones((self.ls[i+1],self.ls[i]))
             R_value = numpy.asarray(R_value, dtype=Tconf.floatX)
@@ -67,16 +68,27 @@ class Dgwn():
     def encode_layer(self, X, layer, args):
         '''Single layer'''
         nonlinearity = args['nonlinearities'][layer]
-        if hasattr(self, 'pruned'):
-            if self.pruned:
-                M = Tsp.basic.dot(self.M[layer],X)
-                s = Tsp.sqr(Tsp.structured_log(Tsp.structured_add(Tsp.structured_exp(self.R[layer]),1.)))
-                S = T.sqrt(Tsp.basic.dot(s,X**2))
-        else:
-            M = T.dot(self.M[layer],X) 
-            S = T.sqrt(T.dot(T.log(1 + T.exp(self.R[layer]))**2,X**2))
-        E = self.gaussian_sampler(layer, S.shape)
+        '''
+        M = T.dot(self.M[layer],X) 
+        S = T.sqrt(T.dot(T.log(1 + T.exp(self.R[layer]))**2,X**2))
+        E = self.gaussian_sampler(S.shape)
         H = M + S*E + self.b[layer]
+        '''
+        M = self.M[layer]
+        S = T.log(1 + T.exp(self.R[layer]))
+        b = self.b[layer]
+        # Broadcasting rules
+        M = M.dimshuffle(0,'x',1)
+        S = S.dimshuffle(0,'x',1)
+        X = X.dimshuffle('x',1,0)
+        # Sample weights
+        H = []
+        for i in numpy.arange(10):
+            E = self.gaussian_sampler((S.shape[0],10,S.shape[1]))
+            W = M + (S*E)
+            # Forwardprop
+            H.append(T.sum(W*X[:,i*10:(i+1)*10,:], axis=2) + b)
+        H = T.concatenate(H, axis=1)
         # Nonlinearity
         if nonlinearity == 'ReLU':
             f = lambda x : (x > 0) * x
@@ -113,9 +125,9 @@ class Dgwn():
             X = (X,)
         return X
         
-    def gaussian_sampler(self, layer, size):
+    def gaussian_sampler(self, size):
         '''Return a standard gaussian vector'''
-        smrg = MRG_RandomStreams()
+        smrg = MRG_RandomStreams(seed=235)
         rng = smrg.normal(size=size)
         return rng
     
@@ -133,94 +145,8 @@ class Dgwn():
         Y = T.concatenate([X,]*args['num_samples'], axis=1)
         print('Mode: %s, Number of samples: %i' % (mode, n))
         return Y
-    
-    def load_params(self, params, args):
-        '''Load the pickled network'''
-        '''Construct the MLP expression graph'''
-        self.ls = args['layer_sizes']
-        self.num_layers = len(self.ls) - 1
-        self.dropout_dict = args['dropout_dict']
-        self.prior_variance = args['prior_variance']
-        
-        self.b = [] # Neuron biases
-        self.M = [] # Connection weight means
-        self.R = [] # Connection weight variances (S = log(1+exp(R)))
-        self._params = []
-        for i in numpy.arange(self.num_layers):
-            bname = 'b' + str(i)
-            j = [j for j, param in enumerate(params) if bname == param.name][0]
-            b_value = params[j].get_value()
-            b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
-            self.b.append(TsharedX(b_value, bname, borrow=True,
-                                   broadcastable=(False,True)))
-            # Connection weight means initialized from zero
-            Mname = 'M' + str(i)
-            j = [j for j, param in enumerate(params) if Mname == param.name][0]
-            M_value = params[j].get_value()
-            M_value = numpy.asarray(M_value, dtype=Tconf.floatX)
-            self.M.append(TsharedX(M_value, Mname, borrow=True))
-            # Connection weight root variances initialized from prior
-            Rname = 'R' + str(i)
-            j = [j for j, param in enumerate(params) if Rname == param.name][0]
-            R_value = params[j].get_value()
-            R_value = numpy.asarray(R_value, dtype=Tconf.floatX)
-            self.R.append(TsharedX(R_value, Rname, borrow=True))
-            
-        for M, R, b in zip(self.M, self.R, self.b):
-            self._params.append(M)
-            self._params.append(R)
-            self._params.append(b)
-    
-    def prune(self, proportion, scheme):
-        '''Prune the weights according to the prefered scheme'''
-        SNR = []
-        # Cycle through layers
-        for layer in numpy.arange(self.num_layers):
-            Mname = 'M' + str(layer)
-            j = [j for j, param in enumerate(self._params) if Mname == param.name][0]
-            M_value = self._params[j].get_value()
-            Rname = 'R' + str(layer)
-            j = [j for j, param in enumerate(self._params) if Rname == param.name][0]
-            R_value = self._params[j].get_value()
-            S_value = numpy.log(1. + numpy.exp(R_value))
-            if scheme == 'SNR':
-                snr = numpy.log(1e-6 + numpy.abs(M_value)/S_value)
-            elif scheme == 'KL':
-                snr = (M_value/S_value)**2 + numpy.log(S_value)
-                snr_min = numpy.amin(snr)
-                snr = numpy.log(snr - snr_min + 1e-6)
-            SNR.append(snr)
-        hist, bin_edges = self.cumhist(SNR, 1000)
-        # Find cutoff value
-        idx = (hist > proportion)
-        bin_edges = bin_edges[1:]
-        cutoff = numpy.compress(idx, bin_edges)
-        cutoff = numpy.amin(cutoff)
-        self.masks = []
-        for snr in SNR:
-            self.masks.append(snr > cutoff)
-        self.pruned = True
-        self.to_csc()
 
-    def cumhist(self, SNR, nbins):
-        '''Return normalised cumulative histogram of SNR'''
-        SNR = numpy.hstack([snr.flatten() for snr in SNR])
-        # Histogram of SNRs
-        hist, bin_edges = numpy.histogram(SNR, bins=nbins)
-        hist = numpy.cumsum(hist)
-        hist = hist/(hist[-1]*1.)
-        return (hist, bin_edges)
-    
-    def to_csc(self):
-        '''Convert the parameters to sparse matrix form'''
-        for layer in numpy.arange(len(self.masks)):
-            M = self.M[layer]*self.masks[layer]
-            S = T.log(1 + T.exp(self.R[layer]))*self.masks[layer]
-            spM = Tsp.csc_from_dense(M)
-            spS = Tsp.structured_add(Tsp.csc_from_dense(S),-1.)
-            spR = Tsp.structured_log(Tsp.structured_exp(spS))
-            self.M[layer] = spM
-            self.R[layer] = spR
+            
         
 '''
 TODO:

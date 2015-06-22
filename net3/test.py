@@ -14,39 +14,47 @@ import numpy
 import scipy.special as spsp
 import theano
 
-from draw_beta import Draw_beta
+from theano import sparse
 
+X = theano.tensor.matrix('x')
+W = theano.tensor.matrix('W')
+B = theano.tensor.matrix('B')
+H = theano.tensor.dot(B*W,X)
+loss = theano.tensor.sum(H**2)
 
-a = theano.tensor.scalar('a')
-b = theano.tensor.scalar('b')
-u = theano.tensor.matrix('u')
+b = numpy.random.rand(5,40) < 0.5
+w = numpy.arange(200).reshape(5,40).astype(theano.tensor.config.floatX)
+x = numpy.arange(200).reshape(40,5).astype(theano.tensor.config.floatX)
 
-#d_a = 2*numpy.random.random_sample((1000,1)).astype(theano.config.floatX) + 1.
-#d_b = 2*numpy.random.random_sample((1000,1)).astype(theano.config.floatX) + 1.
-d_a = 5.
-d_b = 2.
-d_u = numpy.random.random_sample((1000,1)).astype(theano.config.floatX)
+Tfunc = theano.function([B,W,X],H)
+print Tfunc(b,w,x)
 
-p = Draw_beta()(a, b, u)
+grad = theano.gradient.grad(loss,W)
+Tgrad = theano.function([B,W,X],grad)
+print Tgrad(b,w,x).shape
 
-Tfunc = theano.function([a, b, u], p)
+S = sparse.csc_from_dense(B*W)
+Hs = sparse.basic.dot(S,X)
+losss = theano.tensor.sum(Hs**2)
 
-q = Tfunc(d_a, d_b, d_u)
-print q
-plt.hist(q, 50, range=[0.,1.], normed=1)
+Tfuncs = theano.function([B,W,X],Hs)
+print Tfuncs(b,w,x)
+
+grads = theano.gradient.grad(losss,S)
+Tgrads = theano.function([B,W,X],grads)
+print Tgrads(b,w,x).shape
+
+'''
+data = numpy.load('pkl/pruned.pkl.npz')
+x = numpy.logspace(-5.,-3.,num=35)
+
+kl = data['kl'] #.mean(axis=1)
+snr = data['snr'] #.mean(axis=1)
+plt.figure()
+plt.loglog(x,kl,'r')
+plt.loglog(x,snr,'b')
 plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
+'''
     
     
     

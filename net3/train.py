@@ -136,6 +136,12 @@ class Train():
         self.test_output, = self.model.predict(self.input, test_args)
         self.target = T.matrix(name='target', dtype=Tconf.floatX)
     
+    def build_validate(self, args):
+        '''Connect inputs/outputs of the model'''
+        self.input = T.matrix(name='input', dtype=Tconf.floatX)
+        self.test_output, = self.model.predict(self.input, args)
+        self.target = T.matrix(name='target', dtype=Tconf.floatX)
+    
     def load_data(self, args):
         '''Load the data'''
         data_address = args['data_address']
@@ -198,6 +204,29 @@ class Train():
         # Train
         monitor = self.main_loop(Tfuncs, args)
         return monitor
+    
+    def validate(self, args):
+        '''Train the model'''
+        index = T.lscalar()
+        batch_size = int(args['batch_size'])
+        params = self.model._params
+        print('Constructing flow graph')
+        valid_cost_type = args['valid_cost_type']       
+        # Costs and gradients
+
+        valid_cost, batch_valid = self.cost(valid_cost_type, self.target, self.test_output, args)
+        Tfuncs = {}
+        Tfuncs['validate_model'] = Tfunction(
+            inputs=[index],
+            outputs=valid_cost,
+            givens={
+                self.input: self.test_x[:,index*batch_size:(index+1)*batch_size],
+                self.target: self.test_y[:,index*batch_size:(index+1)*batch_size]
+            }
+        )
+        # Validate
+        vc = self.run_once(Tfuncs, args)
+        return vc
     
     def main_loop(self, Tfuncs, args):
         '''The main training loop'''
@@ -279,12 +308,29 @@ class Train():
         
         self.save_state(save_name, args, monitor)
         return monitor
+    
+    def run_once(self, Tfuncs, args):
+        '''The main training loop'''
+        validate_model = Tfuncs['validate_model']
+        batch_size = args['batch_size']
+        save_name = args['save_name']
+        num_valid_batches = numpy.ceil(self.num_valid / batch_size)
+        # Validate
+        valid_cost = numpy.zeros(num_valid_batches)
+        for batch in numpy.arange(num_valid_batches):
+            valid_cost[batch] = validate_model(batch)
+        vc = valid_cost.sum()/self.num_valid
+        print('Validation cost: %f' % (vc,))
+        return vc
         
     def cost(self, cost_type, Y, Yhat, args):
         '''Evaluate the loss between prediction and target'''
         if 'num_samples' in args:
-            if args['num_samples'] > 1:
-                Y = self.extra_samples(Y, args)
+            ns = args['num_samples']
+            if ns > 1:
+                sh = Yhat.shape
+                Yhat = T.reshape(Yhat,(sh[0],ns,sh[1]/ns))
+                Yhat = T.mean(Yhat,axis=1)
         # Remember data is stored column-wise
         if cost_type == 'MSE':
             loss = 0.5*((Y-Yhat)**2).sum(axis=0)
@@ -299,9 +345,6 @@ class Train():
         else:
             print('Invalid cost')
             sys.exit(1)
-        if 'num_samples' in args:
-            if args['num_samples'] > 1:
-                loss = loss/(args['num_samples']*1.)
         return (T.sum(loss), Y.shape[1])
     
     def updates(self, cost, params, batch_size, args, regularisation=0):

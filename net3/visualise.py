@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from PIL import Image
 
 for i in numpy.arange(1):
-    fname = './pkl/DGWNregm2.pkl'
+    fname = './pkl/DGWN.pkl'
     stream = open(fname, 'r')
     state = cPickle.load(stream)
     stream.close()
@@ -47,18 +47,17 @@ for i in numpy.arange(1):
     for i in numpy.arange(3):
         Mname = 'M' + str(i)
         j = [j for j, param in enumerate(params) if Mname == param.name][0]
-        M = params[j].get_value()
-        M_value = numpy.asarray(Mb_value, dtype=Tconf.floatX)
+        M_value = params[j].get_value()
         
         Rname = 'R' + str(i)
         j = [j for j, param in enumerate(params) if Rname == param.name][0]
-        R = params[j].get_value()
-        R_value = numpy.asarray(R_value, dtype=Tconf.floatX)
+        R_value = params[j].get_value()
         S_value = numpy.log(1. + numpy.exp(R_value))
         
-        SNR = numpy.abs(M_value)/S_value
+        SNR = numpy.log(1e-6 + numpy.abs(M_value)/S_value)
         pylab.figure()
-        n, bins, patches = pylab.hist(x, bins, normed=1, histtype='bar', rwidth=0.8)
+        pylab.hist(SNR.flatten(), 100, normed=1, histtype='step')
+        pylab.show()
         
         
         
