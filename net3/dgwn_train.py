@@ -51,7 +51,7 @@ def objective(lr):
     monitor = tr.train(args)
 
 
-lrs = [1e0, 3e-1, 1e-1, 3e-2, 1e-2, 3e-3, 1e-3, 3e-4, 1e-4, 3e-5, 1e-5]
+lrs = [1e1, 3e0, 1e0, 3e-1, 1e-1, 3e-2, 1e-2, 3e-3, 1e-3, 3e-4, 1e-4, 3e-5, 1e-5]
 
 for lr in lrs:
     print('Learning rate: %f' % lr)

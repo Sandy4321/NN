@@ -34,20 +34,22 @@ class Dgwn():
         prior = args['prior']
         #self.num_c = args['num_components']
         
-        self.b = [] # Neuron biases
+        #self.b = [] # Neuron biases
         self.M = [] # Connection weight means
         self.R = [] # Connection weight variances (S = log(1+exp(R)))
         self._params = []
         for i in numpy.arange(self.num_layers):
             # Biases initialized from zero
+            '''
             b_value = 0.1*numpy.ones((self.ls[i+1],))[:,numpy.newaxis]
             b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
             bname = 'b' + str(i)
             self.b.append(TsharedX(b_value, bname, borrow=True,
                                    broadcastable=(False,True)))
+            '''
             # Connection weight means initialized from zero
             pre_coeff = numpy.sqrt(4./(self.ls[i+1] + self.ls[i]))
-            M_value = pre_coeff*numpy.random.randn(self.ls[i+1],self.ls[i])
+            M_value = pre_coeff*numpy.random.randn(self.ls[i+1],self.ls[i]+1)
             M_value = numpy.asarray(M_value, dtype=Tconf.floatX)
             Mname = 'M' + str(i)
             self.M.append(TsharedX(M_value, Mname, borrow=True))
@@ -57,21 +59,23 @@ class Dgwn():
                 coeff = numpy.log(numpy.exp(numpy.sqrt(pre_coeff))-1.)
             elif prior in ('DropConnect'):
                 coeff = 0.
-            R_value = coeff*numpy.ones((self.ls[i+1],self.ls[i]))
+            R_value = coeff*numpy.ones((self.ls[i+1],self.ls[i]+1))
             R_value = numpy.asarray(R_value, dtype=Tconf.floatX)
             Rname = 'R' + str(i)
             self.R.append(TsharedX(R_value, Rname, borrow=True))
             # The mixing component mask
             
-        for M, R, b in zip(self.M, self.R, self.b):
+        for M, R in zip(self.M, self.R):
             self._params.append(M)
             self._params.append(R)
-            self._params.append(b)
+            #self._params.append(b)
         
     def encode_layer(self, X, layer, args):
         '''Single layer'''
         nonlinearity = args['nonlinearities'][layer]
         prior = args['prior']
+        b = T.ones_like(X[0,:]).dimshuffle('x',0)
+        X = T.concatenate([X,b],axis=0)
         if hasattr(self, 'pruned'):
             if self.pruned:
                 M = Tsp.basic.dot(self.M[layer],X)
@@ -87,7 +91,7 @@ class Dgwn():
                 M = T.dot(p*m,X)
                 S = T.sqrt(T.dot(p*(1.-p)*(m**2),X**2))
         E = self.gaussian_sampler(layer, S.shape)
-        H = M + S*E + self.b[layer]
+        H = M + S*E #+ self.b[layer]
         # Nonlinearity
         if nonlinearity == 'ReLU':
             f = lambda x : (x > 0) * x
@@ -242,13 +246,6 @@ class Dgwn():
             self.M[layer] = spM
             self.R[layer] = spR
         
-'''
-TODO:
-- EXPLORE INITIALISATION
-- COMBINE WITH DROPOUT
-- DEEP MoEs
-- SPARSE CONNECTIONS
-'''
         
         
         
