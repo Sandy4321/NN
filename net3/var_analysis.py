@@ -17,9 +17,10 @@ N = 1
 T = 100
 args = {
     'mode' : 'training',
-    'layer_sizes' : (100, 100, 100, 100, 100),
-    'nonlinearities' : ('linear','linear', 'linear', 'linear'),
-    'prior_variance' : 1e-3,
+    'layer_sizes' : (100, 100, 100),
+    'nonlinearities' : ('linear','linear'),
+    'prior': 'Gaussian',
+    'prior_variance' : 1/200.,
     'num_components' : 1,
     'num_samples' : 1,
     'dropout_dict' : None,
@@ -44,7 +45,7 @@ for j in numpy.arange(3):
     output, _ = dgwn.predict(x,args)
     Tfunc = theano.function(inputs=[x], outputs=output)
     Tgrad = theano.function(inputs=[x], outputs=gradient(output,x))
-    Tcost = theano.function(inputs=[x], outputs=grad(output[0,0],x))
+    Tcost = theano.function(inputs=[x], outputs=gradient(output,dgwn.M[0]))
     y = numpy.zeros((100,N*T))
     dy = numpy.zeros((100,N*T))
     cost = numpy.zeros((100,N*T))
@@ -55,7 +56,7 @@ for j in numpy.arange(3):
         cost[:,i*N:(i+1)*N]= Tcost(input)
     
     print numpy.var(y)
-    print numpy.var(dy)
+    print numpy.var(dy)/(4.*numpy.var(y))
     print numpy.var(cost)
 
 

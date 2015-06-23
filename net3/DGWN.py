@@ -34,19 +34,10 @@ class Dgwn():
         prior = args['prior']
         #self.num_c = args['num_components']
         
-        #self.b = [] # Neuron biases
         self.M = [] # Connection weight means
         self.R = [] # Connection weight variances (S = log(1+exp(R)))
         self._params = []
         for i in numpy.arange(self.num_layers):
-            # Biases initialized from zero
-            '''
-            b_value = 0.1*numpy.ones((self.ls[i+1],))[:,numpy.newaxis]
-            b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
-            bname = 'b' + str(i)
-            self.b.append(TsharedX(b_value, bname, borrow=True,
-                                   broadcastable=(False,True)))
-            '''
             # Connection weight means initialized from zero
             pre_coeff = numpy.sqrt(4./(self.ls[i+1] + self.ls[i]))
             M_value = pre_coeff*numpy.random.randn(self.ls[i+1],self.ls[i]+1)
@@ -55,7 +46,7 @@ class Dgwn():
             self.M.append(TsharedX(M_value, Mname, borrow=True))
             # Xavier initialization
             if prior in ('Gaussian', 'Uniform'):
-                pre_coeff = 4./(self.ls[i+1] + self.ls[i])
+                pre_coeff = 2./(self.ls[i+1] + self.ls[i])
                 coeff = numpy.log(numpy.exp(numpy.sqrt(pre_coeff))-1.)
             elif prior in ('DropConnect'):
                 coeff = 0.
@@ -68,7 +59,6 @@ class Dgwn():
         for M, R in zip(self.M, self.R):
             self._params.append(M)
             self._params.append(R)
-            #self._params.append(b)
         
     def encode_layer(self, X, layer, args):
         '''Single layer'''
@@ -91,7 +81,7 @@ class Dgwn():
                 M = T.dot(p*m,X)
                 S = T.sqrt(T.dot(p*(1.-p)*(m**2),X**2))
         E = self.gaussian_sampler(layer, S.shape)
-        H = M + S*E #+ self.b[layer]
+        H = M + S*E 
         # Nonlinearity
         if nonlinearity == 'ReLU':
             f = lambda x : (x > 0) * x

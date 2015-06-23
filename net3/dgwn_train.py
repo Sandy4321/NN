@@ -23,7 +23,7 @@ def objective(lr):
         'data_address' : './data/mnist.pkl.gz',
         'binarize': False,
         'learning_rate' : lr,
-        'lr_multipliers' : {'b' : 2., 'R' : 1.},
+        'lr_multipliers' : {'R' : 2.},
         'learning_rate_margin' : (0,200,300),
         'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
         'momentum' : 0.9,
