@@ -37,6 +37,7 @@ def objective(oldargs):
             'momentum_ramp' : 0,
             'batch_size' : 100,
             'num_epochs' : 500,
+            'prior' : 'Uniform',
             'prior_variance' : pv,
             'num_components' : 1,
             'num_samples' : int(ns),
@@ -47,7 +48,7 @@ def objective(oldargs):
             'cov' : False,
             'validation_freq' : 10,
             'save_freq' : 50,
-            'save_name' : 'pkl/DGWNhyp.pkl'
+            'save_name' : 'pkl/DGWNhypUni.pkl'
             }
         
         tr = Train()
@@ -58,15 +59,15 @@ def objective(oldargs):
         cost = monitor['best_cost']
         
         i = 0
-        file_name = './pkl/DWGNtest' + str(i) + '.pkl'
+        file_name = './pkl/DWGNtestUni' + str(i) + '.pkl'
         while os.path.isfile(file_name):
             i += 1
-            file_name = './pkl/DWGNtest' + str(i) + '.pkl'
+            file_name = './pkl/DWGNtestUni' + str(i) + '.pkl'
         stream = open(file_name, 'w')
         cPickle.dump(monitor, stream, cPickle.HIGHEST_PROTOCOL)
         stream.close()
                
-        return {'loss': cost,
+        return {'loss': -cost,
                 'status': STATUS_OK}
     except DivergenceError, e:
         return {'status': STATUS_FAIL,
@@ -78,7 +79,7 @@ if __name__ == '__main__':
     
     trials = Trials()
 
-    space = (hp.loguniform('lr', numpy.log(1e-6), numpy.log(1e-3)),
+    space = (hp.loguniform('lr', numpy.log(1e-6), numpy.log(1e-0)),
              hp.uniform('mmtm', 0.85, 0.99),
              hp.loguniform('pv', numpy.log(1e-8), numpy.log(1e0)),
              hp.quniform('ns', 1, 10, 1))
@@ -89,7 +90,7 @@ if __name__ == '__main__':
                 trials = trials)
     
     print best
-    stream = open('DGWNhyp.pkl','w')
+    stream = open('DGWNhypUni.pkl','w')
     cPickle.dump(trials, stream, cPickle.HIGHEST_PROTOCOL)
     stream.close()
     

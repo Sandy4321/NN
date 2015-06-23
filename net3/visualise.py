@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from PIL import Image
 
 for i in numpy.arange(1):
-    fname = './pkl/DGWN.pkl'
+    fname = './pkl/DGWNDropConnect.pkl'
     stream = open(fname, 'r')
     state = cPickle.load(stream)
     stream.close()
@@ -19,13 +19,16 @@ for i in numpy.arange(1):
     print('Validation cost %f' % (monitor['best_cost'],))
     
     params = monitor['best_model']
-    '''
+   
     for param in params:
         print param
-        print('Max: %f' % (numpy.amax(param.get_value()),))
-        print('Min: %f' % (numpy.amin(param.get_value()),))
+        val = param.get_value()
+        if 'R' in param.name:
+            val = 1./(1. + numpy.exp(val))
+        print('Max: %f' % (numpy.amax(val),))
+        print('Min: %f' % (numpy.amin(val),))
         pylab.figure()
-        pylab.hist(param.get_value().flatten(), 50, normed=1)
+        pylab.hist(val.flatten(), 50, normed=1)
         pylab.suptitle(param, fontsize=20)
         pylab.show()
     
@@ -42,8 +45,8 @@ for i in numpy.arange(1):
     plt.semilogx(monitor['valid_cost'],'b')
     plt.ylim([0.9,1.])
     plt.show()
-    '''
     
+    ''' 
     for i in numpy.arange(3):
         Mname = 'M' + str(i)
         j = [j for j, param in enumerate(params) if Mname == param.name][0]
@@ -58,7 +61,7 @@ for i in numpy.arange(1):
         pylab.figure()
         pylab.hist(SNR.flatten(), 100, normed=1, histtype='step')
         pylab.show()
-        
+    ''' 
         
         
         

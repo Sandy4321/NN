@@ -5,7 +5,7 @@ import os, time, sys
 import cPickle
 import numpy
 
-from DGWN2 import Dgwn
+from DGWN import Dgwn
 from train import DivergenceError, Train
 
 def objective(lr):
@@ -30,17 +30,18 @@ def objective(lr):
         'momentum_ramp' : 0,
         'batch_size' : 100,
         'num_epochs' : 500,
+        'prior' : 'DropConnect',
         'prior_variance' : 1e-3,
         'num_components' : 1,
         'num_samples' : 1,
-        'norm' : None,
-        'max_row_norm' : None,
+        'norm' : 'L2',
+        'max_row_norm' : numpy.sqrt(15.),
         'sparsity' : None, 
         'dropout_dict' : None,
         'cov' : False,
         'validation_freq' : 10,
         'save_freq' : 50,
-        'save_name' : 'pkl/DGWNBlundell.pkl'
+        'save_name' : 'pkl/DGWNDropConnect.pkl'
         }
     
     tr = Train()
@@ -50,7 +51,7 @@ def objective(lr):
     monitor = tr.train(args)
 
 
-lrs = [1e-2, 3e-3, 1e-3, 3e-4, 1e-4, 3e-5, 1e-5]
+lrs = [1e0, 3e-1, 1e-1, 3e-2, 1e-2, 3e-3, 1e-3, 3e-4, 1e-4, 3e-5, 1e-5]
 
 for lr in lrs:
     print('Learning rate: %f' % lr)

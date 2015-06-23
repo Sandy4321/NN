@@ -31,6 +31,7 @@ class Dgwn():
         self.num_layers = len(self.ls) - 1
         self.dropout_dict = args['dropout_dict']
         self.prior_variance = args['prior_variance']
+        prior = args['prior']
         #self.num_c = args['num_components']
         
         self.b = [] # Neuron biases
@@ -51,8 +52,11 @@ class Dgwn():
             Mname = 'M' + str(i)
             self.M.append(TsharedX(M_value, Mname, borrow=True))
             # Xavier initialization
-            pre_coeff = 4./(self.ls[i+1] + self.ls[i])
-            coeff = numpy.log(numpy.exp(numpy.sqrt(pre_coeff))-1.)
+            if prior in ('Gaussian', 'Uniform'):
+                pre_coeff = 4./(self.ls[i+1] + self.ls[i])
+                coeff = numpy.log(numpy.exp(numpy.sqrt(pre_coeff))-1.)
+            elif prior in ('DropConnect'):
+                coeff = 0.
             R_value = coeff*numpy.ones((self.ls[i+1],self.ls[i]))
             R_value = numpy.asarray(R_value, dtype=Tconf.floatX)
             Rname = 'R' + str(i)
@@ -67,14 +71,21 @@ class Dgwn():
     def encode_layer(self, X, layer, args):
         '''Single layer'''
         nonlinearity = args['nonlinearities'][layer]
+        prior = args['prior']
         if hasattr(self, 'pruned'):
             if self.pruned:
                 M = Tsp.basic.dot(self.M[layer],X)
                 s = Tsp.sqr(Tsp.structured_log(Tsp.structured_add(Tsp.structured_exp(self.R[layer]),1.)))
                 S = T.sqrt(Tsp.basic.dot(s,X**2))
         else:
-            M = T.dot(self.M[layer],X) 
-            S = T.sqrt(T.dot(T.log(1 + T.exp(self.R[layer]))**2,X**2))
+            if prior in ('Gaussian','Uniform'):
+                M = T.dot(self.M[layer],X) 
+                S = T.sqrt(T.dot(T.log(1 + T.exp(self.R[layer]))**2,X**2))
+            elif prior in ('DropConnect',):
+                m = self.M[layer]
+                p = 1./(1. + T.exp(self.R[layer]))
+                M = T.dot(p*m,X)
+                S = T.sqrt(T.dot(p*(1.-p)*(m**2),X**2))
         E = self.gaussian_sampler(layer, S.shape)
         H = M + S*E + self.b[layer]
         # Nonlinearity
@@ -89,14 +100,23 @@ class Dgwn():
             sys.exit(1)
         return f(H)
     
-    def regularisation(self):
+    def regularisation(self, args):
         '''Compute the regularisation'''
         reg = 0.
+        prior = args['prior']
         for layer in numpy.arange(len(self.M)):
             S2 = T.log(1. + T.exp(self.R[layer]))
             P = T.sqrt(self.prior_variance)
             M = self.M[layer]
-            reg += T.sum(T.log(S2/P) - 0.5 + 0.5*(((P**2) + (M**2))/(S2**2)))
+            if prior == 'Gaussian':
+                reg += T.sum(T.log(S2/P) - 0.5 + 0.5*(((P**2) + (M**2))/(S2**2)))
+            elif prior == 'Uniform':
+                reg += -0.5*T.sum(T.log(S2))
+            elif prior == 'DropConnect':
+                reg += 0.*T.sum(T.log(S2))
+            else:
+                print('Invalid prior')
+                sys.exit(1)
         return reg
     
     def predict(self, X, args):
@@ -108,7 +128,7 @@ class Dgwn():
         for i in numpy.arange(self.num_layers):
             X = self.encode_layer(X, i, args)
         if args['mode'] == 'training':
-            X = (X, self.regularisation())
+            X = (X, self.regularisation(args))
         elif args['mode'] == 'validation':
             X = (X,)
         return X

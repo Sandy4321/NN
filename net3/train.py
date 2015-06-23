@@ -478,7 +478,14 @@ class Train():
         else:         
             for i, update in enumerate(updates):
                 param, param_update = update
-                if param in self.model.W:
+                mn = False
+                if hasattr(self.model, 'W'):
+                    if param in self.model.W:
+                        mn = True
+                elif hasattr(self.model, 'M'):
+                    if param in self.model.M:
+                        mn = True
+                if mn == True:
                     if args['norm'] == 'L2':
                         row_norms = T.sqrt(T.sum(T.sqr(param_update), axis=1, keepdims=True))
                     elif args['norm'] == 'Linf':
@@ -487,7 +494,7 @@ class Train():
                     constrained_W = param_update * (desired_norms / (1e-7 + row_norms))
                     # Tuples are immutable
                     updates_i = list(updates[i])
-                    updates_i[1] = constrained_W
+                    updates_i[1] = constrained_W.astype(Tconf.floatX)
                     updates[i] = tuple(updates_i)
 
     def learning_rate_correction(self):
