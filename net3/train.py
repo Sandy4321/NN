@@ -14,7 +14,7 @@ import theano.tensor as T
 import theano.tensor.nnet as Tnet
 
 from autoencoder import Autoencoder
-from mlp import Mlp, layer_from_sparsity, total_weights, write_neurons
+from mlp import Mlp
 from DGWN import Dgwn
 from matplotlib import pylab
 from matplotlib import pyplot as plt
@@ -133,7 +133,7 @@ class Train():
         test_args = args.copy()
         test_args['dropout_dict'] = None
         test_args['mode'] = 'validation'
-        self.test_output, = self.model.predict(self.input, test_args)
+        self.test_output, _ = self.model.predict(self.input, test_args)
         self.target = T.matrix(name='target', dtype=Tconf.floatX)
     
     def build_validate(self, args):

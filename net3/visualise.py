@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from PIL import Image
 
 for i in numpy.arange(1):
-    fname = './pkl/DGWNDropConnect.pkl'
+    fname = './pkl/DGWNrowGauss.pkl'
     stream = open(fname, 'r')
     state = cPickle.load(stream)
     stream.close()

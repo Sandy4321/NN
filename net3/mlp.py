@@ -34,7 +34,6 @@ class Mlp():
         self.b = [] # Biases
         self.q = [] # Dropout rates/prior
         self.G = [] # Dropout masks
-        self.S = [] # Sparsity masks
         self.X = [] # Activity storage
         self.XXT = [] # Covariance storage
         self._params = []
@@ -71,15 +70,6 @@ class Mlp():
                                        broadcastable=(False,True))
                     self.q.append(q_value)
             
-            # Sparsity
-            if (args['sparsity'] != None) and (i < self.num_layers - 1):
-                sp = args['sparsity']
-                sname = 'sparse' + str(i)
-                sparse_mask = numpy.random.rand(self.ls[i+1],self.ls[i])<(1-sp)
-                sparse_mask = TsharedX(sparse_mask.astype(Tconf.floatX),
-                                      sname, borrow=True)
-                self.S.append(sparse_mask)
-            
         for W, b in zip(self.W, self.b):
             self._params.append(W)
             self._params.append(b)
@@ -88,12 +78,6 @@ class Mlp():
         '''Single layer'''
         nonlinearity = args['nonlinearities'][layer]
         name = 'layer' + str(layer)
-        # Sparsity
-        if (args['sparsity'] != None) and (layer < self.num_layers - 1):
-            W = self.W[layer]*self.S[layer]
-        else:
-            W = self.W[layer]
-            
         # Dropout
         if self.dropout_dict == None:
             pre_act = T.dot(W, X) + self.b[layer]
@@ -103,7 +87,6 @@ class Mlp():
             pre_act = T.dot(W, X*G) + self.b[layer]
         else:
             pre_act = T.dot(W, X) + self.b[layer]
-        
         # Nonlinearity
         if nonlinearity == 'ReLU':
             s = lambda x : (x > 0) * x
@@ -123,7 +106,7 @@ class Mlp():
             if args['cov'] == True:
                 self.X[i] = X
                 self.XXT[i] = T.dot(X,X.T)
-        return X
+        return (X,T.zeros_like(X[0,0]))
     
     def dropout(self, layer, size):
         '''Return a random dropout vector'''
@@ -138,30 +121,6 @@ class Mlp():
             dropmult = (rng < self.q[layer]) / self.q[layer]
         return dropmult
     
-def layer_from_sparsity(N, Y, T, a, b, c):
-    '''Compute the hidden layer sizes'''
-    # N input, Y output, T total weights (roughly)
-    # a input connectivity, b core connectivity, c number core layers
-    P = a*N + Y
-    H = (numpy.sqrt((P**2) + 4*b*T) - P)/(2*b*c)
-    H = numpy.floor(H)
-    return int(H)
-
-def total_weights(neurons):
-    '''Compute the total number of weights in the network'''
-    T = 0
-    for i in numpy.arange(len(neurons)-1):
-        T += neurons[i]*neurons[i+1]
-    return int(T)
-
-def write_neurons(N, H, Y, c):
-    '''Write a neuron list'''
-    L = []
-    L.append(int(N))
-    for i in numpy.arange(c+1):
-        L.append(int(H))
-    L.append(int(Y))
-    return L
         
 '''
 TODO:
