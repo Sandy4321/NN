@@ -3,7 +3,7 @@
 import os,  sys, time
 
 import numpy
-
+import theano.tensor as T
 
 class Preprocess():
     def __init__(self):
@@ -21,4 +21,9 @@ class Preprocess():
     def binarize(self, data):
         '''Binarize the data in [0.,1.] by threholding at 0.5'''
         data = data >= 0.5
+        return data
+    
+    def zero_mean(self, data):
+        '''Subtract individual image means'''
+        data = data - numpy.mean(data,axis=0)
         return data

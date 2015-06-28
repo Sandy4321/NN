@@ -70,12 +70,15 @@ class Train():
     def load2gpu(self, data_address, args):
         '''Load the data into the gpu'''
         learning_type = args['learning_type']
-        binarize = args['binarize']
         train_set, valid_set, test_set = self.load(data_address)
-        if binarize == True:
+        if args['binarize'] == True:
             train_set[0] = self.pre.binarize(train_set[0])
             valid_set[0] = self.pre.binarize(valid_set[0])
             test_set[0] = self.pre.binarize(test_set[0])
+        if args['zero_mean'] == True:
+            train_set[0] = self.pre.zero_mean(train_set[0].T).T
+            valid_set[0] = self.pre.zero_mean(valid_set[0].T).T
+            test_set[0] = self.pre.zero_mean(test_set[0].T).T
         self.num_train = train_set[0].shape[0]
         self.num_valid = valid_set[0].shape[0]
         self.num_test = test_set[0].shape[0] 
@@ -161,7 +164,7 @@ class Train():
         self.current_lr_idx = 0
         self.batch = 0
         # Variational dropout mask
-        self.dropout_dict = args['dropout_dict']
+        #self.dropout_dict = args['dropout_dict']
  
         print('Constructing flow graph')
         index = T.lscalar()
@@ -174,6 +177,7 @@ class Train():
         test_args['mode'] = 'validation'
         
         # Costs and gradients
+        print('Connecting cost functions')
         train_cost, batch_train = self.cost(train_cost_type, self.target, self.output, args)
         valid_cost, batch_valid = self.cost(valid_cost_type, self.target, self.test_output, test_args)
         
@@ -184,6 +188,7 @@ class Train():
         
         updates = self.updates(train_cost, params, batch_train, args, self.regularisation)
         Tfuncs = {}
+        print('Building training function')
         Tfuncs['train_model'] = Tfunction(
             inputs=[index],
             outputs=[train_cost, self.regularisation],
@@ -192,7 +197,8 @@ class Train():
                 self.input: self.train_x[:,index*batch_size:(index+1)*batch_size],
                 self.target: self.train_y[:,index*batch_size:(index+1)*batch_size]
             }
-        )    
+        )
+        print('Building validation function')
         Tfuncs['validate_model'] = Tfunction(
             inputs=[index],
             outputs=outputs,
@@ -496,6 +502,24 @@ class Train():
                     updates_i = list(updates[i])
                     updates_i[1] = constrained_W.astype(Tconf.floatX)
                     updates[i] = tuple(updates_i)
+    
+    def max_norm(self, updates, args):
+        '''Apply max norm constraint to the updates on weights'''
+        for i, update in enumerate(updates):
+            param, param_update = update
+            if param.name != None:
+                if ('Wfc' in param.name) or ('Woutput' in param.name):
+                    param_name = param.name.replace('W','')
+                    layer = args['layers'][param_name]
+                    if 'max_norm' in layer:
+                        mrn = layer['max_norm']
+                        row_norms = T.sqrt(T.sum(T.sqr(param_update), axis=1, keepdims=True))
+                        desired_norms = T.clip(row_norms, 0, mrn)
+                        constrained_W = param_update * (desired_norms / (1e-7 + row_norms))
+                        # Tuples are immutable
+                        updates_i = list(updates[i])
+                        updates_i[1] = constrained_W.astype(Tconf.floatX)
+                        updates[i] = tuple(updates_i)
 
     def learning_rate_correction(self):
         '''Learning rate schedule - COMPLICATED, NEED TO SORT OUT'''
