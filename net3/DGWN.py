@@ -39,7 +39,8 @@ class Dgwn():
         self._params = []
         for i in numpy.arange(self.num_layers):
             # Connection weight means initialized from zero
-            pre_coeff = numpy.sqrt(4./(self.ls[i+1] + self.ls[i]))
+            #pre_coeff = numpy.sqrt(4./(self.ls[i+1] + self.ls[i]))
+            pre_coeff = 0.
             M_value = pre_coeff*numpy.random.randn(self.ls[i+1],self.ls[i]+1)
             M_value = numpy.asarray(M_value, dtype=Tconf.floatX)
             Mname = 'M' + str(i)
@@ -50,6 +51,8 @@ class Dgwn():
                 coeff = numpy.log(numpy.exp(numpy.sqrt(pre_coeff))-1.)
             elif prior in ('DropConnect'):
                 coeff = 0.
+            # For tests only
+            coeff = numpy.log(numpy.exp(numpy.sqrt(args['prior_variance']))-1.)
             R_value = coeff*numpy.ones((self.ls[i+1],self.ls[i]+1))
             R_value = numpy.asarray(R_value, dtype=Tconf.floatX)
             Rname = 'R' + str(i)

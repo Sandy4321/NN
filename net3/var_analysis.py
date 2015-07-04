@@ -13,12 +13,10 @@ from DGWN import Dgwn
 from matplotlib import pyplot as plt
 
 
-N = 1
-T = 100
 args = {
     'mode' : 'training',
-    'layer_sizes' : (100, 100, 100),
-    'nonlinearities' : ('linear','linear'),
+    'layer_sizes' : (100, 1000, 100),
+    'nonlinearities' : ('linear', 'linear'),
     'prior': 'Gaussian',
     'prior_variance' : 1/200.,
     'num_components' : 1,
@@ -38,14 +36,16 @@ def grad(cost, wrt):
     return theano.grad(cost, wrt)
 
 k = 1.
+N = 1
+T = 100
 x = theano.tensor.matrix('x')
 for j in numpy.arange(3):
-    args['prior_variance'] = 1/100.
+    args['prior_variance'] = (1/1.)/(10.**j)
     dgwn = Dgwn(args)
     output, _ = dgwn.predict(x,args)
     Tfunc = theano.function(inputs=[x], outputs=output)
     Tgrad = theano.function(inputs=[x], outputs=gradient(output,x))
-    Tcost = theano.function(inputs=[x], outputs=gradient(output,dgwn.M[0]))
+    Tcost = theano.function(inputs=[x], outputs=grad(output[0,0],x))
     y = numpy.zeros((100,N*T))
     dy = numpy.zeros((100,N*T))
     cost = numpy.zeros((100,N*T))
