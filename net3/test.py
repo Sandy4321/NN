@@ -5,56 +5,61 @@ __copyright__ = "(c) 2015, University College London"
 __license__   = "3-clause BSD License"
 __contact__   = "d.worrall@cs.ucl.ac.uk"
 
-import sys, time
-
-import cPickle
-import gzip
-import matplotlib.pyplot as plt
-import numpy
-import scipy.special as spsp
 import theano
+from theano import tensor as T
+from theano.tensor.nnet import conv
 
-from theano import sparse
+import numpy
+import pylab
+from PIL import Image
+from theano.tensor.signal import downsample as Tdownsample
 
-X = theano.tensor.matrix('x')
-W = theano.tensor.matrix('W')
-B = theano.tensor.matrix('B')
-H = theano.tensor.dot(B*W,X)
-loss = theano.tensor.sum(H**2)
+rng = numpy.random.RandomState(23455)
 
-b = numpy.random.rand(5,40) < 0.5
-w = numpy.arange(200).reshape(5,40).astype(theano.tensor.config.floatX)
-x = numpy.arange(200).reshape(40,5).astype(theano.tensor.config.floatX)
+# instantiate 4D tensor for input
+input = T.tensor4(name='input')
 
-Tfunc = theano.function([B,W,X],H)
-print Tfunc(b,w,x)
+w_shp = (2, 3, 9, 9)
+w_bound = numpy.sqrt(3 * 9 * 9)
+W = theano.shared( numpy.asarray(
+            rng.uniform(
+                low=-1.0 / w_bound,
+                high=1.0 / w_bound,
+                size=w_shp),
+            dtype=input.dtype), name ='W')
 
-grad = theano.gradient.grad(loss,W)
-Tgrad = theano.function([B,W,X],grad)
-print Tgrad(b,w,x).shape
+b_shp = (2,)
+b = theano.shared(numpy.asarray(
+            rng.uniform(low=-.5, high=.5, size=b_shp),
+            dtype=input.dtype), name ='b')
 
-S = sparse.csc_from_dense(B*W)
-Hs = sparse.basic.dot(S,X)
-losss = theano.tensor.sum(Hs**2)
+# build symbolic expression that computes the convolution of input with filters in w
+conv_out = conv.conv2d(input, W)
+pool_out = Tdownsample.max_pool_2d(conv_out, (10,10))
+output = T.nnet.sigmoid(pool_out + b.dimshuffle('x', 0, 'x', 'x'))
 
-Tfuncs = theano.function([B,W,X],Hs)
-print Tfuncs(b,w,x)
+# create theano function to compute filtered images
+f = theano.function([input], output)
 
-grads = theano.gradient.grad(losss,S)
-Tgrads = theano.function([B,W,X],grads)
-print Tgrads(b,w,x).shape
 
-'''
-data = numpy.load('pkl/pruned.pkl.npz')
-x = numpy.logspace(-5.,-3.,num=35)
 
-kl = data['kl'] #.mean(axis=1)
-snr = data['snr'] #.mean(axis=1)
-plt.figure()
-plt.loglog(x,kl,'r')
-plt.loglog(x,snr,'b')
-plt.show()
-'''
+# open random image of dimensions 639x516
+img = Image.open(open('./3wolfmoon.jpg'))
+# dimensions are (height, width, channel)
+img = numpy.asarray(img, dtype='float32') / 256.
+
+# put image in 4D tensor of shape (1, 3, height, width)
+img_ = img.transpose(2, 0, 1).reshape(1, 3, 639, 516)
+filtered_img = f(img_)
+
+# plot original image and first and second components of output
+pylab.subplot(1, 3, 1); pylab.axis('off'); pylab.imshow(img)
+pylab.gray();
+# recall that the convOp output (filtered image) is actually a "minibatch",
+# of size 1 here, so we take index 0 in the first dimension:
+pylab.subplot(1, 3, 2); pylab.axis('off'); pylab.imshow(filtered_img[0, 0, :, :])
+pylab.subplot(1, 3, 3); pylab.axis('off'); pylab.imshow(filtered_img[0, 1, :, :])
+pylab.show()
     
     
     

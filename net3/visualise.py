@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from PIL import Image
 
 for i in numpy.arange(1):
-    fname = './pkl/convnet.pkl'
+    fname = './pkl/convnet2.pkl'
     stream = open(fname, 'r')
     state = cPickle.load(stream)
     stream.close()
@@ -43,7 +43,7 @@ for i in numpy.arange(1):
     
     fig = plt.figure()
     plt.semilogx(monitor['valid_cost'],'b')
-    plt.ylim([0.9,1.])
+    #plt.ylim([0.9,1.])
     plt.show()
     
     ''' 

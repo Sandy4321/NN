@@ -45,14 +45,20 @@ class Convnet():
                 G = self.dropout(layer, X.shape, layer['dropout'])
                 X = X*(G>0)
             #pre_act = Tdnn.dnn_conv(X, self.W[idx], subsample=layer['stride']) + self.b[idx].dimshuffle('x',0,'x','x')
-            pre_act = Tconv.conv2d(X, self.W[idx], subsample=layer['stride']) + self.b[idx].dimshuffle('x',0,'x','x')
+            pre_act = Tconv.conv2d(input=X, filters=self.W[idx]) + self.b[idx].dimshuffle('x',0,'x','x')
         elif layer['type'] == 'pool':
-            print layer['shape']
-            pre_act = Tdownsample.max_pool_2d(X, layer['shape'], ignore_border=True)
+            if 'stride' in layer:
+                pre_act = Tdownsample.max_pool_2d(X, ds=layer['shape'], st=layer['stride'], mode='max')
+            else:
+                pre_act = Tdownsample.max_pool_2d(X, ds=layer['shape'], mode='max')
             #pre_act = Tdnn.dnn_pool(X, layer['shape'], layer['stride'])
         elif layer['type'] == 'fc':
             idx = self.get_idx(name)
-            X = self.x2fc(X)
+            #X = self.x2fc(X)
+            if X.ndim > 2:
+                X = X.flatten(2).T
+            else:
+                X = X.flatten(2)
             if 'dropout' in layer:
                 G = self.dropout(layer, X.shape, layer['dropout'])
                 X = X*(G>0)
@@ -104,9 +110,12 @@ class Convnet():
         total_param = 0
         for i in numpy.arange(len(LL)):
             name = LL[i]['name']
-            filter_shape = LL[i]['shape']
+            num_param = 0
+            filter_shape = numpy.asarray(LL[i]['shape'])
             if 'stride' in LL[i]:
                 stride = LL[i]['stride']
+            else:
+                stride = None
             if LL[i]['type'] == 'conv':
                 num_param = self.add_conv(input_shape, filter_shape, name)
                 output_shape = self.conv_size(input_shape, filter_shape, stride)
@@ -117,8 +126,13 @@ class Convnet():
                 print('%s \t In: %s \t Out: %s \t Filter:%s' %
                       (LL[i]['name'],input_shape,output_shape,filter_shape))
             elif LL[i]['type'] == 'fc':
+                if input_shape.shape[0] > 2:
+                    filter_shape = numpy.asarray((filter_shape[0], input_shape[1:].prod()))
+                    output_shape = numpy.asarray((filter_shape[0],input_shape[0]))
+                else:
+                    filter_shape = numpy.asarray((filter_shape[0], input_shape[0]))
+                    output_shape = numpy.asarray((filter_shape[0],input_shape[1]))
                 num_param = self.add_fc(input_shape, filter_shape, name)
-                output_shape = numpy.asarray(filter_shape)
                 print('%s \t In: %s \t Out: %s \t Filter:%s \t Num param: %i' %
                       (LL[i]['name'],input_shape,output_shape,filter_shape,num_param))
             else:
@@ -154,26 +168,31 @@ class Convnet():
     
     def pool_size(self, input_shape, pool, stride=None, pad=False):
         '''Compute the output shape'''
-        output_shape = numpy.asarray(input_shape, dtype=int)
-        if pad == True:
-            output_shape[2] = numpy.ceil(float(output_shape[2])/pool[0])
-            output_shape[3] = numpy.ceil(float(output_shape[3])/pool[1])
+        output_shape = numpy.asarray(input_shape.copy(), dtype=int)
+        if stride == None:
+            if pad == True:
+                output_shape[2] = numpy.ceil(float(output_shape[2])/pool[0])
+                output_shape[3] = numpy.ceil(float(output_shape[3])/pool[1])
+            else:
+                output_shape[2] = numpy.floor(float(output_shape[2])/pool[0])
+                output_shape[3] = numpy.floor(float(output_shape[3])/pool[1])
         else:
-            output_shape[2] = numpy.floor(float(output_shape[2])/pool[0])
-            output_shape[3] = numpy.floor(float(output_shape[3])/pool[1])
+            output_shape[2] = output_shape[2] - pool[0] + stride[0] ### STRIDE=1 CHANGE
+            output_shape[3] = output_shape[3] - pool[1] + stride[1]
         return output_shape
     
     def add_conv(self, input_shape, filter_shape, name):
         '''Allocate memory for conv layers'''
         Wsh = (filter_shape[0], input_shape[1], filter_shape[1], filter_shape[2])
         Wsh = numpy.asarray(Wsh, dtype=int)
-        coeff = numpy.sqrt(2./(Wsh[1:].prod()))
+        coeff = numpy.sqrt(256./(filter_shape.prod()))
+        #coeff = 0.01
         W_value = coeff*numpy.random.normal(0., coeff, size=Wsh)
         W_value = numpy.asarray(W_value, dtype=Tconf.floatX)
         Wname = 'W' + name
         self.W.append(TsharedX(W_value, Wname, borrow=True))
         bsh = (filter_shape[0], )
-        b_value = 0.01*numpy.ones(bsh)
+        b_value = 0.*numpy.ones(bsh)
         b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
         bname = 'b' + name
         self.b.append(TsharedX(b_value, bname, borrow=True))
@@ -181,13 +200,8 @@ class Convnet():
 
     def add_fc(self, input_shape, filter_shape, name):
         '''Allocate memory for fc layer'''
-        if input_shape.shape[0] > 1:
-            Wsh = (filter_shape[0], input_shape[1:].prod())
-        else:
-            Wsh = (filter_shape[0], input_shape)
-        Wsh = numpy.asarray(Wsh, dtype=int)
-        coeff = numpy.sqrt(2./numpy.asarray(Wsh).sum())
-        W_value = numpy.random.normal(0., coeff, size=Wsh)
+        coeff = numpy.sqrt(2./(filter_shape.sum()))
+        W_value = numpy.random.normal(0.,coeff, size=filter_shape)
         W_value = numpy.asarray(W_value, dtype=Tconf.floatX)
         Wname = 'W' + name
         self.W.append(TsharedX(W_value, Wname, borrow=True))
@@ -196,7 +210,7 @@ class Convnet():
         b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
         bname = 'b' + name
         self.b.append(TsharedX(b_value, bname, borrow=True))
-        return Wsh.prod() + bsh[0]
+        return filter_shape.prod() + bsh[0]
     
     def get_idx(self, name):
         '''Get the layer index for the parameter list'''
