@@ -63,18 +63,18 @@ for j in numpy.arange(3):
 
 
 J = 100
-N = 100
 M = 1000
 x = numpy.zeros(J)
 
 for i in numpy.arange(J):
-    z = numpy.random.randn(i+1,M)
-    #eps = numpy.random.randn(N)
-    dz = z[0,:]/numpy.sum(z**2,axis=0)
-    x[i] = numpy.var(dz)
+    #z = numpy.random.randn(i+1,M)
+    eps = numpy.random.randn(i+1,M)
+    x[i] = numpy.mean(numpy.sum(eps**2,axis=0))
+    #dz = numpy.sum(eps*z,axis=0)/numpy.sqrt(numpy.sum(z**2,axis=0))
+    #x[i] = numpy.var(dz)
    
 fig = plt.figure()
-plt.plot(numpy.arange(J),x,'b')
+plt.loglog(numpy.arange(J),x,'b')
 plt.show()
 
     
