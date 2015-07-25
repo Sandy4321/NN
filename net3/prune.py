@@ -11,7 +11,6 @@ import cPickle
 import numpy
 
 from convnet import Convnet
-from hyperopt import fmin, tpe, hp, STATUS_OK, STATUS_FAIL, Trials
 from theano import config as Tconf
 from train import DivergenceError, Train
 

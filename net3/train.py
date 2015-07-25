@@ -419,7 +419,7 @@ class Train():
                                         broadcastable=param.broadcastable)
                 updates.append((param_update, mmtm*param_update - lr*g_param))
             else:
-                param_update = lr*g_param
+                param_update = -lr*g_param
             updates.append((param, param + param_update))
         return updates
     
