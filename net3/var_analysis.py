@@ -11,7 +11,7 @@ import theano
 from DGWN import Dgwn
 from matplotlib import pyplot as plt
 
-"""
+
 args = {
     'mode' : 'training',
     'layer_sizes' : (100, 100, 100),
@@ -59,9 +59,8 @@ for j in numpy.arange(3):
     print numpy.var(cost)
 
 
-"""
 
-
+'''
 J = 100
 M = 1000
 x = numpy.zeros(J)
@@ -76,7 +75,7 @@ for i in numpy.arange(J):
 fig = plt.figure()
 plt.loglog(numpy.arange(J),x,'b')
 plt.show()
-
+'''
     
     
     
