@@ -207,7 +207,7 @@ class Convnet():
         print numpy.var(W_value)
         self.W.append(TsharedX(W_value, Wname, borrow=True))
         bsh = (filter_shape[0], )
-        b_value = 0.1*numpy.ones(bsh)
+        b_value = 0.3*numpy.ones(bsh)
         b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
         bname = 'b' + name
         self.b.append(TsharedX(b_value, bname, borrow=True))
