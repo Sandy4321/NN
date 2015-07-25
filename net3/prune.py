@@ -21,8 +21,8 @@ def objective(args):
     layers = {}
     layers['input'] = { 'name':'input', 'type':'data', 'shape':(128,1,28,28)}
     layers['fc1'] = { 'name':'fc1', 'input':'input', 'type':'fc', 'shape':(800,), 'nonlin':'ReLU', 'dropout' : 0.8, 'max_norm' : numpy.sqrt(15.)}
-    layers['fc2'] = { 'name':'fc2', 'input':'fc1', 'type':'fc', 'shape':(800,), 'nonlin':'ReLU', 'dropout' : 0.5, 'max_norm' : numpy.sqrt(15.)}
-    layers['output'] = { 'name':'output', 'input':'fc2', 'type':'fc', 'shape':(10,), 'nonlin':'SoftMax', 'dropout' : 0.5, 'max_norm' : numpy.sqrt(15.)}
+    #layers['fc2'] = { 'name':'fc2', 'input':'fc1', 'type':'fc', 'shape':(800,), 'nonlin':'ReLU', 'dropout' : 0.5, 'max_norm' : numpy.sqrt(15.)}
+    layers['output'] = { 'name':'output', 'input':'fc1', 'type':'fc', 'shape':(10,), 'nonlin':'SoftMax', 'dropout' : 0.5, 'max_norm' : numpy.sqrt(15.)}
     args = {
         'algorithm' : 'SGD',
         'RMScoeff' : None,
@@ -45,7 +45,7 @@ def objective(args):
         'batch_size' : layers['input']['shape'][0],
         'num_epochs' : 500,
         'cov' : False,
-        'validation_freq' : 2,
+        'validation_freq' : 10,
         'save_freq' : 10,
         'save_name' : 'pkl/preprunedmlp.pkl'
         }
