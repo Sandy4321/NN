@@ -1,4 +1,4 @@
-'''DWGN train file'''
+q'''DWGN train file'''
 
 import os, time, sys
 
