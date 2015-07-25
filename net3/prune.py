@@ -42,6 +42,8 @@ def objective(args):
         'learning_rate_schedule' : ((1.,),(0.5,0.1),(0.05,0.01,0.005,0.001)),
         'momentum' : mmtm,
         'momentum_ramp' : 0,
+        'norm' : L2,
+        'max_row_norm' : numpy.sqrt(15.),
         'batch_size' : layers['input']['shape'][0],
         'num_epochs' : 500,
         'cov' : False,
