@@ -204,6 +204,7 @@ class Convnet():
         W_value = numpy.random.normal(0.,coeff, size=filter_shape)
         W_value = numpy.asarray(W_value, dtype=Tconf.floatX)
         Wname = 'W' + name
+        print numpy.var(W_value)
         self.W.append(TsharedX(W_value, Wname, borrow=True))
         bsh = (filter_shape[0], )
         b_value = 0.1*numpy.ones(bsh)
