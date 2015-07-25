@@ -37,6 +37,7 @@ def objective(lr):
         'num_samples' : 1,
         'norm' : 'L2',
         'max_row_norm' : numpy.sqrt(15.),
+        'zero_mean' : False,
         'sparsity' : None, 
         'dropout_dict' : None,
         'cov' : False,
