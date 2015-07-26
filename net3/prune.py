@@ -43,7 +43,7 @@ def objective(lr):
         'cov' : False,
         'validation_freq' : 10,
         'save_freq' : 50,
-        'save_name' : 'pkl/MLP.pkl'
+        'save_name' : 'pkl/preprunedmlp.pkl'
         }
 
     dropout_dict = {}
