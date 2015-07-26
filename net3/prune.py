@@ -11,13 +11,13 @@ from train import DivergenceError, Train
 
 def objective(lr):
     args = {
-        'algorithm' : 'NAG',
+        'algorithm' : 'SGD',
         'RMScoeff' : None,
         'RMSreg' : None,
         'mode' : 'training',
         'learning_type' : 'classification',
         'num_classes' : 10,
-        'train_cost_type' : 'cross_entropy',
+        'train_cost_type' : 'nll',
         'valid_cost_type' : 'accuracy',
         'layer_sizes' : (784, 800, 800, 10),
         'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
