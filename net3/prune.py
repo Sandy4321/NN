@@ -11,7 +11,7 @@ from train import DivergenceError, Train
 
 def objective(lr):
     args = {
-        'algorithm' : 'SGD',
+        'algorithm' : 'NAG',
         'RMScoeff' : None,
         'RMSreg' : None,
         'mode' : 'training',
