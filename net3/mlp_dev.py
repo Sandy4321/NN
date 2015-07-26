@@ -1,4 +1,4 @@
-'''Multilayer perceptron model using Bayes by backprop'''
+'''Multilayer perceptron model'''
 
 
 __authors__   = "Daniel Worrall"
@@ -34,7 +34,6 @@ class Mlp():
         self.b = [] # Biases
         self.q = [] # Dropout rates/prior
         self.G = [] # Dropout masks
-        self.S = [] # Sparsity masks
         self.X = [] # Activity storage
         self.XXT = [] # Covariance storage
         self._params = []
@@ -71,15 +70,6 @@ class Mlp():
                                        broadcastable=(False,True))
                     self.q.append(q_value)
             
-            # Sparsity
-            if (args['sparsity'] != None) and (i < self.num_layers - 1):
-                sp = args['sparsity']
-                sname = 'sparse' + str(i)
-                sparse_mask = numpy.random.rand(self.ls[i+1],self.ls[i])<(1-sp)
-                sparse_mask = TsharedX(sparse_mask.astype(Tconf.floatX),
-                                      sname, borrow=True)
-                self.S.append(sparse_mask)
-            
         for W, b in zip(self.W, self.b):
             self._params.append(W)
             self._params.append(b)
@@ -88,12 +78,7 @@ class Mlp():
         '''Single layer'''
         nonlinearity = args['nonlinearities'][layer]
         name = 'layer' + str(layer)
-        # Sparsity
-        if (args['sparsity'] != None) and (layer < self.num_layers - 1):
-            W = self.W[layer]*self.S[layer]
-        else:
-            W = self.W[layer]
-            
+        W = self.W[layer]
         # Dropout
         if self.dropout_dict == None:
             pre_act = T.dot(W, X) + self.b[layer]
@@ -103,7 +88,6 @@ class Mlp():
             pre_act = T.dot(W, X*G) + self.b[layer]
         else:
             pre_act = T.dot(W, X) + self.b[layer]
-        
         # Nonlinearity
         if nonlinearity == 'ReLU':
             s = lambda x : (x > 0) * x
@@ -123,7 +107,7 @@ class Mlp():
             if args['cov'] == True:
                 self.X[i] = X
                 self.XXT[i] = T.dot(X,X.T)
-        return X
+        return (X,T.zeros_like(X[0,0]))
     
     def dropout(self, layer, size):
         '''Return a random dropout vector'''
@@ -138,39 +122,71 @@ class Mlp():
             dropmult = (rng < self.q[layer]) / self.q[layer]
         return dropmult
     
-def layer_from_sparsity(N, Y, T, a, b, c):
-    '''Compute the hidden layer sizes'''
-    # N input, Y output, T total weights (roughly)
-    # a input connectivity, b core connectivity, c number core layers
-    P = a*N + Y
-    H = (numpy.sqrt((P**2) + 4*b*T) - P)/(2*b*c)
-    H = numpy.floor(H)
-    return int(H)
-
-def total_weights(neurons):
-    '''Compute the total number of weights in the network'''
-    T = 0
-    for i in numpy.arange(len(neurons)-1):
-        T += neurons[i]*neurons[i+1]
-    return int(T)
-
-def write_neurons(N, H, Y, c):
-    '''Write a neuron list'''
-    L = []
-    L.append(int(N))
-    for i in numpy.arange(c+1):
-        L.append(int(H))
-    L.append(int(Y))
-    return L
+    def load_params(self, params, args):
+        '''Load the pickled network'''
+        '''Construct the MLP expression graph'''
+        self.ls = args['layer_sizes']
+        self.num_layers = len(self.ls) - 1
+        self.dropout_dict = args['dropout_dict']
+        self.prior_variance = args['prior_variance']
         
-'''
-TODO:
-- LAYERWISE DROPOUT
-- GPU BETA DISTRIBUTION SAMPLING
-- VARIATIONAL BETA SCHEME
-- LOCAL EXPECTATION GRADIENTS
-- GAUSSIAN DROPOUT
-'''
+        self.b = [] # Neuron biases
+        self.W = [] # Connection weight means
+        self._params = []
+        for i in numpy.arange(self.num_layers):
+            bname = 'b' + str(i)
+            j = [j for j, param in enumerate(params) if bname == param.name][0]
+            b_value = params[j].get_value()
+            b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
+            self.b.append(TsharedX(b_value, bname, borrow=True,
+                                   broadcastable=(False,True)))
+            # Connection weight means initialized from zero
+            Wname = 'W' + str(i)
+            j = [j for j, param in enumerate(params) if Wname == param.name][0]
+            W_value = params[j].get_value()
+            W_value = numpy.asarray(W_value, dtype=Tconf.floatX)
+            self.W.append(TsharedX(W_value, Wname, borrow=True))
+            
+        for M, b in zip(self.W, self.b):
+            self._params.append(W)
+            self._params.append(b)
+    
+    def prune(self, proportion, scheme):
+        '''Prune the weights according to the prefered scheme'''
+        SNR = []
+        # Cycle through layers
+        for layer in numpy.arange(self.num_layers):
+            Wname = 'W' + str(layer)
+            j = [j for j, param in enumerate(self._params) if Wname == param.name][0]
+            W_value = self._params[j].get_value()
+            if scheme == 'KL':
+                snr = numpy.log(W_value**2)
+                snr_min = numpy.amin(snr)
+                snr = numpy.log(snr - snr_min + 1e-6)
+            SNR.append(snr)
+        hist, bin_edges = self.cumhist(SNR, 1000)
+        # Find cutoff value
+        idx = (hist > proportion)
+        bin_edges = bin_edges[1:]
+        cutoff = numpy.compress(idx, bin_edges)
+        cutoff = numpy.amin(cutoff)
+        self.masks = []
+        for snr in SNR:
+            self.masks.append(snr > cutoff)
+        self.pruned = True
+        self.to_csc()
+
+    def cumhist(self, SNR, nbins):
+        '''Return normalised cumulative histogram of SNR'''
+        SNR = numpy.hstack([snr.flatten() for snr in SNR])
+        # Histogram of SNRs
+        hist, bin_edges = numpy.histogram(SNR, bins=nbins)
+        hist = numpy.cumsum(hist)
+        hist = hist/(hist[-1]*1.)
+        return (hist, bin_edges)
+    
+        
+
         
         
         
