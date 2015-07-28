@@ -142,7 +142,7 @@ class Train():
     def build_validate(self, args):
         '''Connect inputs/outputs of the model'''
         self.input = T.matrix(name='input', dtype=Tconf.floatX)
-        self.test_output, = self.model.predict(self.input, args)
+        self.test_output, _ = self.model.predict(self.input, args)
         self.target = T.matrix(name='target', dtype=Tconf.floatX)
     
     def load_data(self, args):
@@ -211,8 +211,8 @@ class Train():
         monitor = self.main_loop(Tfuncs, args)
         return monitor
     
-    def validate(self, args):
-        '''Train the model'''
+    def validate(self, args, acts=False):
+        '''Validate the model'''
         index = T.lscalar()
         batch_size = int(args['batch_size'])
         params = self.model._params
@@ -231,7 +231,10 @@ class Train():
             }
         )
         # Validate
-        vc = self.run_once(Tfuncs, args)
+        if acts == False:
+            vc = self.run_once(Tfuncs, args)
+        else:
+            vc = self.run_once_acts(Tfuncs, args)
         return vc
     
     def main_loop(self, Tfuncs, args):
@@ -320,7 +323,7 @@ class Train():
         validate_model = Tfuncs['validate_model']
         batch_size = args['batch_size']
         save_name = args['save_name']
-        num_valid_batches = numpy.ceil(self.num_valid / batch_size)
+        num_valid_batches = int(numpy.ceil(self.num_valid / batch_size))
         # Validate
         valid_cost = numpy.zeros(num_valid_batches)
         for batch in numpy.arange(num_valid_batches):
@@ -328,6 +331,34 @@ class Train():
         vc = valid_cost.sum()/self.num_valid
         print('Validation cost: %f' % (vc,))
         return vc
+    
+    def run_once_acts(self, Tfuncs, args):
+        '''The main training loop'''
+        batch_size = args['batch_size']
+        save_name = args['save_name']
+        num_valid_batches = int(numpy.ceil(self.num_valid / batch_size))
+        # Validate
+        index = T.lscalar()
+        Tfuncs['acts'] = Tfunction(
+            inputs=[index],
+            outputs=self.model.X,
+            givens={
+                self.input: self.valid_x[:,index*batch_size:(index+1)*batch_size]
+            }
+        )
+        acts = []
+        for batch in numpy.arange(num_valid_batches):
+            acts.append(Tfuncs['acts'](batch))
+        a = acts[0]
+        for i in numpy.arange(len(a)):
+            a[i] = a[i]*0.
+        for act in acts:
+            for i, ac in enumerate(act):
+                a[i] += ac
+        for i in numpy.arange(len(a)):
+            a[i] = (1.*a[i])/len(acts)
+            a[i] = numpy.mean(a[i],axis=1)
+        return a
         
     def cost(self, cost_type, Y, Yhat, args):
         '''Evaluate the loss between prediction and target'''

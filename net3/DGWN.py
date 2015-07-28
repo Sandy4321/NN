@@ -31,6 +31,7 @@ class Dgwn():
         self.num_layers = len(self.ls) - 1
         self.dropout_dict = args['dropout_dict']
         self.prior_variance = args['prior_variance']
+        #print args
         prior = args['prior']
         #self.num_c = args['num_components']
         
@@ -40,19 +41,17 @@ class Dgwn():
         for i in numpy.arange(self.num_layers):
             # Connection weight means initialized from zero
             #pre_coeff = numpy.sqrt(4./(self.ls[i+1] + self.ls[i]))
-            pre_coeff = 0.
+            pre_coeff = 0.1
             M_value = pre_coeff*numpy.random.randn(self.ls[i+1],self.ls[i]+1)
             M_value = numpy.asarray(M_value, dtype=Tconf.floatX)
             Mname = 'M' + str(i)
             self.M.append(TsharedX(M_value, Mname, borrow=True))
             # Xavier initialization
-            if prior in ('Gaussian', 'Uniform'):
-                pre_coeff = 2./(self.ls[i+1] + self.ls[i])
-                coeff = numpy.log(numpy.exp(numpy.sqrt(pre_coeff))-1.)
-            elif prior in ('DropConnect'):
-                coeff = 0.
-            # For tests only
-            coeff = numpy.log(numpy.exp(numpy.sqrt(args['prior_variance']))-1.)
+            if i == 0:
+                v = 2.*self.ls[0]/(self.ls[0]**2 + 1)
+            else:
+                v = 1./self.ls[i]
+            coeff = numpy.log(numpy.exp(numpy.sqrt(v))-1.)
             R_value = coeff*numpy.ones((self.ls[i+1],self.ls[i]+1))
             R_value = numpy.asarray(R_value, dtype=Tconf.floatX)
             Rname = 'R' + str(i)
@@ -127,7 +126,7 @@ class Dgwn():
         if args['mode'] == 'training':
             X = (X, self.regularisation(args))
         elif args['mode'] == 'validation':
-            X = (X,)
+            X = (X,0)
         return X
         
     def gaussian_sampler(self, layer, size):
@@ -159,34 +158,26 @@ class Dgwn():
         self.dropout_dict = args['dropout_dict']
         self.prior_variance = args['prior_variance']
         
-        self.b = [] # Neuron biases
         self.M = [] # Connection weight means
         self.R = [] # Connection weight variances (S = log(1+exp(R)))
         self._params = []
         for i in numpy.arange(self.num_layers):
-            bname = 'b' + str(i)
-            j = [j for j, param in enumerate(params) if bname == param.name][0]
-            b_value = params[j].get_value()
-            b_value = numpy.asarray(b_value, dtype=Tconf.floatX)
-            self.b.append(TsharedX(b_value, bname, borrow=True,
-                                   broadcastable=(False,True)))
             # Connection weight means initialized from zero
             Mname = 'M' + str(i)
-            j = [j for j, param in enumerate(params) if Mname == param.name][0]
-            M_value = params[j].get_value()
+            k = [j for j, param in enumerate(params) if Mname == param.name][0]
+            M_value = params[k].get_value()
             M_value = numpy.asarray(M_value, dtype=Tconf.floatX)
             self.M.append(TsharedX(M_value, Mname, borrow=True))
             # Connection weight root variances initialized from prior
             Rname = 'R' + str(i)
-            j = [j for j, param in enumerate(params) if Rname == param.name][0]
-            R_value = params[j].get_value()
+            k = [j for j, param in enumerate(params) if Rname == param.name][0]
+            R_value = params[k].get_value()
             R_value = numpy.asarray(R_value, dtype=Tconf.floatX)
             self.R.append(TsharedX(R_value, Rname, borrow=True))
             
-        for M, R, b in zip(self.M, self.R, self.b):
+        for M, R in zip(self.M, self.R):
             self._params.append(M)
             self._params.append(R)
-            self._params.append(b)
     
     def prune(self, proportion, scheme):
         '''Prune the weights according to the prefered scheme'''
@@ -194,16 +185,18 @@ class Dgwn():
         # Cycle through layers
         for layer in numpy.arange(self.num_layers):
             Mname = 'M' + str(layer)
-            j = [j for j, param in enumerate(self._params) if Mname == param.name][0]
-            M_value = self._params[j].get_value()
+            k = [j for j, param in enumerate(self._params) if Mname == param.name][0]
+            M_value = self._params[k].get_value()
+            M_value = M_value[:,:-1]
             Rname = 'R' + str(layer)
-            j = [j for j, param in enumerate(self._params) if Rname == param.name][0]
-            R_value = self._params[j].get_value()
+            k = [j for j, param in enumerate(self._params) if Rname == param.name][0]
+            R_value = self._params[k].get_value()
+            R_value = R_value[:,:-1]
             S_value = numpy.log(1. + numpy.exp(R_value))
             if scheme == 'SNR':
                 snr = numpy.log(1e-6 + numpy.abs(M_value)/S_value)
             elif scheme == 'KL':
-                snr = (M_value/S_value)**2 + numpy.log(S_value)
+                snr = (M_value/S_value)**2 +2.*numpy.log(S_value)
                 snr_min = numpy.amin(snr)
                 snr = numpy.log(snr - snr_min + 1e-6)
             SNR.append(snr)
@@ -215,7 +208,10 @@ class Dgwn():
         cutoff = numpy.amin(cutoff)
         self.masks = []
         for snr in SNR:
-            self.masks.append(snr > cutoff)
+            msk = (snr > cutoff)
+            newcol = numpy.ones((msk.shape[0],1))
+            msk = numpy.hstack((msk,newcol))
+            self.masks.append(msk)
         self.pruned = True
         self.to_csc()
 

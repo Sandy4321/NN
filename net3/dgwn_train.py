@@ -16,7 +16,7 @@ def objective(lr):
         'mode' : 'training',
         'learning_type' : 'classification',
         'num_classes' : 10,
-        'train_cost_type' : 'cross_entropy',
+        'train_cost_type' : 'nll',
         'valid_cost_type' : 'accuracy',
         'layer_sizes' : (784, 800, 800, 10),
         'nonlinearities' : ('ReLU', 'ReLU', 'SoftMax'),
@@ -30,18 +30,19 @@ def objective(lr):
         'momentum_ramp' : 0,
         'batch_size' : 100,
         'num_epochs' : 500,
-        'prior' : 'DropConnect',
-        'prior_variance' : 1e-3,
+        'prior' : 'Uniform',
+        'prior_variance' : 1e-2,
         'num_components' : 1,
-        'num_samples' : 5,
+        'num_samples' : 1,
         'norm' : 'L2',
-        'max_row_norm' : numpy.sqrt(15.),
+        'max_row_norm' : None,
         'sparsity' : None, 
         'dropout_dict' : None,
+        'zero_mean' : False,
         'cov' : False,
         'validation_freq' : 10,
         'save_freq' : 50,
-        'save_name' : 'pkl/DGWNrowGauss.pkl'
+        'save_name' : 'pkl/DGWN784_800_800_U2.pkl'
         }
     
     tr = Train()
@@ -51,12 +52,13 @@ def objective(lr):
     monitor = tr.train(args)
 
 
-lrs = [1e1, 3e0, 1e0, 3e-1, 1e-1, 3e-2, 1e-2, 3e-3, 1e-3, 3e-4, 1e-4, 3e-5, 1e-5]
+lrs = [1e-1, 3e-2, 1e-2, 3e-3, 1e-3, 3e-4, 1e-4, 3e-5, 1e-5, 3e-6, 1e-6, 3e-7, 1e-7]
 
 for lr in lrs:
     print('Learning rate: %f' % lr)
     try:
-        objective(lr*0.01)
+        objective(lr)
+        sys.exit(1)
     except DivergenceError:
         pass
 

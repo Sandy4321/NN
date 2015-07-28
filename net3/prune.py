@@ -5,7 +5,7 @@ import os, time, sys
 import cPickle
 import numpy
 
-from mlp import Mlp
+from mlp_dev import Mlp
 from theano import config as Tconf
 from train import DivergenceError, Train
 

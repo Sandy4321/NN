@@ -13,6 +13,7 @@ import gzip
 import numpy
 import theano.tensor as T
 import theano.tensor.nnet as Tnet
+import theano.sparse as Tsp
 
 from matplotlib import pylab
 from matplotlib import pyplot as plt
@@ -80,14 +81,25 @@ class Mlp():
         name = 'layer' + str(layer)
         W = self.W[layer]
         # Dropout
-        if self.dropout_dict == None:
-            pre_act = T.dot(W, X) + self.b[layer]
-        elif name in self.dropout_dict:
-            G = self.dropout(layer, X.shape)
-            self.G.append(G > 0)                    # To access mask values
-            pre_act = T.dot(W, X*G) + self.b[layer]
+        if hasattr(self, 'pruned'):
+            if self.pruned:
+                if self.dropout_dict == None:
+                    pre_act = Tsp.basic.dot(self.W[layer],X) + self.b[layer]
+                elif name in self.dropout_dict:
+                    G = self.dropout(layer, X.shape)
+                    self.G.append(G > 0)                    # To access mask values
+                    pre_act = Tsp.basic.dot(self.W[layer],X*G) + self.b[layer]
+                else:
+                    pre_act = Tsp.basic.dot(self.W[layer],X) + self.b[layer]
         else:
-            pre_act = T.dot(W, X) + self.b[layer]
+            if self.dropout_dict == None:
+                pre_act = T.dot(W, X) + self.b[layer]
+            elif name in self.dropout_dict:
+                G = self.dropout(layer, X.shape)
+                self.G.append(G > 0)                    # To access mask values
+                pre_act = T.dot(W, X*G) + self.b[layer]
+            else:
+                pre_act = T.dot(W, X) + self.b[layer]
         # Nonlinearity
         if nonlinearity == 'ReLU':
             s = lambda x : (x > 0) * x
@@ -102,7 +114,12 @@ class Mlp():
     def predict(self, X, args):
         '''Full MLP'''
         self.dropout_dict = args['dropout_dict']
+        if 'num_samples' in args:
+            if args['num_samples'] > 0:
+                X = self.extra_samples(X,args)
         for i in numpy.arange(self.num_layers):
+            if args['premean'] == True:
+                self.X[i] = X
             X = self.encode_layer(X, i, args)
             if args['cov'] == True:
                 self.X[i] = X
@@ -129,6 +146,9 @@ class Mlp():
         self.num_layers = len(self.ls) - 1
         self.dropout_dict = args['dropout_dict']
         self.prior_variance = args['prior_variance']
+        self.X = []
+        self.X.append([])
+        self.X = self.X*self.num_layers
         
         self.b = [] # Neuron biases
         self.W = [] # Connection weight means
@@ -147,11 +167,11 @@ class Mlp():
             W_value = numpy.asarray(W_value, dtype=Tconf.floatX)
             self.W.append(TsharedX(W_value, Wname, borrow=True))
             
-        for M, b in zip(self.W, self.b):
+        for W, b in zip(self.W, self.b):
             self._params.append(W)
             self._params.append(b)
     
-    def prune(self, proportion, scheme):
+    def prune(self, proportion, scheme, reweight=None):
         '''Prune the weights according to the prefered scheme'''
         SNR = []
         # Cycle through layers
@@ -159,10 +179,10 @@ class Mlp():
             Wname = 'W' + str(layer)
             j = [j for j, param in enumerate(self._params) if Wname == param.name][0]
             W_value = self._params[j].get_value()
+            if reweight != None:
+                W_value = reweight[layer]*W_value
             if scheme == 'KL':
-                snr = numpy.log(W_value**2)
-                snr_min = numpy.amin(snr)
-                snr = numpy.log(snr - snr_min + 1e-6)
+                snr = numpy.log(W_value**2 + 1e-6)
             SNR.append(snr)
         hist, bin_edges = self.cumhist(SNR, 1000)
         # Find cutoff value
@@ -175,6 +195,84 @@ class Mlp():
             self.masks.append(snr > cutoff)
         self.pruned = True
         self.to_csc()
+        
+    def activation_pruning(self, proportion, scheme, reweight=None):
+        '''Prune the weights according to the KL scheme'''
+        SNR = []
+        W = []
+        R = []
+        # Cycle through layers
+        for layer in numpy.arange(self.num_layers):
+            Wname = 'W' + str(layer)
+            j = [j for j, param in enumerate(self._params) if Wname == param.name][0]
+            W.append(self._params[j].get_value())
+            if reweight != None:
+                W[layer] = reweight[layer]*W[layer]
+            R.append(0*W[layer] + 1)
+        # Get cost
+        sh = 0
+        for layer in numpy.arange(self.num_layers):
+            sh += W[layer].shape[0]
+        C = numpy.zeros((sh,))
+        # Set already zeros
+        for layer in numpy.arange(self.num_layers):
+            R[layer] = (R[layer] - (W[layer] == 0)).astype(numpy.bool)
+        self.iterprune(W,R,C)
+    
+    def act_costs(self, W, R, C):
+        '''Calculate weight costs'''
+        i = 0
+        # Current costs
+        for layer in numpy.arange(self.num_layers):
+            w = W[layer]
+            r = R[layer]
+            for row in numpy.arange(w.shape[0]):
+                C[i] = self.acost(w[row,:], r[row,:])
+                i += 1
+        i = 0
+        # Future costs
+        for layer in numpy.arange(self.num_layers):
+            w = W[layer]
+            r = R[layer]
+            for row in numpy.arange(w.shape[0]):
+                # Get smallest nonzero element
+                rhat = numpy.copy(r[row,:])
+                y = numpy.abs(w[row,:]*rhat)
+                argmin = numpy.argmin(y + (1e6 * (y==0)))
+                rhat[argmin] = 0
+                C[i] = self.acost(w[row,:], rhat) - C[i]
+                i += 1
+        return C
+    
+    def acost(self, y, r):
+        '''The cost function'''
+        k = (numpy.sum(y)/numpy.dot(y,r))**2
+        m = 2.*(numpy.dot(y,r-1)/numpy.dot(y,r))**2
+        cost = m + k - 1. - numpy.log(k)
+        if m < 0:
+            print('mwoops')
+        if (k - 1. - numpy.log(k)) < 0:
+            print('vwoops')
+        if cost < 0:
+            print('cwoops')
+        return cost
+    
+    def iterprune(self, W, R, C):
+        '''Prune'''
+        for j in numpy.arange(1000):
+            C = self.act_costs(W, R, C)
+            am = numpy.argmin(C)
+            i = 0
+            for layer in numpy.arange(self.num_layers):
+                w = W[layer]
+                for row in numpy.arange(w.shape[0]):
+                    i += 1
+                    if i == am:
+                        y = numpy.abs(w[row,:]*R[layer][row,:])
+                        argmin = numpy.argmin(y + (1e6 * (y==0)))
+                        R[layer][row,:] = 0
+            print j
+
 
     def cumhist(self, SNR, nbins):
         '''Return normalised cumulative histogram of SNR'''
@@ -185,7 +283,22 @@ class Mlp():
         hist = hist/(hist[-1]*1.)
         return (hist, bin_edges)
     
-        
+    def to_csc(self):
+        '''Convert the parameters to sparse matrix form'''
+        for layer in numpy.arange(len(self.masks)):
+            W = self.W[layer]*self.masks[layer]
+            spW = Tsp.csc_from_dense(W)
+            self.W[layer] = spW
+    
+    def extra_samples(self, X, args):
+        '''Make parallel copies of the data'''
+        mode = args['mode']
+        n = args['num_samples']
+        Y = T.concatenate([X,]*args['num_samples'], axis=1)
+        print('Mode: %s, Number of samples: %i' % (mode, n))
+        return Y
+    
+    
 
         
         
