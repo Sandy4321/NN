@@ -233,7 +233,7 @@ class GaussianLayer(lasagne.layers.Layer):
         self.nonlinearity = nonlinearity
 
     def get_output_for(self, input, **kwargs):
-        b = T.ones_like(input[:,0])
+        b = T.ones_like(input[:,0]).dimshuffle(0,'x')
         X = T.concatenate([input,b],axis=1)
         print X.broadcastable
         M = T.dot(X,self.M) 
@@ -245,7 +245,6 @@ class GaussianLayer(lasagne.layers.Layer):
         return self.nonlinearity(H)
 
     def get_output_shape_for(self, input_shape):
-        print input_shape
         return (input_shape[0], self.num_units)
 
 
