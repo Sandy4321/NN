@@ -80,7 +80,7 @@ def build_mlp(input_var=None):
             l_in_drop, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify)
     l_hid2 = lasagne.layers.DenseLayer(
-            l_hid1_drop, num_units=800,
+            l_hid1, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify)
     l_hid2_drop = lasagne.layers.DropoutLayer(l_hid2, p=0.5)
     l_out = lasagne.layers.DenseLayer(
