@@ -229,6 +229,7 @@ class GaussianLayer(lasagne.layers.Layer):
         R = lasagne.init.Constant(r)
         self.M = self.add_param(M, (num_inputs+1, num_units), name='M')
         self.R = self.add_param(R, (num_inputs+1, num_units), name='R')
+        self.nonlinearity = nonlinearity
 
     def get_output_for(self, input, **kwargs):
         b = T.ones_like(input[:,0]).dimshuffle(0,'x')
@@ -239,6 +240,7 @@ class GaussianLayer(lasagne.layers.Layer):
         E = smrg.normal(size=S.shape)
         H = M + S*E 
         # Nonlinearity
+        return self.nonlinearity(H)
 
     def get_output_shape_for(self, input_shape):
         return (input_shape[0], self.num_units)
