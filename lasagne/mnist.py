@@ -79,12 +79,12 @@ def build_mlp(input_var=None):
     l_hid1 = lasagne.layers.DenseLayer(
             l_in_drop, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify)
+    l_hid1_drop = lasagne.layers.DropoutLayer(l_hid1, p=0.5)
     l_hid2 = GaussianLayer(
-            l_hid1, num_units=800,
+            l_hid1_drop, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify)
-    l_hid2_drop = lasagne.layers.DropoutLayer(l_hid2, p=0.5)
     l_out = lasagne.layers.DenseLayer(
-            l_hid2_drop, num_units=10,
+            l_hid2, num_units=10,
             nonlinearity=lasagne.nonlinearities.softmax)
     return l_out
 
@@ -245,6 +245,7 @@ class GaussianLayer(lasagne.layers.Layer):
         return self.nonlinearity(H)
 
     def get_output_shape_for(self, input_shape):
+        print input_shape
         return (input_shape[0], self.num_units)
 
 
