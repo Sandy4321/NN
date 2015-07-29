@@ -76,10 +76,10 @@ def build_mlp(input_var=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
     l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.2)
-    l_hid1 = GaussianLayer(
+    l_hid1 = lasagne.layers.DenseLayer(
             l_in_drop, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify)
-    l_hid2 = lasagne.layers.DenseLayer(
+    l_hid2 = GaussianLayer(
             l_hid1, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify)
     l_hid2_drop = lasagne.layers.DropoutLayer(l_hid2, p=0.5)
@@ -233,7 +233,8 @@ class GaussianLayer(lasagne.layers.Layer):
         self.nonlinearity = nonlinearity
 
     def get_output_for(self, input, **kwargs):
-        X = T.shape_padright(input, n_ones=1)
+        b = T.ones_like(input[:,0])
+        X = T.concatenate([input,b],axis=1)
         print X.broadcastable
         M = T.dot(X,self.M) 
         S = T.sqrt(T.dot(X**2,T.log(1 + T.exp(self.R))**2))
