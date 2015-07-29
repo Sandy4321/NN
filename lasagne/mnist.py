@@ -76,11 +76,9 @@ def build_mlp(input_var=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
     l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.2)
-    l_hid1 = lasagne.layers.DenseLayer(
+    l_hid1 = GaussianLayer(
             l_in_drop, num_units=800,
-            nonlinearity=lasagne.nonlinearities.rectify,
-            W=lasagne.init.GlorotUniform())
-    l_hid1_drop = lasagne.layers.DropoutLayer(l_hid1, p=0.5)
+            nonlinearity=lasagne.nonlinearities.rectify)
     l_hid2 = lasagne.layers.DenseLayer(
             l_hid1_drop, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify)
