@@ -221,7 +221,7 @@ def main(model='mlp', num_epochs=500):
     # np.savez('model.npz', lasagne.layers.get_all_param_values(network))
     
 class GaussianLayer(lasagne.layers.Layer):
-    def __init__(self, incoming, num_units, **kwargs):
+    def __init__(self, incoming, num_units, nonlinearity, **kwargs):
         super(GaussianLayer, self).__init__(incoming, **kwargs)
         num_inputs = self.input_shape[1]
         r = np.log(np.exp(np.sqrt(2./(num_inputs + num_units)))-1.)
