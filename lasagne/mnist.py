@@ -82,7 +82,7 @@ def build_mlp(input_var=None):
     l_hid2 = GaussianLayer(
             l_hid1, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify)
-    l_out = lasagne.layers.DenseLayer(
+    l_out = GaussianLayer(
             l_hid2, num_units=10,
             nonlinearity=lasagne.nonlinearities.softmax)
     return l_out
