@@ -75,13 +75,12 @@ def load_dataset():
 def build_mlp(input_var=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
-    l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.2)
-    l_hid1 = lasagne.layers.DenseLayer(
-            l_in_drop, num_units=800,
+    l_flat = lasagne.layers.FlattenLayer(l_in, outdim=2)
+    l_hid1 = GaussianLayer(
+            l_flat, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify)
-    l_hid1_drop = lasagne.layers.DropoutLayer(l_hid1, p=0.5)
     l_hid2 = GaussianLayer(
-            l_hid1_drop, num_units=800,
+            l_hid1, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify)
     l_out = lasagne.layers.DenseLayer(
             l_hid2, num_units=10,
@@ -235,7 +234,6 @@ class GaussianLayer(lasagne.layers.Layer):
     def get_output_for(self, input, **kwargs):
         b = T.ones_like(input[:,0]).dimshuffle(0,'x')
         X = T.concatenate([input,b],axis=1)
-        print X.broadcastable
         M = T.dot(X,self.M) 
         S = T.sqrt(T.dot(X**2,T.log(1 + T.exp(self.R))**2))
         smrg = MRG_RandomStreams()
