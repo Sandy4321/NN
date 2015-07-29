@@ -157,6 +157,7 @@ class Dgwn():
         self.num_layers = len(self.ls) - 1
         self.dropout_dict = args['dropout_dict']
         self.prior_variance = args['prior_variance']
+        self.prior = args['prior']
         
         self.M = [] # Connection weight means
         self.R = [] # Connection weight variances (S = log(1+exp(R)))
@@ -192,13 +193,22 @@ class Dgwn():
             k = [j for j, param in enumerate(self._params) if Rname == param.name][0]
             R_value = self._params[k].get_value()
             R_value = R_value[:,:-1]
-            S_value = numpy.log(1. + numpy.exp(R_value))
             if scheme == 'SNR':
-                snr = numpy.log(1e-6 + numpy.abs(M_value)/S_value)
+                if self.prior == 'Gaussian':
+                    S_value = numpy.log(1. + numpy.exp(R_value))
+                    snr = numpy.log(1e-6 + numpy.abs(M_value)/S_value)
+                elif self.prior == 'DropConnect':
+                    P_value = 1./(1. + numpy.exp(R_value))
+                    snr = 1./((1-P_value)*M_value + 1e-6)
             elif scheme == 'KL':
-                snr = (M_value/S_value)**2 +2.*numpy.log(S_value)
-                snr_min = numpy.amin(snr)
-                snr = numpy.log(snr - snr_min + 1e-6)
+                if self.prior == 'Gaussian':
+                    S_value = numpy.log(1. + numpy.exp(R_value))
+                    snr = (M_value/S_value)**2 +2.*numpy.log(S_value)
+                    snr_min = numpy.amin(snr)
+                    snr = numpy.log(snr - snr_min + 1e-6)
+                elif self.prior == 'DropConnect':
+                    P_value = 1./(1. + numpy.exp(R_value))
+                    snr = 1.-P_value
             SNR.append(snr)
         hist, bin_edges = self.cumhist(SNR, 1000)
         # Find cutoff value
@@ -228,10 +238,11 @@ class Dgwn():
         '''Convert the parameters to sparse matrix form'''
         for layer in numpy.arange(len(self.masks)):
             M = self.M[layer]*self.masks[layer]
-            S = T.log(1 + T.exp(self.R[layer]))*self.masks[layer]
+            S = T.log(1. + T.exp(self.R[layer]))*self.masks[layer]
             spM = Tsp.csc_from_dense(M)
-            spS = Tsp.structured_add(Tsp.csc_from_dense(S),-1.)
-            spR = Tsp.structured_log(Tsp.structured_exp(spS))
+            spS = Tsp.csc_from_dense(S)
+            spS = Tsp.structured_add(Tsp.structured_exp(spS),-1.)
+            spR = Tsp.structured_log(spS)
             self.M[layer] = spM
             self.R[layer] = spR
         

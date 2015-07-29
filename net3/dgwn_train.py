@@ -30,19 +30,19 @@ def objective(lr):
         'momentum_ramp' : 0,
         'batch_size' : 100,
         'num_epochs' : 500,
-        'prior' : 'Uniform',
+        'prior' : 'DropConnect',
         'prior_variance' : 1e-2,
         'num_components' : 1,
         'num_samples' : 1,
         'norm' : 'L2',
-        'max_row_norm' : None,
+        'max_row_norm' : numpy.sqrt(15.),
         'sparsity' : None, 
         'dropout_dict' : None,
         'zero_mean' : False,
         'cov' : False,
         'validation_freq' : 10,
         'save_freq' : 50,
-        'save_name' : 'pkl/DGWN784_800_800_U2.pkl'
+        'save_name' : 'pkl/DGWN784_800_800_DC15.pkl'
         }
     
     tr = Train()
