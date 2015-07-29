@@ -222,7 +222,7 @@ def main(model='mlp', num_epochs=500):
     
 class GaussianLayer(lasagne.layers.Layer):
     def __init__(self, incoming, num_units, **kwargs):
-        num_inputs = T.shape(incoming)[1]
+        num_inputs = self.input_shape[1]
         r = np.log(np.exp(np.sqrt(2./(num_inputs + num_units)))-1.)
         M = lasagne.init.Constant(0.0)
         R = lasagne.init.Constant(r)
