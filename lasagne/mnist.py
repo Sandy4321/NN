@@ -7,12 +7,12 @@ __contact__   = "d.worrall@cs.ucl.ac.uk"
 
 import os, sys, time
 
+import lasagne
 import numpy as np
 import theano
 import theano.tensor as T
 
-import lasagne
-
+from theano.sandbox.rng_mrg import MRG_RandomStreams
 
 # ################## Download and prepare the MNIST dataset ##################
 # This is just some way of getting the MNIST dataset from an online location
