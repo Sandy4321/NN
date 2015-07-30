@@ -7,13 +7,12 @@ __contact__   = "d.worrall@cs.ucl.ac.uk"
 
 import os, sys, time
 
-import cPickle
+import lasagne
 import numpy as np
 import theano
 import theano.tensor as T
 
-import lasagne
-
+from theano.sandbox.rng_mrg import MRG_RandomStreams
 
 # ################## Download and prepare the MNIST dataset ##################
 # This is just some way of getting the MNIST dataset from an online location
@@ -34,31 +33,29 @@ def load_dataset():
         def pickle_load(f, encoding):
             return pickle.load(f, encoding=encoding)
 
-    # Load CIFAR dataset
-    print('Loading CIFAR 10')
-    file = '/media/daniel/DATA/Cifar/cifar-10-batches-py/data_batch_'
-    data = []
-    labels = []
-    for i in ['1','2','3','4']:
-        data_dict = unpickle(file+i)
-        data.append(data_dict['data'])
-        labels.append(np.asarray(data_dict['labels']))
-    X_train = np.vstack(data[:3])
-    y_train = np.hstack(labels[:3])
-    X_val = data[-1]
-    y_val = labels[-1]
-    data_dict = unpickle('/media/daniel/DATA/Cifar/cifar-10-batches-py/test_batch')
-    X_test = np.asarray(data_dict['data'])
-    y_test = np.asarray(data_dict['labels'])
+    # We'll now download the MNIST dataset if it is not yet available.
+    url = 'http://deeplearning.net/data/mnist/mnist.pkl.gz'
+    filename = 'mnist.pkl.gz'
+    if not os.path.exists(filename):
+        print("Downloading MNIST dataset...")
+        urlretrieve(url, filename)
+
+    # We'll then load and unpickle the file.
+    import gzip
+    with gzip.open(filename, 'rb') as f:
+        data = pickle_load(f, encoding='latin-1')
+
+    # The MNIST dataset we have here consists of six numpy arrays:
+    # Inputs and targets for the training set, validation set and test set.
+    X_train, y_train = data[0]
+    X_val, y_val = data[1]
+    X_test, y_test = data[2]
 
     # The inputs come as vectors, we reshape them to monochrome 2D images,
     # according to the shape convention: (examples, channels, rows, columns)
-    X_train = X_train.reshape((-1, 3, 32, 32))/255.
-    X_val = X_val.reshape((-1, 3, 32, 32))/255.
-    X_test = X_test.reshape((-1, 3, 32, 32))/255.
-    X_train = X_train.astype(np.float32)
-    X_val = X_val.astype(np.float32)
-    X_test = X_test.astype(np.float32)
+    X_train = X_train.reshape((-1, 1, 28, 28))
+    X_val = X_val.reshape((-1, 1, 28, 28))
+    X_test = X_test.reshape((-1, 1, 28, 28))
 
     # The targets are int64, we cast them to int8 for GPU compatibility.
     y_train = y_train.astype(np.uint8)
@@ -69,64 +66,26 @@ def load_dataset():
     # (It doesn't matter how we do this as long as we can read them again.)
     return X_train, y_train, X_val, y_val, X_test, y_test
 
-def unpickle(file):
-    import cPickle
-    fo = open(file, 'rb')
-    dict = cPickle.load(fo)
-    fo.close()
-    return dict
-
 
 # ##################### Build the neural network model #######################
 # This script supports three types of models. For each one, we define a
 # function that takes a Theano variable representing the input and returns
 # the output layer of a neural network model build in Lasagne.
 
-def build_cnn(input_var=None):
-    # As a third model, we'll create a CNN of two convolution + pooling stages
-    # and a fully-connected hidden layer in front of the output layer.
-
-    # Input layer, as usual:
-    network = lasagne.layers.InputLayer(shape=(None, 3, 32, 32),
-                                        input_var=input_var)
-    network = lasagne.layers.Conv2DLayer(
-            network, num_filters=32, filter_size=(3, 3),
-            nonlinearity=lasagne.nonlinearities.very_leaky_rectify,
-            W=lasagne.init.GlorotUniform())
-    network = lasagne.layers.Conv2DLayer(
-            network, num_filters=32, filter_size=(3, 3),
-            nonlinearity=lasagne.nonlinearities.very_leaky_rectify,
-            W=lasagne.init.GlorotUniform())
-    network = lasagne.layers.MaxPool2DLayer(network, pool_size=(3, 3), stride=2)
-    network = lasagne.layers.Conv2DLayer(
-            network, num_filters=32, filter_size=(3, 3),
-            nonlinearity=lasagne.nonlinearities.very_leaky_rectify,
-            W=lasagne.init.GlorotUniform())
-    network = lasagne.layers.Conv2DLayer(
-            network, num_filters=32, filter_size=(3, 3),
-            nonlinearity=lasagne.nonlinearities.very_leaky_rectify,
-            W=lasagne.init.GlorotUniform())
-    network = lasagne.layers.MaxPool2DLayer(network, pool_size=(3, 3), stride=2)
-    network = lasagne.layers.Conv2DLayer(
-            network, num_filters=64, filter_size=(3, 3),
-            nonlinearity=lasagne.nonlinearities.very_leaky_rectify,
-            W=lasagne.init.GlorotUniform())
-    network = lasagne.layers.Conv2DLayer(
-            network, num_filters=64, filter_size=(3, 3),
-            nonlinearity=lasagne.nonlinearities.very_leaky_rectify,
-            W=lasagne.init.GlorotUniform())
-    network = lasagne.layers.MaxPool2DLayer(network, pool_size=(3, 3), stride=2)
-    network = lasagne.layers.DenseLayer(
-            lasagne.layers.dropout(network, p=.5),
-            num_units=256,
-            nonlinearity=lasagne.nonlinearities.very_leaky_rectify,
-            W=lasagne.init.GlorotUniform())
-    network = lasagne.layers.DenseLayer(
-            lasagne.layers.dropout(network, p=.5),
-            num_units=10,
+def build_mlp(input_var=None):
+    l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
+                                     input_var=input_var)
+    l_flat = lasagne.layers.FlattenLayer(l_in, outdim=2)
+    l_hid1 = GaussianLayer(
+            l_flat, num_units=800,
+            nonlinearity=lasagne.nonlinearities.rectify)
+    l_hid2 = GaussianLayer(
+            l_hid1, num_units=800,
+            nonlinearity=lasagne.nonlinearities.rectify)
+    l_out = GaussianLayer(
+            l_hid2, num_units=10,
             nonlinearity=lasagne.nonlinearities.softmax)
-
-    return network
+    return l_out
 
 
 # ############################# Batch iterator ###############################
@@ -167,7 +126,16 @@ def main(model='mlp', num_epochs=500):
 
     # Create neural network model (depending on first command line parameter)
     print("Building model and compiling functions...")
-    network = build_cnn(input_var)
+    if model == 'mlp':
+        network = build_mlp(input_var)
+    elif model.startswith('custom_mlp:'):
+        depth, width, drop_in, drop_hid = model.split(':', 1)[1].split(',')
+        network = build_custom_mlp(input_var, int(depth), int(width),
+                                   float(drop_in), float(drop_hid))
+    elif model == 'cnn':
+        network = build_cnn(input_var)
+    else:
+        print("Unrecognized model type %r." % model)
 
     # Create a loss expression for training, i.e., a scalar objective we want
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
@@ -209,7 +177,7 @@ def main(model='mlp', num_epochs=500):
         train_err = 0
         train_batches = 0
         start_time = time.time()
-        for batch in iterate_minibatches(X_train, y_train, 100, shuffle=True):
+        for batch in iterate_minibatches(X_train, y_train, 500, shuffle=True):
             inputs, targets = batch
             train_err += train_fn(inputs, targets)
             train_batches += 1
@@ -218,7 +186,7 @@ def main(model='mlp', num_epochs=500):
         val_err = 0
         val_acc = 0
         val_batches = 0
-        for batch in iterate_minibatches(X_val, y_val, 100, shuffle=False):
+        for batch in iterate_minibatches(X_val, y_val, 500, shuffle=False):
             inputs, targets = batch
             err, acc = val_fn(inputs, targets)
             val_err += err
@@ -237,7 +205,7 @@ def main(model='mlp', num_epochs=500):
     test_err = 0
     test_acc = 0
     test_batches = 0
-    for batch in iterate_minibatches(X_test, y_test, 100, shuffle=False):
+    for batch in iterate_minibatches(X_test, y_test, 500, shuffle=False):
         inputs, targets = batch
         err, acc = val_fn(inputs, targets)
         test_err += err
@@ -250,6 +218,32 @@ def main(model='mlp', num_epochs=500):
 
     # Optionally, you could now dump the network weights to a file like this:
     # np.savez('model.npz', lasagne.layers.get_all_param_values(network))
+    
+class GaussianLayer(lasagne.layers.Layer):
+    def __init__(self, incoming, num_units, nonlinearity, **kwargs):
+        super(GaussianLayer, self).__init__(incoming, **kwargs)
+        num_inputs = self.input_shape[1]
+        self.num_units = num_units
+        r = np.log(np.exp(np.sqrt(2./(num_inputs + num_units)))-1.)
+        M = lasagne.init.Constant(0.0)
+        R = lasagne.init.Constant(r)
+        self.M = self.add_param(M, (num_inputs+1, num_units), name='M')
+        self.R = self.add_param(R, (num_inputs+1, num_units), name='R')
+        self.nonlinearity = nonlinearity
+
+    def get_output_for(self, input, **kwargs):
+        b = T.ones_like(input[:,0]).dimshuffle(0,'x')
+        X = T.concatenate([input,b],axis=1)
+        M = T.dot(X,self.M) 
+        S = T.sqrt(T.dot(X**2,T.log(1 + T.exp(self.R))**2))
+        smrg = MRG_RandomStreams()
+        E = smrg.normal(size=S.shape)
+        H = M + S*E 
+        # Nonlinearity
+        return self.nonlinearity(H)
+
+    def get_output_shape_for(self, input_shape):
+        return (input_shape[0], self.num_units)
 
 
 if __name__ == '__main__':
@@ -270,21 +264,3 @@ if __name__ == '__main__':
         if len(sys.argv) > 2:
             kwargs['num_epochs'] = int(sys.argv[2])
         main(**kwargs)
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
