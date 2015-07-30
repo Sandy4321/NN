@@ -98,11 +98,23 @@ def build_cnn(input_var=None):
             conv1, num_filters=32, filter_size=(3, 3),
             nonlinearity=lasagne.nonlinearities.rectify,
             W=lasagne.init.GlorotUniform())
-    FWTA2 = lasagne.layers.FeatureWTALayer(conv2, 32)
-    deconv1 = DeconvLayer(FWTA2, conv2, lasagne.nonlinearities.rectify)
-    deconv2 = DeconvLayer(deconv1, conv1, lasagne.nonlinearities.rectify)
-
-    return deconv2
+    pool1 = lasagne.layers.MaxPool2DLayer(conv2, pool_size=(2, 2))
+    conv3 = lasagne.layers.Conv2DLayer(
+            pool1, num_filters=32, filter_size=(3, 3),
+            nonlinearity=lasagne.nonlinearities.rectify,
+            W=lasagne.init.GlorotUniform())
+    conv4 = lasagne.layers.Conv2DLayer(
+            conv3, num_filters=32, filter_size=(3, 3),
+            nonlinearity=lasagne.nonlinearities.rectify,
+            W=lasagne.init.GlorotUniform())
+    pool2 = lasagne.layers.MaxPool2DLayer(conv4, pool_size=(2, 2))
+    unpool1 = UnpoolNoSwitchLayer(pool2, pool2)
+    deconv1 = DeconvLayer(unpool1, conv4, lasagne.nonlinearities.rectify)
+    deconv2 = DeconvLayer(deconv1, conv3, lasagne.nonlinearities.rectify)
+    unpool2 = UnpoolNoSwitchLayer(deconv2, pool1)
+    deconv3 = DeconvLayer(unpool2, conv2, lasagne.nonlinearities.rectify)
+    deconv4 = DeconvLayer(deconv3, conv1, lasagne.nonlinearities.rectify)
+    return deconv4
 
 
 # ############################# Batch iterator ###############################
@@ -132,7 +144,7 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
 # more functions to better separate the code, but it wouldn't make it any
 # easier to read.
 
-def main(model='mlp', num_epochs=500):
+def main(model='mlp', num_epochs=100):
     # Load the dataset
     print("Loading data...")
     X_train, y_train, X_val, y_val, X_test, y_test = load_dataset()
@@ -145,7 +157,7 @@ def main(model='mlp', num_epochs=500):
     # Build net
     network = build_cnn(input_var)
     # Loss
-    prediction = lasagne.layers.get_output(network)
+    prediction = lasagne.layers.get_output(network, competition=True)
     loss = lasagne.objectives.squared_error(prediction, target_var)
     loss = loss.mean()
     # Optimization
@@ -153,7 +165,7 @@ def main(model='mlp', num_epochs=500):
     updates = lasagne.updates.nesterov_momentum(
             loss, params, learning_rate=0.01, momentum=0.9)
     # Validation/Testing
-    test_prediction = lasagne.layers.get_output(network)
+    test_prediction = lasagne.layers.get_output(network, competition=False)
     test_loss = lasagne.objectives.squared_error(test_prediction, target_var)
     test_loss = test_loss.mean()
     # Compile functions
@@ -204,6 +216,33 @@ def main(model='mlp', num_epochs=500):
 
     # Optionally, you could now dump the network weights to a file like this:
     # np.savez('model.npz', lasagne.layers.get_all_param_values(network))
+    
+def fetch_data(file, batch):
+    pass
+    
+def threaded_generator(generator, num_cached=50):
+    import Queue
+    queue = Queue.Queue(maxsize=num_cached)
+    sentinel = object()  # guaranteed unique reference
+
+    # define producer (putting items into queue)
+    def producer():
+        for item in generator:
+            queue.put(item)
+        queue.put(sentinel)
+
+    # start producer (in a background thread)
+    import threading
+    thread = threading.Thread(target=producer)
+    thread.daemon = True
+    thread.start()
+
+    # run as consumer (read items from queue, in current thread)
+    item = queue.get()
+    while item is not sentinel:
+        yield item
+        queue.task_done()
+        item = queue.get()
 
 class DeconvLayer(lasagne.layers.Layer):
     def __init__(self, incoming, match, nonlinearity, **kwargs):
@@ -224,24 +263,32 @@ class DeconvLayer(lasagne.layers.Layer):
     def get_output_shape_for(self, input_shape):
         return self.output_shp
     
-class NonmaxsuppressionLayer(lasagne.layers.Layer):
-    def __init__(self, incoming, match, nonlinearity, **kwargs):
-        super(NonmaxsuppressionLayer, self).__init__(incoming, **kwargs)
-        self.nonlinearity = nonlinearity
-        self.stride = match.stride
-        self.output_shp = match.input_shape
-        self.W = match.W.dimshuffle(1,0,2,3)[:,:,::-1,::-1]
-        
-    def get_output_for(self, input, **kwargs):
-        shp = input.shape
-        upsample = T.zeros((shp[0], shp[1], shp[2] * self.stride[0],
-                            shp[3] * self.stride[1]), dtype=input.dtype)
-        upsample = T.set_subtensor(upsample[:, :, ::self.stride[0],
-                                            ::self.stride[1]], input)
-        return T.nnet.conv2d(input, self.W, border_mode='full')
+class NonmaxsuppressionLayer(lasagne.layers.Layer):     
+    def get_output_for(self, input, competition=True, **kwargs):
+        if competition == True:
+            flat = input.flatten(ndim=3)
+            maxes = T.argmax(flat,axis=2)
+            mask = T.zeros(input.shape, dtype=input.dtype)
+            flatmask = mask.flatten(ndim=3)
+            T.set_subtensor(flatmask[:,:,maxes], 1)
+            mask = T.reshape(flatmask, input.shape)
+            return mask*input
+        else:
+            return input
 
+class UnpoolNoSwitchLayer(lasagne.layers.Layer):
+    def __init__(self, incoming, match, **kwargs):
+        super(UnpoolNoSwitchLayer, self).__init__(incoming, **kwargs)
+        self.output_shp = match.input_shape
+        self.stride = match.pool_size
+    
+    def get_output_for(self, input, **kwargs):
+        return input.repeat(self.stride[0], axis=2).repeat(self.stride[1],
+                                                           axis=3)
+    
     def get_output_shape_for(self, input_shape):
         return self.output_shp
+
 
 
 
