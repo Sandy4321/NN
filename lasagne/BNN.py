@@ -75,9 +75,8 @@ def load_dataset():
 def build_mlp(input_var=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
-    l_flat = lasagne.layers.FlattenLayer(l_in, outdim=2)
     l_hid1 = GaussianLayer(
-            l_flat, num_units=800,
+            l_in, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify)
     l_hid2 = GaussianLayer(
             l_hid1, num_units=800,
@@ -222,7 +221,7 @@ def main(model='mlp', num_epochs=500):
 class GaussianLayer(lasagne.layers.Layer):
     def __init__(self, incoming, num_units, nonlinearity, **kwargs):
         super(GaussianLayer, self).__init__(incoming, **kwargs)
-        num_inputs = self.input_shape[1]
+        num_inputs = int(np.prod(self.input_shape[1:]))
         self.num_units = num_units
         r = np.log(np.exp(np.sqrt(2./(num_inputs + num_units)))-1.)
         M = lasagne.init.Constant(0.0)
@@ -232,6 +231,8 @@ class GaussianLayer(lasagne.layers.Layer):
         self.nonlinearity = nonlinearity
 
     def get_output_for(self, input, **kwargs):
+        if input.ndim > 2:
+            input = input.flatten(2)
         b = T.ones_like(input[:,0]).dimshuffle(0,'x')
         X = T.concatenate([input,b],axis=1)
         M = T.dot(X,self.M) 
