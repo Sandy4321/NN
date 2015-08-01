@@ -150,7 +150,7 @@ def main(model='mlp', num_epochs=500):
     for layer in lasagne.layers.get_all_layers(network):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
-                reg += GaussianRegulariser(layer.M, layer.R, prior_std)
+                reg += LaplaceRegulariser(layer.M, layer.R, prior_std)
     loss = loss + (1.*batch_size/dataset_size)*reg
     # Create update expressions for training, i.e., how to modify the
     # parameters at each training step. Here, we'll use Stochastic Gradient
@@ -265,7 +265,14 @@ class GaussianLayer(lasagne.layers.Layer):
 def GaussianRegulariser(M, R, prior_std):
     '''Regularise according to Gaussian prior'''
     S = T.log(1. + T.exp(R))
-    return T.sum(T.log(S/prior_std) + (((M**2)+(prior_std**2))/(S**2) - 1.)*0.5) 
+    return T.sum(T.log(S/prior_std) + (((M**2)+(prior_std**2))/(S**2) - 1.)*0.5)
+
+def LaplaceRegulariser(M, R, prior_std):
+    '''Regularise according to Laplace prior'''
+    S = T.log(1. + T.exp(R))
+    sr = prior_std/S
+    m2 = T.sqrt(2.)*T.abs(M)
+    return T.sum(m2/S + sr*T.exp(-m2/prior_std) - 1. - T.log(sr))
 
 if __name__ == '__main__':
     if ('--help' in sys.argv) or ('-h' in sys.argv):
