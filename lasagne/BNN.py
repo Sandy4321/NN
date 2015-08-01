@@ -147,8 +147,9 @@ def main(model='mlp', num_epochs=500):
     # parameters at each training step. Here, we'll use Stochastic Gradient
     # Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
     params = lasagne.layers.get_all_params(network, trainable=True)
+    learning_rate = T.lscalar('learning_rate')
     updates = lasagne.updates.nesterov_momentum(
-            loss, params, learning_rate=0.01, momentum=0.9)
+            loss, params, learning_rate=learning_rate, momentum=0.9)
 
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
@@ -172,6 +173,7 @@ def main(model='mlp', num_epochs=500):
     print("Starting training...")
     # We iterate over epochs:
     for epoch in range(num_epochs):
+        learning_rate = 0.01*50./T.max(epoch,50.)
         # In each epoch, we do a full pass over the training data:
         train_err = 0
         train_batches = 0
@@ -224,7 +226,7 @@ class GaussianLayer(lasagne.layers.Layer):
         num_inputs = int(np.prod(self.input_shape[1:]))
         self.num_units = num_units
         r = np.log(np.exp(np.sqrt(1./num_inputs))-1.)
-        M = lasagne.init.Constant(-0.01)
+        M = lasagne.init.Constant(0.0)
         R = lasagne.init.Constant(r)
         self.M = self.add_param(M, (num_inputs+1, num_units), name='M')
         self.R = self.add_param(R, (num_inputs+1, num_units), name='R')
