@@ -258,7 +258,7 @@ class GaussianLayer(lasagne.layers.Layer):
         M = T.dot(X,self.M) 
         s = T.sqrt(T.dot(X**2,self.S**2))
         smrg = MRG_RandomStreams()
-        E = smrg.normal(size=S.shape)
+        E = smrg.normal(size=self.S.shape)
         H = M + s*E 
         # Nonlinearity
         return self.nonlinearity(H)
