@@ -256,7 +256,7 @@ class GaussianLayer(lasagne.layers.Layer):
     def get_output_shape_for(self, input_shape):
         return (input_shape[0], self.num_units)
 
-def GaussianRegulariser(M, R, prior_var):
+def GaussianRegulariser(M, R, prior_std):
     '''Regularise according to Gaussian prior'''
     S = T.log(1. + T.exp(R))
     return T.sum(T.log(S/prior_std)+0.5*((((S**2) + (M**2))/(prior_std**2))-1.))
