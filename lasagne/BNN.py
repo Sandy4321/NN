@@ -271,7 +271,7 @@ def LaplaceRegulariser(M, R, prior_std):
     '''Regularise according to Laplace prior'''
     S = T.log(1. + T.exp(R))
     sr = prior_std/S
-    m2 = T.sqrt(2.)*T.abs(M)
+    m2 = T.sqrt(2.)*T.abs_(M)
     return T.sum(m2/S + sr*T.exp(-m2/prior_std) - 1. - T.log(sr))
 
 if __name__ == '__main__':
