@@ -139,7 +139,9 @@ def main(model='mlp', num_epochs=500):
 
     # Create a loss expression for training, i.e., a scalar objective we want
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
+    prior_std = numpy.sqrt(1e-2)
     batch_size = 50
+    base_lr = 0.001
     prediction = lasagne.layers.get_output(network)
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
     loss = loss.sum()
@@ -148,7 +150,7 @@ def main(model='mlp', num_epochs=500):
     for layer in lasagne.layers.get_all_layers(network):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
-                reg += GaussianRegulariser(layer.M, layer.R, 0.01)
+                reg += GaussianRegulariser(layer.M, layer.R, prior_std)
     loss = loss + (1.*batch_size/dataset_size)*reg
     # Create update expressions for training, i.e., how to modify the
     # parameters at each training step. Here, we'll use Stochastic Gradient
@@ -181,7 +183,7 @@ def main(model='mlp', num_epochs=500):
     print("Starting training...")
     # We iterate over epochs:
     for epoch in range(num_epochs):
-        learning_rate = get_learning_rate(epoch, 50, 0.3)
+        learning_rate = get_learning_rate(epoch, 50, base_lr)
         # In each epoch, we do a full pass over the training data:
         train_err = 0
         train_batches = 0
