@@ -223,7 +223,7 @@ class GaussianLayer(lasagne.layers.Layer):
         super(GaussianLayer, self).__init__(incoming, **kwargs)
         num_inputs = int(np.prod(self.input_shape[1:]))
         self.num_units = num_units
-        r = np.log(np.exp(np.sqrt(2./(num_inputs + num_units)))-1.)
+        r = np.log(np.exp(np.sqrt(1./num_inputs))-1.)
         M = lasagne.init.Constant(0.0)
         R = lasagne.init.Constant(r)
         self.M = self.add_param(M, (num_inputs+1, num_units), name='M')
