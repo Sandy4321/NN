@@ -142,8 +142,8 @@ def main(model='mlp', num_epochs=500):
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
     loss = loss.mean()
     # We could add some weight decay as well here, see lasagne.regularization.
-    for param in lasagne.layers.get_all_params(network):
-        print param
+    for layer in lasagne.layers.get_all_layers(network):
+        print layer.type
     # Create update expressions for training, i.e., how to modify the
     # parameters at each training step. Here, we'll use Stochastic Gradient
     # Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
