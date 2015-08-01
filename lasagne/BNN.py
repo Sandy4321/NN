@@ -256,10 +256,10 @@ class GaussianLayer(lasagne.layers.Layer):
         b = T.ones_like(input[:,0]).dimshuffle(0,'x')
         X = T.concatenate([input,b],axis=1)
         M = T.dot(X,self.M) 
-        S = T.sqrt(T.dot(X**2,T.log(1 + T.exp(self.R))**2))
+        s = T.sqrt(T.dot(X**2,self.S**2))
         smrg = MRG_RandomStreams()
         E = smrg.normal(size=S.shape)
-        H = M + S*E 
+        H = M + s*E 
         # Nonlinearity
         return self.nonlinearity(H)
 
@@ -287,8 +287,7 @@ class FullGaussianLayer(lasagne.layers.Layer):
         X = T.concatenate([input,b],axis=1)
         smrg = MRG_RandomStreams()
         E = smrg.normal(size=self.M.shape)
-        S = T.log(1. + T.exp(self.R))
-        W = self.M + S*E
+        W = self.M + self.S*E
         H = T.dot(X,W)
         # Nonlinearity
         return self.nonlinearity(H)
