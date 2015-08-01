@@ -303,7 +303,7 @@ class HalfGaussianLayer(lasagne.layers.Layer):
         M = lasagne.init.Constant(0.0)
         R = lasagne.init.Constant(r)
         self.M = self.add_param(M, (num_inputs+1, num_units), name='M')
-        self.R = self.add_param(R, (1, num_units), name='R')
+        self.R = self.add_param(R, (num_units,), name='R')
         self.S = T.log(1. + T.exp(self.R))
         self.nonlinearity = nonlinearity
         self.layer_type = 'GaussianLayer'
