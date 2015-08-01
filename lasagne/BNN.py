@@ -75,13 +75,13 @@ def load_dataset():
 def build_mlp(input_var=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
-    l_hid1 = FullGaussianLayer(
+    l_hid1 = GaussianLayer(
             l_in, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify)
-    l_hid2 = FullGaussianLayer(
+    l_hid2 = GaussianLayer(
             l_hid1, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify)
-    l_out = FullGaussianLayer(
+    l_out = GaussianLayer(
             l_hid2, num_units=10,
             nonlinearity=lasagne.nonlinearities.softmax)
     return l_out
@@ -258,7 +258,7 @@ class GaussianLayer(lasagne.layers.Layer):
         S = T.sqrt(T.dot(X**2,T.log(1 + T.exp(self.R))**2))
         smrg = MRG_RandomStreams()
         E = smrg.normal(size=S.shape)
-        H = M + S *E 
+        H = M + S*E 
         # Nonlinearity
         return self.nonlinearity(H)
 
