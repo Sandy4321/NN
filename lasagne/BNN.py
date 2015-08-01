@@ -173,14 +173,14 @@ def main(model='mlp', num_epochs=500):
     print("Starting training...")
     # We iterate over epochs:
     for epoch in range(num_epochs):
-        lr = (0.01*50./np.maximum(epoch,50.)).astype(theano.config.floatX)
+        learning_rate = get_learning_rate(epoch, 50, 0.01)
         # In each epoch, we do a full pass over the training data:
         train_err = 0
         train_batches = 0
         start_time = time.time()
         for batch in iterate_minibatches(X_train, y_train, 500, shuffle=True):
             inputs, targets = batch
-            train_err += train_fn(inputs, targets, learning_rate=lr)
+            train_err += train_fn(inputs, targets, learning_rate=learning_rate)
             train_batches += 1
 
         # And a full pass over the validation data:
@@ -219,6 +219,9 @@ def main(model='mlp', num_epochs=500):
 
     # Optionally, you could now dump the network weights to a file like this:
     # np.savez('model.npz', lasagne.layers.get_all_param_values(network))
+    
+def get_learning_rate(epoch, margin, base):
+    return (base*margin/np.maximum(epoch,margin)).astype(theano.config.floatX)
     
 class GaussianLayer(lasagne.layers.Layer):
     def __init__(self, incoming, num_units, nonlinearity, **kwargs):
