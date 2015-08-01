@@ -177,7 +177,7 @@ def main(model='mlp', num_epochs=500):
     print("Starting training...")
     # We iterate over epochs:
     for epoch in range(num_epochs):
-        learning_rate = get_learning_rate(epoch, 50, 0.3)
+        learning_rate = get_learning_rate(epoch, 50, 0.001)
         # In each epoch, we do a full pass over the training data:
         train_err = 0
         train_batches = 0
