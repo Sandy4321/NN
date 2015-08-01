@@ -221,7 +221,7 @@ def main(model='mlp', num_epochs=500):
     # np.savez('model.npz', lasagne.layers.get_all_param_values(network))
     
 def get_learning_rate(epoch, margin, base):
-    return (base*margin/np.maximum(epoch,margin)).astype(float32)
+    return base*margin/np.maximum(epoch,margin)
     
 class GaussianLayer(lasagne.layers.Layer):
     def __init__(self, incoming, num_units, nonlinearity, **kwargs):
