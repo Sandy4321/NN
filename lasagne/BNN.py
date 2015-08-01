@@ -180,7 +180,7 @@ def main(model='mlp', num_epochs=500):
         start_time = time.time()
         for batch in iterate_minibatches(X_train, y_train, 500, shuffle=True):
             inputs, targets = batch
-            train_err += train_fn(inputs, targets, learning_rate=lr)
+            train_err += train_fn(inputs, targets, learning_rate=[lr,])
             train_batches += 1
 
         # And a full pass over the validation data:
