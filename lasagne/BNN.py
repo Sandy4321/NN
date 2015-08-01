@@ -147,7 +147,7 @@ def main(model='mlp', num_epochs=500):
     # parameters at each training step. Here, we'll use Stochastic Gradient
     # Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
     params = lasagne.layers.get_all_params(network, trainable=True)
-    learning_rate = T.lscalar('learning_rate')
+    learning_rate = T.fscalar('learning_rate')
     updates = lasagne.updates.nesterov_momentum(
             loss, params, learning_rate=learning_rate, momentum=0.9)
 
