@@ -140,7 +140,7 @@ def main(model='mlp', num_epochs=500):
     # Create a loss expression for training, i.e., a scalar objective we want
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
     prior_std = np.sqrt(1e-2)
-    batch_size = 50
+    batch_size = 500
     base_lr = 0.001
     prediction = lasagne.layers.get_output(network)
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
