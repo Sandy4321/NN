@@ -152,7 +152,7 @@ def main(model='mlp', num_epochs=500):
     for layer in lasagne.layers.get_all_layers(network):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
-                reg += LaplaceRegulariser(layer.M, layer.R, prior_std)
+                reg += LaplaceRegulariser(layer.M, layer.S, prior_std)
     loss = loss + reg/T.ceil(dataset_size/batch_size)
     
     # Create update expressions for training, i.e., how to modify the
@@ -275,6 +275,7 @@ class FullGaussianLayer(lasagne.layers.Layer):
         R = lasagne.init.Constant(r)
         self.M = self.add_param(M, (num_inputs+1, num_units), name='M')
         self.R = self.add_param(R, (num_inputs+1, num_units), name='R')
+        self.S = T.log(1. + T.exp(self.R))
         self.nonlinearity = nonlinearity
         self.layer_type = 'GaussianLayer'
 
@@ -294,14 +295,12 @@ class FullGaussianLayer(lasagne.layers.Layer):
     def get_output_shape_for(self, input_shape):
         return (input_shape[0], self.num_units)
 
-def GaussianRegulariser(M, R, prior_std):
+def GaussianRegulariser(M, S, prior_std):
     '''Regularise according to Gaussian prior'''
-    S = T.log(1. + T.exp(R))
     return T.sum(T.log(S/prior_std) + (((M**2)+(prior_std**2))/(S**2) - 1.)*0.5)
 
-def LaplaceRegulariser(M, R, prior_std):
+def LaplaceRegulariser(M, S, prior_std):
     '''Regularise according to Laplace prior'''
-    S = T.log(1. + T.exp(R))
     #sr = prior_std/S
     #m2 = T.sqrt(2.)*T.abs_(M)
     #return T.sum(m2/S + sr*T.exp(-m2/prior_std) - T.log(sr))
