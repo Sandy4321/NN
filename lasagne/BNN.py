@@ -173,7 +173,7 @@ def main(model='mlp', num_epochs=500):
     print("Starting training...")
     # We iterate over epochs:
     for epoch in range(num_epochs):
-        lr = 0.01*50./numpy.max(epoch,50.)
+        lr = 0.01*50./np.max(epoch,50.)
         # In each epoch, we do a full pass over the training data:
         train_err = 0
         train_batches = 0
