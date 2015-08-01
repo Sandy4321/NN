@@ -145,7 +145,7 @@ def main(model='mlp', num_epochs=500):
     for layer in lasagne.layers.get_all_layers(network):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
-                loss += GaussianRegulariser(layer.M, layer.S, 0.001)
+                loss += GaussianRegulariser(layer.M, layer.R, 0.001)
     # Create update expressions for training, i.e., how to modify the
     # parameters at each training step. Here, we'll use Stochastic Gradient
     # Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
@@ -256,8 +256,9 @@ class GaussianLayer(lasagne.layers.Layer):
     def get_output_shape_for(self, input_shape):
         return (input_shape[0], self.num_units)
 
-def GaussianRegulariser(M, S, prior_var):
+def GaussianRegulariser(M, R, prior_var):
     '''Regularise according to Gaussian prior'''
+    S = T.log(1. + T.exp(R))
     return T.sum(T.log(S/prior_var)+0.5*((((S**2) + (M**2))/(prior_var**2))-1))
 
 if __name__ == '__main__':
