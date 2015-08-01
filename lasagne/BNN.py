@@ -296,7 +296,7 @@ class FullGaussianLayer(lasagne.layers.Layer):
 
 class HalfGaussianLayer(lasagne.layers.Layer):
     def __init__(self, incoming, num_units, nonlinearity, **kwargs):
-        super(FullGaussianLayer, self).__init__(incoming, **kwargs)
+        super(HalfGaussianLayer, self).__init__(incoming, **kwargs)
         num_inputs = int(np.prod(self.input_shape[1:]))
         self.num_units = num_units
         r = np.log(np.exp(np.sqrt(1./num_inputs))-1.)
