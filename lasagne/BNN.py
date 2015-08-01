@@ -143,7 +143,7 @@ def main(model='mlp', num_epochs=500):
     loss = loss.mean()
     # We could add some weight decay as well here, see lasagne.regularization.
     for param in lasagne.layers.get_all_params(network):
-        print 
+        print param
     # Create update expressions for training, i.e., how to modify the
     # parameters at each training step. Here, we'll use Stochastic Gradient
     # Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
