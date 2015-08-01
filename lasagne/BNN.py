@@ -148,8 +148,7 @@ def main(model='mlp', num_epochs=500):
     loss = loss.sum()
     # We could add some weight decay as well here, see lasagne.regularization.
     reg = 0
-    
-    for layer in layers:
+    for layer in lasagne.layers.get_all_layers(network):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
                 reg += LaplaceRegulariser(layer.M, layer.S, prior_std)
