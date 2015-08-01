@@ -294,6 +294,36 @@ class FullGaussianLayer(lasagne.layers.Layer):
     def get_output_shape_for(self, input_shape):
         return (input_shape[0], self.num_units)
 
+class HalfGaussianLayer(lasagne.layers.Layer):
+    def __init__(self, incoming, num_units, nonlinearity, **kwargs):
+        super(FullGaussianLayer, self).__init__(incoming, **kwargs)
+        num_inputs = int(np.prod(self.input_shape[1:]))
+        self.num_units = num_units
+        r = np.log(np.exp(np.sqrt(1./num_inputs))-1.)
+        M = lasagne.init.Constant(0.0)
+        R = lasagne.init.Constant(r)
+        self.M = self.add_param(M, (num_inputs+1, num_units), name='M')
+        self.R = self.add_param(R, (1, num_units), name='R')
+        self.S = T.log(1. + T.exp(self.R))
+        self.nonlinearity = nonlinearity
+        self.layer_type = 'GaussianLayer'
+
+    def get_output_for(self, input, **kwargs):
+        if input.ndim > 2:
+            input = input.flatten(2)
+        b = T.ones_like(input[:,0]).dimshuffle(0,'x')
+        X = T.concatenate([input,b],axis=1)
+        M = T.dot(X,self.M) 
+        s = T.sqrt(T.sum(X**2,axis=1))
+        smrg = MRG_RandomStreams()
+        E = smrg.normal(size=s.shape)
+        H = M + s*E 
+        # Nonlinearity
+        return self.nonlinearity(H)
+
+    def get_output_shape_for(self, input_shape):
+        return (input_shape[0], self.num_units)
+
 def GaussianRegulariser(M, S, prior_std):
     '''Regularise according to Gaussian prior'''
     return T.sum(T.log(S/prior_std) + (((M**2)+(prior_std**2))/(S**2) - 1.)*0.5)
@@ -302,7 +332,7 @@ def LaplaceRegulariser(M, S, prior_std):
     '''Regularise according to Laplace prior'''
     sr = prior_std/S
     m2 = T.sqrt(2.)*T.abs_(M)
-    return T.sum(- T.log(sr))
+    return T.sum(m2/S + sr*T.exp(-m2/prior_std) - T.log(sr))
     #return T.sum(T.abs_(S-prior_std))
 
 if __name__ == '__main__':
