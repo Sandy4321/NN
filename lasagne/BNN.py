@@ -265,7 +265,7 @@ class GaussianLayer(lasagne.layers.Layer):
 def GaussianRegulariser(M, R, prior_std):
     '''Regularise according to Gaussian prior'''
     S = T.log(1. + T.exp(R))
-    return T.sum(T.log(S/prior_std)+0.5*((((S**2) + (M**2))/(prior_std**2))-1.))
+    return T.sum(T.log(S/prior_std) + (((M**2)+(prior_std**2))/(S**2) - 1.)*0.5) 
 
 if __name__ == '__main__':
     if ('--help' in sys.argv) or ('-h' in sys.argv):
