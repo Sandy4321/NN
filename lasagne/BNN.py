@@ -164,7 +164,7 @@ def main(model='mlp', num_epochs=500):
 
     # Compile a function performing a training step on a mini-batch (by giving
     # the updates dictionary) and returning the corresponding training loss:
-    train_fn = theano.function([input_var, target_var], loss, updates=updates)
+    train_fn = theano.function([input_var, target_var, learning_rate], loss, updates=updates)
 
     # Compile a second function computing the validation loss and accuracy:
     val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
@@ -180,7 +180,7 @@ def main(model='mlp', num_epochs=500):
         start_time = time.time()
         for batch in iterate_minibatches(X_train, y_train, 500, shuffle=True):
             inputs, targets = batch
-            train_err += train_fn(inputs, targets)
+            train_err += train_fn(inputs, targets, learning_rate)
             train_batches += 1
 
         # And a full pass over the validation data:
