@@ -177,7 +177,7 @@ def main(model='mlp', num_epochs=500):
     print("Starting training...")
     # We iterate over epochs:
     for epoch in range(num_epochs):
-        learning_rate = get_learning_rate(epoch, 50, 0.001)
+        learning_rate = get_learning_rate(epoch, 50, 0.3)
         # In each epoch, we do a full pass over the training data:
         train_err = 0
         train_batches = 0
@@ -259,7 +259,7 @@ class GaussianLayer(lasagne.layers.Layer):
 def GaussianRegulariser(M, R, prior_var):
     '''Regularise according to Gaussian prior'''
     S = T.log(1. + T.exp(R))
-    return T.sum(T.log(S/prior_var)+0.5*((((S**2) + (M**2))/(prior_var**2))-1))
+    return T.sum(T.log(S/prior_std)+0.5*((((S**2) + (M**2))/(prior_std**2))-1.))
 
 if __name__ == '__main__':
     if ('--help' in sys.argv) or ('-h' in sys.argv):
