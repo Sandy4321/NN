@@ -314,7 +314,7 @@ class HalfGaussianLayer(lasagne.layers.Layer):
         b = T.ones_like(input[:,0]).dimshuffle(0,'x')
         X = T.concatenate([input,b],axis=1)
         M = T.dot(X,self.M) 
-        s = T.sqrt(T.sum(X**2,axis=1))*self.S.dimshuffle('x',0)
+        s = T.outer(T.sqrt(T.sum(X**2,axis=1)),self.S)
         smrg = MRG_RandomStreams()
         E = smrg.normal(size=s.shape)
         H = M + s*E 
