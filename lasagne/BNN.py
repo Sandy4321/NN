@@ -301,10 +301,11 @@ def GaussianRegulariser(M, R, prior_std):
 
 def LaplaceRegulariser(M, R, prior_std):
     '''Regularise according to Laplace prior'''
-    S = T.log(1. + T.exp(R))
-    sr = prior_std/S
-    m2 = T.sqrt(2.)*T.abs_(M)
-    return T.sum(m2/S + sr*T.exp(-m2/prior_std) - T.log(sr))
+    #S = T.log(1. + T.exp(R))
+    #sr = prior_std/S
+    #m2 = T.sqrt(2.)*T.abs_(M)
+    #return T.sum(m2/S + sr*T.exp(-m2/prior_std) - T.log(sr))
+    return T.sum(S-prior_std)
 
 if __name__ == '__main__':
     if ('--help' in sys.argv) or ('-h' in sys.argv):
