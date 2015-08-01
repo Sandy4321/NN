@@ -149,9 +149,10 @@ def main(model='mlp', num_epochs=500):
     # We could add some weight decay as well here, see lasagne.regularization.
     reg = 0
     
-    layers = [l_hid1, l_hid2, l_out]
     for layer in layers:
-        reg += LaplaceRegulariser(layer.M, layer.S, prior_std)
+        if hasattr(layer, 'layer_type'):
+            if layer.layer_type == 'GaussianLayer':
+                reg += LaplaceRegulariser(layer.M, layer.S, prior_std)
     loss = loss + reg/T.ceil(dataset_size/batch_size)
     
     # Create update expressions for training, i.e., how to modify the
@@ -300,10 +301,10 @@ def GaussianRegulariser(M, S, prior_std):
 
 def LaplaceRegulariser(M, S, prior_std):
     '''Regularise according to Laplace prior'''
-    #sr = prior_std/S
-    #m2 = T.sqrt(2.)*T.abs_(M)
-    #return T.sum(m2/S + sr*T.exp(-m2/prior_std) - T.log(sr))
-    return T.sum(T.abs_(S-prior_std))
+    sr = prior_std/S
+    m2 = T.sqrt(2.)*T.abs_(M)
+    return T.sum(m2/S + sr*T.exp(-m2/prior_std) - T.log(sr))
+    #return T.sum(T.abs_(S-prior_std))
 
 if __name__ == '__main__':
     if ('--help' in sys.argv) or ('-h' in sys.argv):
