@@ -75,13 +75,13 @@ def load_dataset():
 def build_mlp(input_var=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
-    l_hid1 = GaussianLayer(
+    l_hid1 = HalfGaussianLayer(
             l_in, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify)
-    l_hid2 = GaussianLayer(
+    l_hid2 = HalfGaussianLayer(
             l_hid1, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify)
-    l_out = GaussianLayer(
+    l_out = HalfGaussianLayer(
             l_hid2, num_units=10,
             nonlinearity=lasagne.nonlinearities.softmax)
     return l_out
