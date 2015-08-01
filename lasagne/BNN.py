@@ -142,7 +142,8 @@ def main(model='mlp', num_epochs=500):
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
     loss = loss.mean()
     # We could add some weight decay as well here, see lasagne.regularization.
-
+    for layer in lasagne.layers.get_all_layers(network):
+        print layer
     # Create update expressions for training, i.e., how to modify the
     # parameters at each training step. Here, we'll use Stochastic Gradient
     # Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
@@ -164,7 +165,8 @@ def main(model='mlp', num_epochs=500):
 
     # Compile a function performing a training step on a mini-batch (by giving
     # the updates dictionary) and returning the corresponding training loss:
-    train_fn = theano.function([input_var, target_var, learning_rate], loss, updates=updates)
+    train_fn = theano.function([input_var, target_var, learning_rate],
+        loss, updates=updates)
 
     # Compile a second function computing the validation loss and accuracy:
     val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
@@ -251,6 +253,9 @@ class GaussianLayer(lasagne.layers.Layer):
     def get_output_shape_for(self, input_shape):
         return (input_shape[0], self.num_units)
 
+def GaussianRegulariser(M, S, prior_var):
+    '''Regularise according to Gaussian prior'''
+    return T.sum(T.log(S/prior_var)+0.5*((((S**2) + (M**2))/(prior_var**2))-1))
 
 if __name__ == '__main__':
     if ('--help' in sys.argv) or ('-h' in sys.argv):
