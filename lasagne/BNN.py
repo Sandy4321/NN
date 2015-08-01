@@ -142,6 +142,7 @@ def main(model='mlp', num_epochs=500):
     prior_std = np.sqrt(1e-1)
     batch_size = 500
     base_lr = 0.001
+    margin_lr = 20
     prediction = lasagne.layers.get_output(network)
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
     loss = loss.sum()
@@ -183,7 +184,7 @@ def main(model='mlp', num_epochs=500):
     print("Starting training...")
     # We iterate over epochs:
     for epoch in range(num_epochs):
-        learning_rate = get_learning_rate(epoch, 50, base_lr)
+        learning_rate = get_learning_rate(epoch, margin_lr, base_lr)
         # In each epoch, we do a full pass over the training data:
         train_err = 0
         train_batches = 0
