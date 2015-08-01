@@ -271,7 +271,7 @@ class FullGaussianLayer(lasagne.layers.Layer):
         num_inputs = int(np.prod(self.input_shape[1:]))
         self.num_units = num_units
         r = np.log(np.exp(np.sqrt(1./num_inputs))-1.)
-        W = lasagne.init.Constant(0.0)
+        M = lasagne.init.Constant(0.0)
         R = lasagne.init.Constant(r)
         self.M = self.add_param(M, (num_inputs+1, num_units), name='M')
         self.R = self.add_param(R, (num_inputs+1, num_units), name='R')
