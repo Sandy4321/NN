@@ -246,9 +246,8 @@ def save_model(model, file_name):
     for layer in lasagne.layers.get_all_layers(model):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
-                M = layer.M
-                S = layer.S
-                print M.get_value()
+                M = layer.M.get_value()
+                S = layer.S.get_value()
                 params['M' + layer.name] = M
                 params['S' + layer.name] = S
     file = open(file_name, 'w')
