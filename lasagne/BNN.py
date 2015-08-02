@@ -339,7 +339,7 @@ def FullGaussianRegulariser(W, E, M, S, Sp, prior = 'Gaussian'):
     if prior == 'Gaussian':
         return 0.5*(T.sum(E**2) - T.sum(W**2)/Sp) - T.sum(T.log(S))
     elif prior == 'Laplace':
-        return 0.5*(T.sum(E**2) - T.sum(T.abs_(W)/Sp)) - T.sum(T.log(S))
+        return 0.5*T.sum(E**2) - T.sum(T.abs_(W))/Sp - T.sum(T.log(S))
     else:
         print('Invalid regulariser')
         sys.exit(1)
