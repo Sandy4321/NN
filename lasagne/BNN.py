@@ -1,4 +1,4 @@
-'''Cifar CNN'''
+'''BNN'''
 
 __authors__   = "Daniel Worrall"
 __copyright__ = "(c) 2015, University College London"
@@ -151,6 +151,7 @@ def main(model='mlp', num_epochs=500):
     for layer in lasagne.layers.get_all_layers(network):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
+                print layer.name
                 reg += FullGaussianRegulariser(layer.W, layer.E,
                                                layer.M, layer.S,
                                                prior_std, prior='Gaussian')
@@ -236,6 +237,16 @@ def main(model='mlp', num_epochs=500):
     
 def get_learning_rate(epoch, margin, base):
     return base*margin/np.maximum(epoch,margin)
+
+def save_model(model):
+    '''Save the model parameters'''
+    params = []
+    for layer in lasagne.layers.get_all_layers(model):
+        if hasattr(layer, 'layer_type'):
+            if layer.layer_type == 'GaussianLayer':
+                M = layer.M
+                S = layer.S
+                
     
 class GaussianLayer(lasagne.layers.Layer):
     def __init__(self, incoming, num_units, nonlinearity, **kwargs):
