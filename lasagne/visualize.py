@@ -24,17 +24,19 @@ def visualize(file_name):
     S = numpy.log(1. + numpy.exp(R))
     M = numpy.reshape(M, (28,28,-1), order='F')
     S = numpy.reshape(M, (28,28,-1), order='F')
-    n = 24
+    n = 14
     P = numpy.zeros((28*n,28*n))
     k = 0
     for i in numpy.arange(n):
         for j in numpy.arange(n):
-            F = M[:,:,k] + S[:,:,k]*numpy.random.randn(28,28)
-            P[28*i:28*(i+1),28*j:28*(j+1)] = F
+            F = M[:,:,k] + S[:,:,k] #* numpy.random.randn(28,28)
+            Plocal = F - numpy.amin(F) + 1e-4
+            P[28*i:28*(i+1),28*j:28*(j+1)] = Plocal/numpy.amax(Plocal)
             k += 1
     fig = plt.figure()
     plt.imshow(P, interpolation='nearest', cmap='gray',
                vmin = numpy.amin(P), vmax = numpy.amax(P))
+    print numpy.amin(P), numpy.amax(P)
     plt.show()
 
 
