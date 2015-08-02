@@ -151,8 +151,8 @@ def main(model='mlp', num_epochs=500):
     for layer in lasagne.layers.get_all_layers(network):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
-                reg += FullGaussianRegulariserRegulariser(layer.W, layer.M,
-                                                          layer.S, prior_std)
+                reg += FullGaussianRegulariser(layer.W, layer.M,
+                                               layer.S, prior_std)
     loss = loss + reg/T.ceil(dataset_size/batch_size)
     
     # Create update expressions for training, i.e., how to modify the
