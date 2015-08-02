@@ -287,7 +287,7 @@ class FullGaussianLayer(lasagne.layers.Layer):
         X = T.concatenate([input,b],axis=1)
         smrg = MRG_RandomStreams()
         self.E = smrg.normal(size=self.M.shape)
-        self.W = self.M + self.S*E
+        self.W = self.M + self.S*self.E
         H = T.dot(X,self.W)
         # Nonlinearity
         return self.nonlinearity(H)
