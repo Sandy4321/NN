@@ -153,7 +153,7 @@ def main(model='mlp', num_epochs=500):
             if layer.layer_type == 'GaussianLayer':
                 reg += FullGaussianRegulariser(layer.W, layer.E,
                                                layer.M, layer.S,
-                                               prior_std, prior='Laplace')
+                                               prior_std, prior='Gaussian')
     loss = loss + reg/T.ceil(dataset_size/batch_size)
     
     # Create update expressions for training, i.e., how to modify the
