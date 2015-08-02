@@ -247,7 +247,7 @@ def save_model(model, file_name):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
                 M = layer.M.get_value()
-                S = layer.S.get_value()
+                S = layer.R.get_value()
                 params['M' + layer.name] = M
                 params['S' + layer.name] = S
     file = open(file_name, 'w')
