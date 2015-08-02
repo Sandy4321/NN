@@ -115,7 +115,7 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
 # more functions to better separate the code, but it wouldn't make it any
 # easier to read.
 
-def main(model='mlp', num_epochs=5):
+def main(model='mlp', num_epochs=500):
     # Load the dataset
     print("Loading data...")
     X_train, y_train, X_val, y_val, X_test, y_test = load_dataset()
@@ -234,12 +234,14 @@ def main(model='mlp', num_epochs=5):
 
     # Optionally, you could now dump the network weights to a file like this:
     save_model(network, 'model.npz')
+    print('Complete')
     
 def get_learning_rate(epoch, margin, base):
     return base*margin/np.maximum(epoch,margin)
 
 def save_model(model, file_name):
     '''Save the model parameters'''
+    print('Saving model..')
     params = {}
     for layer in lasagne.layers.get_all_layers(model):
         if hasattr(layer, 'layer_type'):
