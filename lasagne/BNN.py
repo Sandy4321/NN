@@ -151,7 +151,7 @@ def main(model='mlp', num_epochs=500):
     for layer in lasagne.layers.get_all_layers(network):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
-                reg += FullGaussianRegulariser(layer.W, layer.M,
+                reg += FullGaussianRegulariser(layer.W, layer.E, layer.M,
                                                layer.S, prior_std)
     loss = loss + reg/T.ceil(dataset_size/batch_size)
     
@@ -286,7 +286,7 @@ class FullGaussianLayer(lasagne.layers.Layer):
         b = T.ones_like(input[:,0]).dimshuffle(0,'x')
         X = T.concatenate([input,b],axis=1)
         smrg = MRG_RandomStreams()
-        E = smrg.normal(size=self.M.shape)
+        self.E = smrg.normal(size=self.M.shape)
         self.W = self.M + self.S*E
         H = T.dot(X,self.W)
         # Nonlinearity
@@ -329,9 +329,9 @@ def GaussianRegulariser(M, S, prior_std):
     '''Regularise according to Gaussian prior'''
     return T.sum(T.log(S/prior_std) + (((M**2)+(prior_std**2))/(S**2) - 1.)*0.5)
 
-def FullGaussianRegulariser(W, M, S, Sp):
+def FullGaussianRegulariser(W, E, M, S, Sp):
     '''Return cost of W'''
-    return T.sum(0.5*(((W-M)/S)**2 - (W/Sp)**2) + T.log(Sp/S))
+    return T.sum(0.5*(E**2 - (W/Sp)**2) + T.log(Sp/S))
 
 def LaplaceRegulariser(M, S, prior_std):
     '''Regularise according to Laplace prior'''
