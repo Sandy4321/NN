@@ -331,7 +331,7 @@ def GaussianRegulariser(M, S, prior_std):
 
 def FullGaussianRegulariser(W, E, M, S, Sp):
     '''Return cost of W'''
-    return T.sum(0.5*(E**2 - (W/Sp)**2) + T.log(Sp/S))
+    return 0.5*T.sum(E**2) - 0.5*T.sum(W**2)/Sp + T.sum(T.log(Sp/S))
 
 def LaplaceRegulariser(M, S, prior_std):
     '''Regularise according to Laplace prior'''
