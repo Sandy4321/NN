@@ -8,7 +8,8 @@ __contact__   = "d.worrall@cs.ucl.ac.uk"
 import os, sys, time
 
 import cPickle
-import numpy 
+import numpy
+import theano
 
 
 def visualize(file_name):
