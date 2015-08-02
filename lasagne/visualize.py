@@ -7,16 +7,19 @@ __contact__   = "d.worrall@cs.ucl.ac.uk"
 
 import os, sys, time
 
+import cPickle
 import numpy 
 
 
-class Visualize(object):
-    def visualize(self, file):
-        '''Open up all the weights in the network'''
-        data = numpy.load(file)
-        print data['arr_0'].shape
+def visualize(file_name):
+    '''Open up all the weights in the network'''
+    file = open(file_name, 'r')
+    data = cPickle.load(file)
+    file.close()
+    for arr in data:
+        print arr.shape
 
 
 if __name__ == '__main__':
     file = 'model.npz'
-    Visualize().visualize(file)
+    visualize(file)
