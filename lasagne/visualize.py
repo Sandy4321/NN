@@ -23,13 +23,13 @@ def visualize(file_name):
     R = data['Rl_hid1'][:784,:]
     S = numpy.log(1. + numpy.exp(R))
     M = numpy.reshape(M, (28,28,-1), order='F')
-    S = numpy.reshape(M, (28,28,-1), order='F')
+    S = numpy.reshape(S, (28,28,-1), order='F')
     n = 14
     P = numpy.zeros((28*n,28*n))
     k = 0
     for i in numpy.arange(n):
         for j in numpy.arange(n):
-            F = M[:,:,k] + S[:,:,k] #* numpy.random.randn(28,28)
+            F = M[:,:,k] + S[:,:,k] * numpy.random.randn(28,28)
             Plocal = F - numpy.amin(F) + 1e-4
             P[28*i:28*(i+1),28*j:28*(j+1)] = Plocal/numpy.amax(Plocal)
             k += 1
