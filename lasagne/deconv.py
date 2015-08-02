@@ -16,6 +16,7 @@ import os, sys, time
 
 import lasagne
 import numpy as np
+import skimage.io as skio
 import theano
 import theano.tensor as T
 
@@ -88,7 +89,7 @@ def unpickle(file):
 
 
 def build_cnn(input_var=None):
-    in1 = lasagne.layers.InputLayer(shape=(None, 3, 32, 32),
+    in1 = lasagne.layers.InputLayer(shape=(None, 3, 120, 160),
                                         input_var=input_var)
     conv1 = lasagne.layers.Conv2DLayer(
             in1, num_filters=32, filter_size=(3, 3),
@@ -144,13 +145,63 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
 # more functions to better separate the code, but it wouldn't make it any
 # easier to read.
 
-def main(model='mlp', num_epochs=100):
-    # Load the dataset
-    print("Loading data...")
-    X_train, y_train, X_val, y_val, X_test, y_test = load_dataset()
-    y_train = X_train
-    y_val = X_val
-    y_test = X_test
+def main():
+    def batch(generator, n = 1):
+        while True:
+            minibatch = []
+            try:
+                for j in range(n):
+                    minibatch.append(generator.next())
+                yield np.vstack(minibatch).reshape((-1, 3, 120, 160))
+            except:
+                if minibatch != []:
+                    yield np.vstack(minibatch).reshape((-1, 3, 120, 160))
+                raise StopIteration
+        
+    def fetch_image(addresses):
+        for address in addresses:
+            im = skio.imread(address).astype(theano.config.floatX)
+            im = im[::4,::4,:]/255.
+            yield im.flatten('F')
+        
+    def get_addresses(file):
+        fp = open(file, 'r')
+        lines = fp.readlines()
+        fp.close()
+        addresses = []
+        for line in lines:
+            lspl = line.split(' ')
+            addresses.append(lspl[0])
+        return addresses
+    
+    def threaded_generator(generator, num_cached=50):
+        import Queue
+        queue = Queue.Queue(maxsize=num_cached)
+        sentinel = object()  # guaranteed unique reference
+    
+        # define producer (putting items into queue)
+        def producer():
+            for item in generator:
+                queue.put(item)
+            queue.put(sentinel)
+    
+        # start producer (in a background thread)
+        import threading
+        thread = threading.Thread(target=producer)
+        thread.daemon = True
+        thread.start()
+    
+        # run as consumer (read items from queue, in current thread)
+        item = queue.get()
+        while item is not sentinel:
+            yield item
+            queue.task_done()
+            item = queue.get()
+            
+    num_epochs = 200
+    # Training/validation images
+    training_images = '/media/daniel/DATA/data_unencrypted/optic/txt/discs_train.txt'
+    validation_images = '/media/daniel/DATA/data_unencrypted/optic/txt/discs_test.txt'
     # Prepare Theano variables for inputs and targets
     input_var = T.tensor4('inputs')
     target_var = T.tensor4('targets')
@@ -176,13 +227,16 @@ def main(model='mlp', num_epochs=100):
     print("Starting training...")
     # We iterate over epochs:
     for epoch in range(num_epochs):
+        # Load the dataset
+        batch_size = 10
+        train_addresses = get_addresses(training_images)
+        train_generator = fetch_image(train_addresses)
         # In each epoch, we do a full pass over the training data:
         train_err = 0
         train_batches = 0
         start_time = time.time()
-        for batch in iterate_minibatches(X_train, y_train, 500, shuffle=True):
-            inputs, targets = batch
-            train_err += train_fn(inputs, targets)
+        for minibatch in threaded_generator(batch(train_generator,batch_size)):
+            train_err += train_fn(minibatch, minibatch)
             train_batches += 1
             print('B%i' % train_batches),
             sys.stdout.flush()
@@ -190,11 +244,13 @@ def main(model='mlp', num_epochs=100):
         # And a full pass over the validation data:
         val_err = 0
         val_batches = 0
-        for batch in iterate_minibatches(X_val, y_val, 500, shuffle=False):
-            inputs, targets = batch
-            err = val_fn(inputs, targets)
-            val_err += err
+        valid_addresses = get_addresses(validation_images)
+        valid_generator = fetch_image(valid_addresses)
+        for minibatch in threaded_generator(batch(valid_generator,batch_size)):
+            val_err = val_fn(minibatch, minibatch)
             val_batches += 1
+            print('V%i' % val_batches),
+            sys.stdout.flush()
 
         # Then we print the results for this epoch:
         print("Epoch {} of {} took {:.3f}s".format(
@@ -202,47 +258,10 @@ def main(model='mlp', num_epochs=100):
         print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
         print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
 
-    # After training, we compute and print the test error:
-    test_err = 0
-    test_acc = 0
-    test_batches = 0
-    for batch in iterate_minibatches(X_test, y_test, 500, shuffle=False):
-        inputs, targets = batch
-        err = val_fn(inputs, targets)
-        test_err += err
-        test_batches += 1
-    print("Final results:")
-    print("  test loss:\t\t\t{:.6f}".format(test_err / test_batches))
-
     # Optionally, you could now dump the network weights to a file like this:
-    # np.savez('model.npz', lasagne.layers.get_all_param_values(network))
-    
-def fetch_data(file, batch):
-    pass
-    
-def threaded_generator(generator, num_cached=50):
-    import Queue
-    queue = Queue.Queue(maxsize=num_cached)
-    sentinel = object()  # guaranteed unique reference
-
-    # define producer (putting items into queue)
-    def producer():
-        for item in generator:
-            queue.put(item)
-        queue.put(sentinel)
-
-    # start producer (in a background thread)
-    import threading
-    thread = threading.Thread(target=producer)
-    thread.daemon = True
-    thread.start()
-
-    # run as consumer (read items from queue, in current thread)
-    item = queue.get()
-    while item is not sentinel:
-        yield item
-        queue.task_done()
-        item = queue.get()
+    layers = lasagne.layers.get_all_param_values(network)
+    for i, layer in enumerate(layers):
+        np.savez('W'+str(i)+'.npz', layer)
 
 class DeconvLayer(lasagne.layers.Layer):
     def __init__(self, incoming, match, nonlinearity, **kwargs):
@@ -293,23 +312,7 @@ class UnpoolNoSwitchLayer(lasagne.layers.Layer):
 
 
 if __name__ == '__main__':
-    if ('--help' in sys.argv) or ('-h' in sys.argv):
-        print("Trains a neural network on MNIST using Lasagne.")
-        print("Usage: %s [MODEL [EPOCHS]]" % sys.argv[0])
-        print()
-        print("MODEL: 'mlp' for a simple Multi-Layer Perceptron (MLP),")
-        print("       'custom_mlp:DEPTH,WIDTH,DROP_IN,DROP_HID' for an MLP")
-        print("       with DEPTH hidden layers of WIDTH units, DROP_IN")
-        print("       input dropout and DROP_HID hidden dropout,")
-        print("       'cnn' for a simple Convolutional Neural Network (CNN).")
-        print("EPOCHS: number of training epochs to perform (default: 500)")
-    else:
-        kwargs = {}
-        if len(sys.argv) > 1:
-            kwargs['model'] = sys.argv[1]
-        if len(sys.argv) > 2:
-            kwargs['num_epochs'] = int(sys.argv[2])
-        main(**kwargs)
+    main()
 
 
 
