@@ -232,7 +232,7 @@ def main(model='mlp', num_epochs=500):
         test_acc / test_batches * 100))
 
     # Optionally, you could now dump the network weights to a file like this:
-    # np.savez('model.npz', lasagne.layers.get_all_param_values(network))
+    np.savez('model.npz', lasagne.layers.get_all_param_values(network))
     
 def get_learning_rate(epoch, margin, base):
     return base*margin/np.maximum(epoch,margin)
