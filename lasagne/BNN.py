@@ -75,13 +75,13 @@ def load_dataset():
 def build_mlp(input_var=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
-    l_hid1 = GaussianLayer(
+    l_hid1 = FullGaussianLayer(
             l_in, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify)
-    l_hid2 = GaussianLayer(
+    l_hid2 = FullGaussianLayer(
             l_hid1, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify)
-    l_out = GaussianLayer(
+    l_out = FullGaussianLayer(
             l_hid2, num_units=10,
             nonlinearity=lasagne.nonlinearities.softmax)
     return l_out
@@ -148,13 +148,13 @@ def main(model='mlp', num_epochs=500):
     loss = loss.sum()
     # We could add some weight decay as well here, see lasagne.regularization.
     reg = 0
-    '''
     for layer in lasagne.layers.get_all_layers(network):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
-                reg += LaplaceRegulariser(layer.M, layer.S, prior_std)
+                reg += FullGaussianRegulariserRegulariser(layer.W, layer.M,
+                                                          layer.S, prior_std)
     loss = loss + reg/T.ceil(dataset_size/batch_size)
-    '''
+    
     # Create update expressions for training, i.e., how to modify the
     # parameters at each training step. Here, we'll use Stochastic Gradient
     # Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
@@ -242,7 +242,7 @@ class GaussianLayer(lasagne.layers.Layer):
         num_inputs = int(np.prod(self.input_shape[1:]))
         self.num_units = num_units
         r = np.log(np.exp(np.sqrt(1./num_inputs))-1.)
-        M = lasagne.init.Constant(0.0001)
+        M = lasagne.init.Constant(0.0)
         R = lasagne.init.Constant(r)
         self.M = self.add_param(M, (num_inputs+1, num_units), name='M')
         self.R = self.add_param(R, (num_inputs+1, num_units), name='R')
@@ -259,7 +259,7 @@ class GaussianLayer(lasagne.layers.Layer):
         s = T.sqrt(T.dot(X**2,self.S**2))
         smrg = MRG_RandomStreams()
         E = smrg.normal(size=s.shape)
-        H = M + M*s*E 
+        H = M + s*E 
         # Nonlinearity
         return self.nonlinearity(H)
 
@@ -287,7 +287,7 @@ class FullGaussianLayer(lasagne.layers.Layer):
         X = T.concatenate([input,b],axis=1)
         smrg = MRG_RandomStreams()
         E = smrg.normal(size=self.M.shape)
-        W = self.M + self.S*E
+        self.W = self.M + self.S*E
         H = T.dot(X,W)
         # Nonlinearity
         return self.nonlinearity(H)
@@ -328,6 +328,10 @@ class HalfGaussianLayer(lasagne.layers.Layer):
 def GaussianRegulariser(M, S, prior_std):
     '''Regularise according to Gaussian prior'''
     return T.sum(T.log(S/prior_std) + (((M**2)+(prior_std**2))/(S**2) - 1.)*0.5)
+
+def FullGaussianRegulariser(W, M, S, Sp):
+    '''Return cost of W'''
+    return T.sum(0.5*(((W-M)/S)**2 - (W/Sp)**2) + T.log(Sp/S))
 
 def LaplaceRegulariser(M, S, prior_std):
     '''Regularise according to Laplace prior'''
