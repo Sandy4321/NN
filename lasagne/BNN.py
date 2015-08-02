@@ -151,8 +151,9 @@ def main(model='mlp', num_epochs=500):
     for layer in lasagne.layers.get_all_layers(network):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
-                reg += FullGaussianRegulariser(layer.W, layer.E, layer.M,
-                                               layer.S, prior_std)
+                reg += FullGaussianRegulariser(layer.W, layer.E,
+                                               layer.M, layer.S,
+                                               prior_std, prior='Laplace')
     loss = loss + reg/T.ceil(dataset_size/batch_size)
     
     # Create update expressions for training, i.e., how to modify the
@@ -332,6 +333,16 @@ def GaussianRegulariser(M, S, prior_std):
 def FullGaussianRegulariser(W, E, M, S, Sp):
     '''Return cost of W'''
     return 0.5*(T.sum(E**2) - T.sum(W**2)/Sp) - T.sum(T.log(S))
+
+def FullGaussianRegulariser(W, E, M, S, Sp, prior = 'Gaussian'):
+    '''Return cost of W'''
+    if prior == 'Gaussian':
+        return 0.5*(T.sum(E**2) - T.sum(W**2)/Sp) - T.sum(T.log(S))
+    elif prior == 'Laplace':
+        return 0.5*(T.sum(E**2) - T.sum(T.abs_(W)/Sp)) - T.sum(T.log(S))
+    else:
+        print('Invalid regulariser')
+        sys.exit(1)
 
 def LaplaceRegulariser(M, S, prior_std):
     '''Regularise according to Laplace prior'''
