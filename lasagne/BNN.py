@@ -7,6 +7,7 @@ __contact__   = "d.worrall@cs.ucl.ac.uk"
 
 import os, sys, time
 
+import cPickle
 import lasagne
 import numpy as np
 import theano
@@ -114,7 +115,7 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
 # more functions to better separate the code, but it wouldn't make it any
 # easier to read.
 
-def main(model='mlp', num_epochs=500):
+def main(model='mlp', num_epochs=5):
     # Load the dataset
     print("Loading data...")
     X_train, y_train, X_val, y_val, X_test, y_test = load_dataset()
@@ -151,7 +152,6 @@ def main(model='mlp', num_epochs=500):
     for layer in lasagne.layers.get_all_layers(network):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
-                print layer.name
                 reg += FullGaussianRegulariser(layer.W, layer.E,
                                                layer.M, layer.S,
                                                prior_std, prior='Gaussian')
@@ -233,19 +233,24 @@ def main(model='mlp', num_epochs=500):
         test_acc / test_batches * 100))
 
     # Optionally, you could now dump the network weights to a file like this:
-    np.savez('model.npz', lasagne.layers.get_all_param_values(network))
+    save_model(network, 'model.npz')
     
 def get_learning_rate(epoch, margin, base):
     return base*margin/np.maximum(epoch,margin)
 
-def save_model(model):
+def save_model(model, file_name):
     '''Save the model parameters'''
-    params = []
+    params = {}
     for layer in lasagne.layers.get_all_layers(model):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
                 M = layer.M
                 S = layer.S
+                params['M' + layer.name] = M
+                params['S' + layer.name] = S
+    file = open(file_name, 'w')
+    cPickle.dump(params, file, cPickle.HIGHEST_PROTOCOL)
+    file.close()
                 
     
 class GaussianLayer(lasagne.layers.Layer):
