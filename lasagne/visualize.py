@@ -17,7 +17,7 @@ def visualize(file_name):
     data = cPickle.load(file)
     file.close()
     for arr in data:
-        print data[arr].shape
+        print data[arr]
 
 
 if __name__ == '__main__':
