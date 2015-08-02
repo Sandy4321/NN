@@ -115,7 +115,7 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
 # more functions to better separate the code, but it wouldn't make it any
 # easier to read.
 
-def main(model='mlp', num_epochs=5):
+def main(model='mlp', num_epochs=500):
     # Load the dataset
     print("Loading data...")
     X_train, y_train, X_val, y_val, X_test, y_test = load_dataset()
@@ -247,9 +247,9 @@ def save_model(model, file_name):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
                 M = layer.M.get_value()
-                S = layer.R.get_value()
+                R = layer.R.get_value()
                 params['M' + layer.name] = M
-                params['S' + layer.name] = S
+                params['R' + layer.name] = R
     file = open(file_name, 'w')
     cPickle.dump(params, file, cPickle.HIGHEST_PROTOCOL)
     file.close()
