@@ -41,5 +41,5 @@ def visualize(file_name):
 
 
 if __name__ == '__main__':
-    file = 'model.npz'
+    file = './models/model.npz'
     visualize(file)

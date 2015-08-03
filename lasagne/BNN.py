@@ -13,6 +13,7 @@ import numpy as np
 import theano
 import theano.tensor as T
 
+from matplotlib import pyplot as plt
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 
 # ################## Download and prepare the MNIST dataset ##################
@@ -73,7 +74,7 @@ def load_dataset():
 # function that takes a Theano variable representing the input and returns
 # the output layer of a neural network model build in Lasagne.
 
-def build_mlp(input_var=None):
+def build_mlp(input_var=None, masks=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var, name='l_in')
     l_hid1 = FullGaussianLayer(
@@ -84,6 +85,64 @@ def build_mlp(input_var=None):
             nonlinearity=lasagne.nonlinearities.rectify)
     l_out = FullGaussianLayer(
             l_hid2, num_units=10, name='l_out',
+            nonlinearity=lasagne.nonlinearities.softmax)
+    return l_out
+
+def build_cnn(input_var=None, masks=None):
+    l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
+                                     input_var=input_var, name='l_in')
+    conv1 = lasagne.layers.Conv2DLayer(
+            l_in, num_filters=32, filter_size=(3, 3),
+            nonlinearity=lasagne.nonlinearities.very_leaky_rectify,
+            W=lasagne.init.GlorotUniform())
+    conv2 = lasagne.layers.Conv2DLayer(
+            conv1, num_filters=32, filter_size=(3, 3),
+            nonlinearity=lasagne.nonlinearities.very_leaky_rectify,
+            W=lasagne.init.GlorotUniform())
+    pool1 = lasagne.layers.MaxPool2DLayer(conv2, pool_size=(3, 3), stride=2)
+    conv3 = lasagne.layers.Conv2DLayer(
+            pool1, num_filters=32, filter_size=(3, 3),
+            nonlinearity=lasagne.nonlinearities.very_leaky_rectify,
+            W=lasagne.init.GlorotUniform())
+    conv4 = lasagne.layers.Conv2DLayer(
+            conv2, num_filters=32, filter_size=(3, 3),
+            nonlinearity=lasagne.nonlinearities.very_leaky_rectify,
+            W=lasagne.init.GlorotUniform())
+    pool2 = lasagne.layers.MaxPool2DLayer(conv4, pool_size=(3, 3), stride=2)
+    l_hid1 = FullGaussianLayer(
+            pool2, num_units=500, name='l_hid1',
+            nonlinearity=lasagne.nonlinearities.rectify)
+    l_hid2 = FullGaussianLayer(
+            l_hid1, num_units=500, name='l_hid2',
+            nonlinearity=lasagne.nonlinearities.rectify)
+    l_out = FullGaussianLayer(
+            l_hid2, num_units=10, name='l_out',
+            nonlinearity=lasagne.nonlinearities.softmax)
+    return l_out
+
+def reloadModel(file_name, input_var=None, masks=None):
+    file = open(file_name, 'r')
+    data = cPickle.load(file)
+    file.close()
+    if masks is None:
+        masks = {}
+        masks['l_hid1'] = None
+        masks['l_hid2'] = None
+        masks['l_out'] = None
+    
+    l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
+                                     input_var=input_var, name='l_in')
+    l_hid1 = FullGaussianLayer(
+            l_in, num_units=800, name='l_hid1', M=data['Ml_hid1'],
+            R=data['Rl_hid1'], mask=masks['l_hid1'],
+            nonlinearity=lasagne.nonlinearities.rectify)
+    l_hid2 = FullGaussianLayer(
+            l_hid1, num_units=800, name='l_hid2', M=data['Ml_hid2'],
+            R=data['Rl_hid2'], mask=masks['l_hid2'], 
+            nonlinearity=lasagne.nonlinearities.rectify)
+    l_out = FullGaussianLayer(
+            l_hid2, num_units=10, name='l_out', M=data['Ml_out'],
+            R=data['Rl_out'], mask=masks['l_out'],
             nonlinearity=lasagne.nonlinearities.softmax)
     return l_out
 
@@ -115,7 +174,8 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
 # more functions to better separate the code, but it wouldn't make it any
 # easier to read.
 
-def main(model='mlp', num_epochs=500):
+def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
+         save_name='./models/model.npz'):
     # Load the dataset
     print("Loading data...")
     X_train, y_train, X_val, y_val, X_test, y_test = load_dataset()
@@ -129,32 +189,35 @@ def main(model='mlp', num_epochs=500):
     print("Building model and compiling functions...")
     if model == 'mlp':
         network = build_mlp(input_var)
-    elif model.startswith('custom_mlp:'):
-        depth, width, drop_in, drop_hid = model.split(':', 1)[1].split(',')
-        network = build_custom_mlp(input_var, int(depth), int(width),
-                                   float(drop_in), float(drop_hid))
     elif model == 'cnn':
         network = build_cnn(input_var)
+    elif model == 'reload':
+        network = reloadModel(file_name, input_var=input_var)
+    elif model == 'prune':
+        network = prune(file_name, proportion, scheme='KL', input_var=input_var)
     else:
         print("Unrecognized model type %r." % model)
 
+    
+
     # Create a loss expression for training, i.e., a scalar objective we want
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
-    prior_std = np.sqrt(1e-1)
+    prior_std = np.sqrt(1e0)
     batch_size = 500
-    base_lr = 0.0003
+    base_lr = 0.00001
     margin_lr = 50
     prediction = lasagne.layers.get_output(network)
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
     loss = loss.sum()
     # We could add some weight decay as well here, see lasagne.regularization.
     reg = 0
+    
     for layer in lasagne.layers.get_all_layers(network):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
-                reg += FullGaussianRegulariser(layer.W, layer.E,
-                                               layer.M, layer.S,
-                                               prior_std, prior='Gaussian')
+                reg += GaussianRegulariser(layer.W, layer.E,
+                                          layer.M, layer.S,
+                                          prior_std, prior='Gaussian')
     loss = loss + reg/T.ceil(dataset_size/batch_size)
     
     # Create update expressions for training, i.e., how to modify the
@@ -193,10 +256,14 @@ def main(model='mlp', num_epochs=500):
         train_err = 0
         train_batches = 0
         start_time = time.time()
+        i = 0
         for batch in iterate_minibatches(X_train, y_train, batch_size, shuffle=True):
             inputs, targets = batch
             train_err += train_fn(inputs, targets, learning_rate=learning_rate)
             train_batches += 1
+            i+=1
+            print('B%i' % i),
+            sys.stdout.flush()
 
         # And a full pass over the validation data:
         val_err = 0
@@ -233,8 +300,55 @@ def main(model='mlp', num_epochs=500):
         test_acc / test_batches * 100))
 
     # Optionally, you could now dump the network weights to a file like this:
-    save_model(network, 'model.npz')
+    save_model(network, save_name)
     print('Complete')
+
+def run_once(model='mlp', file_name=None, proportion=0., scheme='KL',
+         save_name='./models/model.npz'):
+    # Load the dataset
+    print("Loading data...")
+    X_train, y_train, X_val, y_val, X_test, y_test = load_dataset()
+    dataset_size = X_train.shape[0]
+    # Prepare Theano variables for inputs and targets
+    input_var = T.tensor4('inputs')
+    target_var = T.ivector('targets')
+    # Create neural network model (depending on first command line parameter)
+    print("Building model and compiling functions...")
+    if model == 'mlp':
+        network = build_mlp(input_var)
+    elif model == 'reload':
+        network = reloadModel(file_name, input_var=input_var)
+    elif model == 'prune':
+        network = prune(file_name, proportion, scheme=scheme, input_var=input_var)
+    else:
+        print("Unrecognized model type %r." % model)
+    
+    test_prediction = lasagne.layers.get_output(network)
+    test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
+                                                            target_var)
+    test_loss = test_loss.mean()
+    # As a bonus, also create an expression for the classification accuracy:
+    test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
+                      dtype=theano.config.floatX)
+
+    # Compile a second function computing the validation loss and accuracy:
+    val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
+
+    # After training, we compute and print the test error:
+    test_err = 0
+    test_acc = 0
+    test_batches = 0
+    for batch in iterate_minibatches(X_test, y_test, 500, shuffle=False):
+        inputs, targets = batch
+        err, acc = val_fn(inputs, targets)
+        test_err += err
+        test_acc += acc
+        test_batches += 1
+    print("Final results:")
+    print("  test loss:\t\t\t{:.6f}".format(test_err / test_batches))
+    print("  test accuracy:\t\t{:.2f} %".format(
+        test_acc / test_batches * 100))
+    return test_acc / test_batches
     
 def get_learning_rate(epoch, margin, base):
     return base*margin/np.maximum(epoch,margin)
@@ -254,50 +368,24 @@ def save_model(model, file_name):
     cPickle.dump(params, file, cPickle.HIGHEST_PROTOCOL)
     file.close()
                 
-    
-class GaussianLayer(lasagne.layers.Layer):
-    def __init__(self, incoming, num_units, nonlinearity, **kwargs):
-        super(GaussianLayer, self).__init__(incoming, **kwargs)
-        num_inputs = int(np.prod(self.input_shape[1:]))
-        self.num_units = num_units
-        r = np.log(np.exp(np.sqrt(1./num_inputs))-1.)
-        M = lasagne.init.Constant(0.0)
-        R = lasagne.init.Constant(r)
-        self.M = self.add_param(M, (num_inputs+1, num_units), name='M')
-        self.R = self.add_param(R, (num_inputs+1, num_units), name='R')
-        self.S = T.log(1. + T.exp(self.R))
-        self.nonlinearity = nonlinearity
-        self.layer_type = 'GaussianLayer'
-
-    def get_output_for(self, input, **kwargs):
-        if input.ndim > 2:
-            input = input.flatten(2)
-        b = T.ones_like(input[:,0]).dimshuffle(0,'x')
-        X = T.concatenate([input,b],axis=1)
-        M = T.dot(X,self.M) 
-        s = T.sqrt(T.dot(X**2,self.S**2))
-        smrg = MRG_RandomStreams()
-        E = smrg.normal(size=s.shape)
-        H = M + s*E 
-        # Nonlinearity
-        return self.nonlinearity(H)
-
-    def get_output_shape_for(self, input_shape):
-        return (input_shape[0], self.num_units)
-
 class FullGaussianLayer(lasagne.layers.Layer):
-    def __init__(self, incoming, num_units, nonlinearity, **kwargs):
+    def __init__(self, incoming, num_units, nonlinearity,
+                 M=None, R=None, mask=None, **kwargs):
         super(FullGaussianLayer, self).__init__(incoming, **kwargs)
         num_inputs = int(np.prod(self.input_shape[1:]))
         self.num_units = num_units
-        r = np.log(np.exp(np.sqrt(1./num_inputs))-1.)
-        M = lasagne.init.Constant(0.0)
-        R = lasagne.init.Constant(r)
+        if M is None:
+            M = lasagne.init.Constant(0.0)
+        if R is None:
+            r = np.log(np.exp(np.sqrt(1./num_inputs))-1.)
+            R = lasagne.init.Constant(r)
         self.M = self.add_param(M, (num_inputs+1, num_units), name='M')
         self.R = self.add_param(R, (num_inputs+1, num_units), name='R')
         self.S = T.log(1. + T.exp(self.R))
         self.nonlinearity = nonlinearity
         self.layer_type = 'GaussianLayer'
+        if mask != None:
+            self.mask = mask
 
     def get_output_for(self, input, **kwargs):
         if input.ndim > 2:
@@ -307,23 +395,29 @@ class FullGaussianLayer(lasagne.layers.Layer):
         smrg = MRG_RandomStreams()
         self.E = smrg.normal(size=self.M.shape)
         self.W = self.M + self.S*self.E
-        H = T.dot(X,self.W)
+        if hasattr(self, 'mask'):
+            H = T.dot(X,self.W*self.mask)
+        else:
+            H = T.dot(X,self.W)
         # Nonlinearity
         return self.nonlinearity(H)
 
     def get_output_shape_for(self, input_shape):
         return (input_shape[0], self.num_units)
 
-class HalfGaussianLayer(lasagne.layers.Layer):
-    def __init__(self, incoming, num_units, nonlinearity, **kwargs):
-        super(HalfGaussianLayer, self).__init__(incoming, **kwargs)
+class FullLaplaceLayer(lasagne.layers.Layer):
+    def __init__(self, incoming, num_units, nonlinearity,
+                 M=None, R=None, **kwargs):
+        super(FullLaplaceLayer, self).__init__(incoming, **kwargs)
         num_inputs = int(np.prod(self.input_shape[1:]))
         self.num_units = num_units
-        r = np.log(np.exp(np.sqrt(1./num_inputs))-1.)
-        M = lasagne.init.Constant(0.0)
-        R = lasagne.init.Constant(r)
+        if M is None:
+            M = lasagne.init.Constant(0.0)
+        if R is None:
+            r = np.log(np.exp(np.sqrt(1./num_inputs))-1.)
+            R = lasagne.init.Constant(r)
         self.M = self.add_param(M, (num_inputs+1, num_units), name='M')
-        self.R = self.add_param(R, (num_units,), name='R')
+        self.R = self.add_param(R, (num_inputs+1, num_units), name='R')
         self.S = T.log(1. + T.exp(self.R))
         self.nonlinearity = nonlinearity
         self.layer_type = 'GaussianLayer'
@@ -333,41 +427,132 @@ class HalfGaussianLayer(lasagne.layers.Layer):
             input = input.flatten(2)
         b = T.ones_like(input[:,0]).dimshuffle(0,'x')
         X = T.concatenate([input,b],axis=1)
-        M = T.dot(X,self.M) 
-        s = T.outer(T.sqrt(T.sum(X**2,axis=1)),self.S)
-        smrg = MRG_RandomStreams()
-        E = smrg.normal(size=s.shape)
-        H = M + s*E 
+        self.E = LaplaceRNG(shape=self.M.shape)
+        self.W = self.M + self.S*self.E
+        H = T.dot(X,self.W)
         # Nonlinearity
         return self.nonlinearity(H)
 
     def get_output_shape_for(self, input_shape):
         return (input_shape[0], self.num_units)
 
-def GaussianRegulariser(M, S, prior_std):
-    '''Regularise according to Gaussian prior'''
-    return T.sum(T.log(S/prior_std) + (((M**2)+(prior_std**2))/(S**2) - 1.)*0.5)
+def LaplaceRNG(shape):
+    smrg = MRG_RandomStreams()
+    U = smrg.uniform(size=shape, low=-0.499, high=0.499)
+    return -T.sgn(U)*T.log(1.-2.*T.abs_(U))/T.sqrt(2.)    
 
-def FullGaussianRegulariser(W, E, M, S, Sp):
-    '''Return cost of W'''
-    return 0.5*(T.sum(E**2) - T.sum(W**2)/Sp) - T.sum(T.log(S))
-
-def FullGaussianRegulariser(W, E, M, S, Sp, prior = 'Gaussian'):
+def GaussianRegulariser(W, E, M, S, Sp, prior = 'Gaussian'):
     '''Return cost of W'''
     if prior == 'Gaussian':
-        return 0.5*(T.sum(E**2) - T.sum(W**2)/Sp) - T.sum(T.log(S))
+        return 0.5*(-T.sum(E**2) + T.sum(W**2)/(Sp**2)) - T.sum(T.log(S))
     elif prior == 'Laplace':
-        return 0.5*T.sum(E**2) - T.sum(T.abs_(W))/Sp - T.sum(T.log(S))
+        return -0.5*T.sum(E**2) + T.sum(T.abs_(W))/(Sp*T.sqrt(2.)) - T.sum(T.log(S))
     else:
         print('Invalid regulariser')
         sys.exit(1)
 
-def LaplaceRegulariser(M, S, prior_std):
+def LaplaceRegulariser(W, E, M, S, Sp, prior='Laplace'):
     '''Regularise according to Laplace prior'''
-    sr = prior_std/S
-    m2 = T.sqrt(2.)*T.abs_(M)
-    return T.sum(m2/S + sr*T.exp(-m2/prior_std) - T.log(sr))
-    #return T.sum(T.abs_(S-prior_std))
+    if prior == 'Laplace':
+        return (T.sum(-T.abs_(E)) + T.sum(T.abs_(W))/Sp)*T.sqrt(2.) - T.sum(T.log(S))
+
+def cumhist(SNR, nbins):
+        '''Return normalised cumulative histogram of SNR'''
+        SNR = np.hstack([SNR[snr].flatten() for snr in SNR])
+        # Histogram of SNRs
+        hist, bin_edges = np.histogram(SNR, bins=nbins)
+        hist = np.cumsum(hist)
+        hist = hist/(hist[-1]*1.)
+        return (hist, bin_edges)
+
+def histogram(model, scheme='KL'):
+    SNR = {}
+    for layer in lasagne.layers.get_all_layers(model):
+        if hasattr(layer, 'layer_type'):
+            if layer.layer_type == 'GaussianLayer':
+                M = layer.M.get_value()[:-1,:]
+                R = layer.R.get_value()[:-1,:]
+                S = np.log(1. + np.exp(R))
+                if scheme == 'KL':
+                    snr = (M/S)**2 + 2.*np.log(S)
+                    snr_min = np.amin(snr)
+                    SNR[layer.name] = np.log(snr - snr_min + 1e-6)
+                elif scheme == 'SNR':
+                    snr = (M/S)**2 
+                    snr_min = np.amin(snr)
+                    SNR[layer.name] = np.log(snr - snr_min + 1e-6)
+                elif scheme == 'lowest':
+                    snr = np.abs(M)
+                    snr_min = np.amin(snr)
+                    SNR[layer.name] = np.log(snr - snr_min + 1e-6)
+    hist, bin_edges = cumhist(SNR, 1000)
+    bin_edges = bin_edges[1:]
+    return (bin_edges, hist, SNR)
+    
+def prune(file_name, proportion, scheme='KL', input_var=None):
+    '''Prune weights according to appropriate scheme'''
+    model = reloadModel(file_name)
+    bin_edges, hist, SNR = histogram(model, scheme=scheme)
+    idx = (hist > proportion)
+    cutoff = np.compress(idx, bin_edges)
+    cutoff = np.amin(cutoff)
+    masks = {}
+    for snr in SNR:
+        msk = (SNR[snr] > cutoff)
+        newrow = np.ones((1, msk.shape[1]))
+        msk = np.vstack((msk, newrow))
+        masks[snr] = np.asarray(msk)
+    return reloadModel(file_name, input_var=input_var, masks=masks)
+    
+def plotToPrune(model):
+    '''Plot the weight histograms'''
+    schemes = ['KL', 'SNR', 'lowest']
+    fig = plt.figure()
+    for scheme in schemes:
+        bin_edges, hist, _ = histogram(model, scheme=scheme)
+        plt.plot(bin_edges, hist)
+    plt.show()
+
+def plottests(num_steps):
+    proportion = 1.-np.logspace(-4.0, -2.0, num_steps)
+    acc = np.zeros((proportion.shape[0],4))
+    for i, prop in enumerate(proportion):
+        print prop
+        acc[i,0] = prop
+        acc[i,1] = run_once(model='prune', file_name='./models/modelG3.npz',
+                       proportion=prop, scheme='KL')
+        acc[i,2] = run_once(model='prune', file_name='./models/modelG3.npz',
+                       proportion=prop, scheme='SNR')
+        acc[i,3] = run_once(model='prune', file_name='./models/modelG3.npz',
+                       proportion=prop, scheme='lowest')
+    fig = plt.figure()
+    plt.semilogx(1-acc[:,0], acc[:,1:])
+    plt.show()
+    np.save('./models/PG3.npy', acc)
 
 if __name__ == '__main__':
-    main()
+    main(model='cnn', save_name='./models/modelCG0.npz')
+    #run_once(model='prune', file_name='./models/modelG0.npz', proportion=0.99,
+    #        scheme='KL')
+    #plottests(25)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
