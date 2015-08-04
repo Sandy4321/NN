@@ -750,10 +750,10 @@ def plottests(num_steps):
     np.save('./models/new_KLG0.npy', acc)
 
 if __name__ == '__main__':
-    main(model='mlp', save_name='./models/modelGDrop.npz', dataset='MNIST',
-         num_epochs=500, L2Radius=3.87, base_lr=0.0003)
-    #run_once(model='prune', file_name='./models/modelGDrop.npz', proportion=0.99,
-    #         scheme='lowest')
+    #main(model='mlp', save_name='./models/modelGDrop.npz', dataset='MNIST',
+    #     num_epochs=500, L2Radius=3.87, base_lr=0.0003)
+    run_once(model='prune', file_name='./models/modelGDrop.npz', proportion=0.99,
+             scheme='lowest')
     #plottests(25)
     
     
