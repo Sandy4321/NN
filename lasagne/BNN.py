@@ -120,15 +120,30 @@ def build_mlp(input_var=None, masks=None):
                                      input_var=input_var)
     l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.2)
     l_hid1 = lasagne.layers.DenseLayer(
-            l_in_drop, num_units=800, W=lasagne.init.GlorotUniform())
+            l_in_drop, num_units=800,
+            W=lasagne.init.GlorotUniform(), name='l_hid1')
     l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.707,
-                    nonlinearity=lasagne.nonlinearities.rectify)
+            nonlinearity=lasagne.nonlinearities.rectify, name='l_hid1_drop')
     l_hid2 = lasagne.layers.DenseLayer(
-            l_hid1_drop, num_units=800, W=lasagne.init.GlorotUniform())
-    l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.707,
-                    nonlinearity=lasagne.nonlinearities.rectify)
+            l_hid1_drop, num_units=800,
+            W=lasagne.init.GlorotUniform(), name='l_hid2')
+    l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.707,  
+            nonlinearity=lasagne.nonlinearities.rectify, name='l_hid2_drop')
     l_out = lasagne.layers.DenseLayer(
-            l_hid2_drop, num_units=10,
+            l_hid2_drop, num_units=10, 
+            nonlinearity=lasagne.nonlinearities.softmax, name='l_out')
+    return l_out
+
+def build_ogmlp(input_var=None, masks=None):
+    l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
+                                     input_var=input_var)
+    l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.2)
+    l_hid1 = OrientedGaussianLayer(l_in_drop, 800,
+                                lasagne.nonlinearities.rectify, s=0.707, t=1e-9)
+    l_hid2 = OrientedGaussianLayer(l_hid1, 800,
+                                lasagne.nonlinearities.rectify, s=0.707, t=1e-9)
+    l_out = lasagne.layers.DenseLayer(
+            l_hid2, num_units=10,
             nonlinearity=lasagne.nonlinearities.softmax)
     return l_out
 
@@ -173,20 +188,22 @@ def reloadModel(file_name, input_var=None, masks=None):
         masks['l_hid1'] = None
         masks['l_hid2'] = None
         masks['l_out'] = None
-    
+        
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
-                                     input_var=input_var, name='l_in')
-    l_hid1 = GaussianLayer(
-            l_in, num_units=800, name='l_hid1', M=data['Ml_hid1'],
-            R=data['Rl_hid1'], mask=masks['l_hid1'],
-            nonlinearity=lasagne.nonlinearities.rectify)
-    l_hid2 = GaussianLayer(
-            l_hid1, num_units=800, name='l_hid2', M=data['Ml_hid2'],
-            R=data['Rl_hid2'], mask=masks['l_hid2'], 
-            nonlinearity=lasagne.nonlinearities.rectify)
-    l_out = GaussianLayer(
-            l_hid2, num_units=10, name='l_out', M=data['Ml_out'],
-            R=data['Rl_out'], mask=masks['l_out'],
+                                     input_var=input_var)
+    l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.2)
+    l_hid1 = lasagne.layers.DenseLayer(
+            l_in_drop, num_units=800,
+            W=data['Wl_hid1'], b=data['bl_hid1'])
+    l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.707,
+            nonlinearity=lasagne.nonlinearities.rectify, R=data['l_hid1_drop'])
+    l_hid2 = lasagne.layers.DenseLayer(
+            l_hid1_drop, num_units=800,
+             W=data['Wl_hid1'], b=data['bl_hid2'])
+    l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.707,  
+            nonlinearity=lasagne.nonlinearities.rectify, R=data['l_hid2_drop'])
+    l_out = lasagne.layers.DenseLayer(
+            l_hid2_drop, num_units=10, W=data['Wl_out'], b=data['bl_out'],
             nonlinearity=lasagne.nonlinearities.softmax)
     return l_out
 
@@ -234,6 +251,8 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     print("Building model and compiling functions...")
     if model == 'mlp':
         network = build_mlp(input_var)
+    elif model == 'ogmlp':
+        network = build_ogmlp(input_var)
     elif model == 'cnn':
         network = build_cnn(input_var)
     elif model == 'reload':
@@ -254,7 +273,6 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     loss = loss.sum()
     # We could add some weight decay as well here, see lasagne.regularization.
     reg = 0
-    
     for layer in lasagne.layers.get_all_layers(network):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
@@ -264,6 +282,9 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
             if layer.layer_type == 'GaussianDropoutLayer':
                 reg += GaussianDropoutRegulariser(layer.E, layer.S,
                                                   layer.prior_std)
+            if layer.layer_type == 'OrientedGaussianLayer':
+                reg += OrientedDropoutRegulariser(layer.S, layer.T,
+                                                  layer.s, layer.t)
     loss = loss + reg/T.ceil(dataset_size/batch_size)
     
     # Create update expressions for training, i.e., how to modify the
@@ -272,8 +293,8 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     
     for layer in lasagne.layers.get_all_layers(network):
         if hasattr(layer, 'W'):
-            #layer.W = lasagne.updates.norm_constraint(layer.W, 3.87)
-            layer.W = L2BallConstraint(layer.W, L2Radius)
+            layer.W = lasagne.updates.norm_constraint(layer.W, L2Radius)
+            #layer.W = L2BallConstraint(layer.W, L2Radius)
     
     params = lasagne.layers.get_all_params(network, trainable=True)
     learning_rate = T.fscalar('learning_rate')
@@ -422,6 +443,16 @@ def save_model(model, file_name):
                 R = layer.R.get_value()
                 params['M' + layer.name] = M
                 params['R' + layer.name] = R
+        else:
+            if hasattr(layer, 'W'):
+                W = layer.W
+                params['W' + layer.name] = W
+            if hasattr(layer, 'b'):
+                b = layer.b
+                params['b' + layer.name] = b
+            if hasattr(layer, 'R'):
+                R = layer.R.get_value()
+                params['R' + layer.name] = R
     file = open(file_name, 'w')
     cPickle.dump(params, file, cPickle.HIGHEST_PROTOCOL)
     file.close()
@@ -527,6 +558,42 @@ class GaussianDropoutLayer(lasagne.layers.Layer):
         self.alpha = 1.+self.E*self.S
         return self.nonlinearity(input*self.alpha)
 
+class OrientedGaussianLayer(lasagne.layers.Layer):
+    def __init__(self, incoming, num_units, nonlinearity, 
+                 s, t, **kwargs):
+        super(OrientedGaussianLayer, self).__init__(incoming, **kwargs)
+        self.num_inputs = int(np.prod(incoming.output_shape[1:]))
+        self.num_units = num_units
+        self.nonlinearity = nonlinearity
+        self.layer_type = 'OrientedGaussianLayer'
+        self.s = s
+        self.t = t
+        Rs = lasagne.init.Constant(np.log(np.exp(s)-1.))
+        self.Rs = self.add_param(Rs, (num_units,), name='Rs')
+        Rt = lasagne.init.Constant(np.log(np.exp(t)-1.))
+        self.Rt = self.add_param(Rt, (num_units,), name='Rt')
+        self.S = T.log(1. + T.exp(self.Rs)).dimshuffle('x',0)
+        self.T = T.log(1. + T.exp(self.Rt)).dimshuffle('x',0)
+        W = lasagne.init.GlorotUniform()
+        b = lasagne.init.Constant(0.01)
+        self.W = self.add_param(W, (self.num_inputs,num_units), name='W')
+        self.b = self.add_param(b, (num_units,), name='b').dimshuffle('x', 0)
+
+    def get_output_for(self, input, **kwargs):
+        if input.ndim > 2:
+            input = input.flatten(2)
+        # DenseLayer
+        self.dense = T.dot(input, self.W) + self.b
+        varX = T.sqrt(T.sum(input**2, axis=1)).dimshuffle(0,'x')
+        smrg = MRG_RandomStreams()
+        self.Es = smrg.normal(size=(input.shape[0], self.num_units))
+        self.Et = smrg.normal(size=(input.shape[0], self.num_units))*varX
+        self.alpha = 1.+self.Es*self.S
+        return self.nonlinearity(self.dense*self.alpha + self.Et*self.T)
+    
+    def get_output_shape_for(self, input_shape):
+        return (input_shape[0], self.num_units)
+
 class FullLaplaceLayer(lasagne.layers.Layer):
     def __init__(self, incoming, num_units, nonlinearity,
                  M=None, R=None, **kwargs):
@@ -581,6 +648,12 @@ def LaplaceRegulariser(W, E, M, S, Sp, prior='Laplace'):
     '''Regularise according to Laplace prior'''
     if prior == 'Laplace':
         return (T.sum(-T.abs_(E)) + T.sum(T.abs_(W))/Sp)*T.sqrt(2.) - T.sum(T.log(S))
+
+def OrientedDropoutRegulariser(S, R, s, t):
+    '''Oriented Gaussian regulariser'''
+    regS = T.sum(S**2)/(2.*s**2) - T.sum(T.log(S))
+    regT = T.sum(R**2)/(2.*t**2) - T.sum(T.log(R))
+    return regS + regT
 
 def L2BallConstraint(tensor_var, target_norm, norm_axes=None, epsilon=1e-7):
     ndim = tensor_var.ndim
@@ -639,6 +712,9 @@ def prune(file_name, proportion, scheme='KL', input_var=None):
     '''Prune weights according to appropriate scheme'''
     model = reloadModel(file_name)
     bin_edges, hist, SNR = histogram(model, scheme=scheme)
+    fig = plt.figure()
+    plt.plot(bin_edges, hist)
+    plt.show()
     idx = (hist > proportion)
     cutoff = np.compress(idx, bin_edges)
     cutoff = np.amin(cutoff)
@@ -676,18 +752,10 @@ def plottests(num_steps):
     np.save('./models/new_KLG0.npy', acc)
 
 if __name__ == '__main__':
-    l2space = np.linspace(2., 4., 10)
-    lrspace = [0.0003, 0.0001, 0.00003]
-    res = np.zeros((10,3))
-    for i, l2 in enumerate(l2space):
-        for j, lr in enumerate(lrspace):
-            res[i, j] = main(model='mlp', save_name='./models/modelHG0.npz',
-                             dataset='MNIST', num_epochs=500,
-                             L2Radius=l2, base_lr=lr)
-    print res
-    np.save('res.py', res)
-    #run_once(model='prune', file_name='./models/modelG0.npz', proportion=0.99,
-    #        scheme='KL')
+    #main(model='mlp', save_name='./models/modelHG0.npz', dataset='MNIST',
+    #     num_epochs=500, L2Radius=3.87, base_lr=0.0003)
+    run_once(model='prune', file_name='./models/modelHG0.npz', proportion=0.99,
+            scheme='KL')
     #plottests(25)
     
     
