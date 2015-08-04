@@ -20,7 +20,7 @@ from theano.sandbox.rng_mrg import MRG_RandomStreams
 # This is just some way of getting the MNIST dataset from an online location
 # and loading it into numpy arrays. It doesn't involve Lasagne at all.
 
-def load_dataset():
+def load_dataset(dataset='MNIST'):
     # We first define some helper functions for supporting both Python 2 and 3.
     if sys.version_info[0] == 2:
         from urllib import urlretrieve
@@ -34,39 +34,80 @@ def load_dataset():
 
         def pickle_load(f, encoding):
             return pickle.load(f, encoding=encoding)
+    if dataset == 'MNIST':
+        # We'll now download the MNIST dataset if it is not yet available.
+        url = 'http://deeplearning.net/data/mnist/mnist.pkl.gz'
+        filename = 'mnist.pkl.gz'
+        if not os.path.exists(filename):
+            print("Downloading MNIST dataset...")
+            urlretrieve(url, filename)
+    
+        # We'll then load and unpickle the file.
+        import gzip
+        with gzip.open(filename, 'rb') as f:
+            data = pickle_load(f, encoding='latin-1')
+    
+        # The MNIST dataset we have here consists of six numpy arrays:
+        # Inputs and targets for the training set, validation set and test set.
+        X_train, y_train = data[0]
+        X_val, y_val = data[1]
+        X_test, y_test = data[2]
+    
+        # The inputs come as vectors, we reshape them to monochrome 2D images,
+        # according to the shape convention: (examples, channels, rows, columns)
+        X_train = X_train.reshape((-1, 1, 28, 28))
+        X_val = X_val.reshape((-1, 1, 28, 28))
+        X_test = X_test.reshape((-1, 1, 28, 28))
+    
+        # The targets are int64, we cast them to int8 for GPU compatibility.
+        y_train = y_train.astype(np.uint8)
+        y_val = y_val.astype(np.uint8)
+        y_test = y_test.astype(np.uint8)
+    
+        # We just return all the arrays in order, as expected in main().
+        # (It doesn't matter how we do this as long as we can read them again.)
+        return X_train, y_train, X_val, y_val, X_test, y_test
+    elif dataset == 'CIFAR10':
+        print('Loading CIFAR 10')
+        file = '/media/daniel/DATA/Cifar/cifar-10-batches-py/data_batch_'
+        data = []
+        labels = []
+        for i in ['1','2','3','4']:
+            data_dict = unpickle(file+i)
+            data.append(data_dict['data'])
+            labels.append(np.asarray(data_dict['labels']))
+        X_train = np.vstack(data[:3])
+        y_train = np.hstack(labels[:3])
+        X_val = data[-1]
+        y_val = labels[-1]
+        data_dict = unpickle('/media/daniel/DATA/Cifar/cifar-10-batches-py/test_batch')
+        X_test = np.asarray(data_dict['data'])
+        y_test = np.asarray(data_dict['labels'])
+    
+        # The inputs come as vectors, we reshape them to monochrome 2D images,
+        # according to the shape convention: (examples, channels, rows, columns)
+        X_train = X_train.reshape((-1, 3, 32, 32))/255.
+        X_val = X_val.reshape((-1, 3, 32, 32))/255.
+        X_test = X_test.reshape((-1, 3, 32, 32))/255.
+        X_train = X_train.astype(np.float32)
+        X_val = X_val.astype(np.float32)
+        X_test = X_test.astype(np.float32)
+    
+        # The targets are int64, we cast them to int8 for GPU compatibility.
+        y_train = y_train.astype(np.uint8)
+        y_val = y_val.astype(np.uint8)
+        y_test = y_test.astype(np.uint8)
+    
+        # We just return all the arrays in order, as expected in main().
+        # (It doesn't matter how we do this as long as we can read them again.)
+        return X_train, y_train, X_val, y_val, X_test, y_test
 
-    # We'll now download the MNIST dataset if it is not yet available.
-    url = 'http://deeplearning.net/data/mnist/mnist.pkl.gz'
-    filename = 'mnist.pkl.gz'
-    if not os.path.exists(filename):
-        print("Downloading MNIST dataset...")
-        urlretrieve(url, filename)
-
-    # We'll then load and unpickle the file.
-    import gzip
-    with gzip.open(filename, 'rb') as f:
-        data = pickle_load(f, encoding='latin-1')
-
-    # The MNIST dataset we have here consists of six numpy arrays:
-    # Inputs and targets for the training set, validation set and test set.
-    X_train, y_train = data[0]
-    X_val, y_val = data[1]
-    X_test, y_test = data[2]
-
-    # The inputs come as vectors, we reshape them to monochrome 2D images,
-    # according to the shape convention: (examples, channels, rows, columns)
-    X_train = X_train.reshape((-1, 1, 28, 28))
-    X_val = X_val.reshape((-1, 1, 28, 28))
-    X_test = X_test.reshape((-1, 1, 28, 28))
-
-    # The targets are int64, we cast them to int8 for GPU compatibility.
-    y_train = y_train.astype(np.uint8)
-    y_val = y_val.astype(np.uint8)
-    y_test = y_test.astype(np.uint8)
-
-    # We just return all the arrays in order, as expected in main().
-    # (It doesn't matter how we do this as long as we can read them again.)
-    return X_train, y_train, X_val, y_val, X_test, y_test
+def unpickle(file):
+    import cPickle
+    fo = open(file, 'rb')
+    dict = cPickle.load(fo)
+    fo.close()
+    return dict
 
 
 # ##################### Build the neural network model #######################
@@ -76,20 +117,23 @@ def load_dataset():
 
 def build_mlp(input_var=None, masks=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
-                                     input_var=input_var, name='l_in')
-    l_hid1 = FullGaussianLayer(
-            l_in, num_units=800, name='l_hid1',
-            nonlinearity=lasagne.nonlinearities.rectify)
-    l_hid2 = FullGaussianLayer(
-            l_hid1, num_units=800, name='l_hid2',
-            nonlinearity=lasagne.nonlinearities.rectify)
-    l_out = FullGaussianLayer(
-            l_hid2, num_units=10, name='l_out',
+                                     input_var=input_var)
+    l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.2)
+    l_hid1 = lasagne.layers.DenseLayer(
+            l_in_drop, num_units=800, W=lasagne.init.GlorotUniform())
+    l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.707,
+                    nonlinearity=lasagne.nonlinearities.rectify)
+    l_hid2 = lasagne.layers.DenseLayer(
+            l_hid1_drop, num_units=800, W=lasagne.init.GlorotUniform())
+    l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.707,
+                    nonlinearity=lasagne.nonlinearities.rectify)
+    l_out = lasagne.layers.DenseLayer(
+            l_hid2_drop, num_units=10,
             nonlinearity=lasagne.nonlinearities.softmax)
     return l_out
 
 def build_cnn(input_var=None, masks=None):
-    l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
+    l_in = lasagne.layers.InputLayer(shape=(None, 3, 32, 32),
                                      input_var=input_var, name='l_in')
     conv1 = lasagne.layers.Conv2DLayer(
             l_in, num_filters=32, filter_size=(3, 3),
@@ -132,15 +176,15 @@ def reloadModel(file_name, input_var=None, masks=None):
     
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var, name='l_in')
-    l_hid1 = FullGaussianLayer(
+    l_hid1 = GaussianLayer(
             l_in, num_units=800, name='l_hid1', M=data['Ml_hid1'],
             R=data['Rl_hid1'], mask=masks['l_hid1'],
             nonlinearity=lasagne.nonlinearities.rectify)
-    l_hid2 = FullGaussianLayer(
+    l_hid2 = GaussianLayer(
             l_hid1, num_units=800, name='l_hid2', M=data['Ml_hid2'],
             R=data['Rl_hid2'], mask=masks['l_hid2'], 
             nonlinearity=lasagne.nonlinearities.rectify)
-    l_out = FullGaussianLayer(
+    l_out = GaussianLayer(
             l_hid2, num_units=10, name='l_out', M=data['Ml_out'],
             R=data['Rl_out'], mask=masks['l_out'],
             nonlinearity=lasagne.nonlinearities.softmax)
@@ -175,10 +219,11 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
 # easier to read.
 
 def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
-         save_name='./models/model.npz'):
+         save_name='./models/model.npz', dataset='MNIST', L2Radius=3.87,
+         base_lr=0.0003):
     # Load the dataset
     print("Loading data...")
-    X_train, y_train, X_val, y_val, X_test, y_test = load_dataset()
+    X_train, y_train, X_val, y_val, X_test, y_test = load_dataset(dataset)
     dataset_size = X_train.shape[0]
 
     # Prepare Theano variables for inputs and targets
@@ -202,10 +247,8 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
 
     # Create a loss expression for training, i.e., a scalar objective we want
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
-    prior_std = np.sqrt(1e0)
     batch_size = 500
-    base_lr = 0.00001
-    margin_lr = 50
+    margin_lr = 25
     prediction = lasagne.layers.get_output(network)
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
     loss = loss.sum()
@@ -218,11 +261,20 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
                 reg += GaussianRegulariser(layer.W, layer.E,
                                           layer.M, layer.S,
                                           prior_std, prior='Gaussian')
+            if layer.layer_type == 'GaussianDropoutLayer':
+                reg += GaussianDropoutRegulariser(layer.E, layer.S,
+                                                  layer.prior_std)
     loss = loss + reg/T.ceil(dataset_size/batch_size)
     
     # Create update expressions for training, i.e., how to modify the
     # parameters at each training step. Here, we'll use Stochastic Gradient
     # Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
+    
+    for layer in lasagne.layers.get_all_layers(network):
+        if hasattr(layer, 'W'):
+            #layer.W = lasagne.updates.norm_constraint(layer.W, 3.87)
+            layer.W = L2BallConstraint(layer.W, L2Radius)
+    
     params = lasagne.layers.get_all_params(network, trainable=True)
     learning_rate = T.fscalar('learning_rate')
     updates = lasagne.updates.nesterov_momentum(
@@ -262,8 +314,8 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
             train_err += train_fn(inputs, targets, learning_rate=learning_rate)
             train_batches += 1
             i+=1
-            print('B%i' % i),
-            sys.stdout.flush()
+            #print('B%i' % i),
+            #sys.stdout.flush()
 
         # And a full pass over the validation data:
         val_err = 0
@@ -302,9 +354,10 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     # Optionally, you could now dump the network weights to a file like this:
     save_model(network, save_name)
     print('Complete')
+    return test_acc / test_batches * 100
 
 def run_once(model='mlp', file_name=None, proportion=0., scheme='KL',
-         save_name='./models/model.npz'):
+         save_name='./models/model.npz', num_samples=1):
     # Load the dataset
     print("Loading data...")
     X_train, y_train, X_val, y_val, X_test, y_test = load_dataset()
@@ -340,9 +393,14 @@ def run_once(model='mlp', file_name=None, proportion=0., scheme='KL',
     test_batches = 0
     for batch in iterate_minibatches(X_test, y_test, 500, shuffle=False):
         inputs, targets = batch
-        err, acc = val_fn(inputs, targets)
-        test_err += err
-        test_acc += acc
+        t_err = 0.
+        t_acc = 0.
+        for k in np.arange(num_samples):
+            err, acc = val_fn(inputs, targets)
+            t_err += err
+            t_acc += acc
+        test_err += t_err/num_samples
+        test_acc += t_acc/num_samples
         test_batches += 1
     print("Final results:")
     print("  test loss:\t\t\t{:.6f}".format(test_err / test_batches))
@@ -367,6 +425,45 @@ def save_model(model, file_name):
     file = open(file_name, 'w')
     cPickle.dump(params, file, cPickle.HIGHEST_PROTOCOL)
     file.close()
+                
+class GaussianLayer(lasagne.layers.Layer):
+    def __init__(self, incoming, num_units, nonlinearity,
+                 M=None, R=None, mask=None, **kwargs):
+        super(GaussianLayer, self).__init__(incoming, **kwargs)
+        num_inputs = int(np.prod(self.input_shape[1:]))
+        self.num_units = num_units
+        if M is None:
+            M = lasagne.init.Constant(0.0)
+        if R is None:
+            r = np.log(np.exp(np.sqrt(1./num_inputs))-1.)
+            R = lasagne.init.Constant(r)
+        self.M = self.add_param(M, (num_inputs+1, num_units), name='M')
+        self.R = self.add_param(R, (num_inputs+1, num_units), name='R')
+        self.S = T.log(1. + T.exp(self.R))
+        self.nonlinearity = nonlinearity
+        self.layer_type = 'GaussianLayer'
+        if mask != None:
+            self.mask = mask
+
+    def get_output_for(self, input, **kwargs):
+        if input.ndim > 2:
+            input = input.flatten(2)
+        b = T.ones_like(input[:,0]).dimshuffle(0,'x')
+        X = T.concatenate([input,b],axis=1)
+        if hasattr(self, 'mask'):
+            M = T.dot(X,self.M*self.mask)
+            s = T.sqrt(T.dot(X**2,self.mask*self.S**2))
+        else:
+            M = T.dot(X,self.M) 
+            s = T.sqrt(T.dot(X**2,self.S**2))
+        smrg = MRG_RandomStreams()
+        E = smrg.normal(size=s.shape)
+        H = M + s*E 
+        # Nonlinearity
+        return self.nonlinearity(H)
+
+    def get_output_shape_for(self, input_shape):
+        return (input_shape[0], self.num_units)
                 
 class FullGaussianLayer(lasagne.layers.Layer):
     def __init__(self, incoming, num_units, nonlinearity,
@@ -404,6 +501,31 @@ class FullGaussianLayer(lasagne.layers.Layer):
 
     def get_output_shape_for(self, input_shape):
         return (input_shape[0], self.num_units)
+
+class GaussianDropoutLayer(lasagne.layers.Layer):
+    def __init__(self, incoming, nonlinearity,
+                 R=None, prior_std=None, **kwargs):
+        super(GaussianDropoutLayer, self).__init__(incoming, **kwargs)
+        num_inputs = int(np.prod(incoming.output_shape[1:]))
+        if prior_std == None:
+            self.prior_std = 0.5
+        else:
+            self.prior_std = prior_std
+        if R is None:
+            R = lasagne.init.Constant(np.log(np.exp(self.prior_std)-1.))
+        self.R = self.add_param(R, (num_inputs,), name='R')
+        self.S = T.log(1. + T.exp(self.R)).dimshuffle('x',0)
+        self.nonlinearity = nonlinearity
+        self.layer_type = 'GaussianDropoutLayer'
+
+    def get_output_for(self, input, **kwargs):
+        if input.ndim > 2:
+            input = input.flatten(2)
+        # Nonlinearity
+        smrg = MRG_RandomStreams()
+        self.E = smrg.normal(size=input.shape)
+        self.alpha = 1.+self.E*self.S
+        return self.nonlinearity(input*self.alpha)
 
 class FullLaplaceLayer(lasagne.layers.Layer):
     def __init__(self, incoming, num_units, nonlinearity,
@@ -451,10 +573,34 @@ def GaussianRegulariser(W, E, M, S, Sp, prior = 'Gaussian'):
         print('Invalid regulariser')
         sys.exit(1)
 
+def GaussianDropoutRegulariser(E, S, Sp):
+    '''Return the cost of the Half Gaussian regularised layer'''
+    return 0.5*(-T.sum(E**2) + T.sum((S*E)**2)/(Sp**2)) - T.sum(T.log(S))
+
 def LaplaceRegulariser(W, E, M, S, Sp, prior='Laplace'):
     '''Regularise according to Laplace prior'''
     if prior == 'Laplace':
         return (T.sum(-T.abs_(E)) + T.sum(T.abs_(W))/Sp)*T.sqrt(2.) - T.sum(T.log(S))
+
+def L2BallConstraint(tensor_var, target_norm, norm_axes=None, epsilon=1e-7):
+    ndim = tensor_var.ndim
+    if norm_axes is not None:
+        sum_over = tuple(norm_axes)
+    elif ndim == 2:  # DenseLayer
+        sum_over = (0,)
+    elif ndim in [3, 4, 5]:  # Conv{1,2,3}DLayer
+        sum_over = tuple(range(1, ndim))
+    else:
+        raise ValueError(
+            "Unsupported tensor dimensionality {}."
+            "Must specify `norm_axes`".format(ndim)
+        )
+    dtype = np.dtype(theano.config.floatX).type
+    norms = T.sqrt(T.sum(T.sqr(tensor_var), axis=sum_over, keepdims=True))
+    constrained_output = \
+        (tensor_var * (target_norm / (dtype(epsilon) + norms)))
+
+    return constrained_output
 
 def cumhist(SNR, nbins):
         '''Return normalised cumulative histogram of SNR'''
@@ -514,24 +660,32 @@ def plotToPrune(model):
     plt.show()
 
 def plottests(num_steps):
-    proportion = 1.-np.logspace(-4.0, -2.0, num_steps)
-    acc = np.zeros((proportion.shape[0],4))
-    for i, prop in enumerate(proportion):
-        print prop
-        acc[i,0] = prop
-        acc[i,1] = run_once(model='prune', file_name='./models/modelG3.npz',
-                       proportion=prop, scheme='KL')
-        acc[i,2] = run_once(model='prune', file_name='./models/modelG3.npz',
-                       proportion=prop, scheme='SNR')
-        acc[i,3] = run_once(model='prune', file_name='./models/modelG3.npz',
-                       proportion=prop, scheme='lowest')
-    fig = plt.figure()
-    plt.semilogx(1-acc[:,0], acc[:,1:])
-    plt.show()
-    np.save('./models/PG3.npy', acc)
+    proportion = 1.-np.logspace(-3.0, -1.0, num_steps)
+    num_samples = [1,2,5,10,25]
+    acc = np.zeros((proportion.shape[0],4,len(num_samples)))
+    for j, ns in enumerate(num_samples):
+        for i, prop in enumerate(proportion):
+            print prop
+            acc[i,0,j] = prop
+            acc[i,1,j] = run_once(model='prune', file_name='./models/modelG0.npz',
+                           proportion=prop, scheme='KL', num_samples=ns)
+            acc[i,2,j] = run_once(model='prune', file_name='./models/modelG0.npz',
+                           proportion=prop, scheme='SNR', num_samples=ns)
+            acc[i,3,j] = run_once(model='prune', file_name='./models/modelG0.npz',
+                           proportion=prop, scheme='lowest', num_samples=ns)
+    np.save('./models/new_KLG0.npy', acc)
 
 if __name__ == '__main__':
-    main(model='cnn', save_name='./models/modelCG0.npz')
+    l2space = np.linspace(2., 4., 10)
+    lrspace = [0.0003, 0.0001, 0.00003]
+    res = np.zeros((10,3))
+    for i, l2 in enumerate(l2space):
+        for j, lr in enumerate(lrspace):
+            res[i, j] = main(model='mlp', save_name='./models/modelHG0.npz',
+                             dataset='MNIST', num_epochs=500,
+                             L2Radius=l2, base_lr=lr)
+    print res
+    np.save('res.py', res)
     #run_once(model='prune', file_name='./models/modelG0.npz', proportion=0.99,
     #        scheme='KL')
     #plottests(25)
