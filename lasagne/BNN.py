@@ -183,29 +183,34 @@ def reloadModel(file_name, input_var=None, masks=None):
     file = open(file_name, 'r')
     data = cPickle.load(file)
     file.close()
+    
+    keys = data.keys()
+    '''
     if masks is None:
         masks = {}
         masks['l_hid1'] = None
         masks['l_hid2'] = None
         masks['l_out'] = None
-        
+    '''
+
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
     l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.2)
     l_hid1 = lasagne.layers.DenseLayer(
             l_in_drop, num_units=800,
-            W=data['Wl_hid1'], b=data['bl_hid1'])
+            W=data['l_hid1.W'], b=data['l_hid1.b'])
     l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.707,
-            nonlinearity=lasagne.nonlinearities.rectify, R=data['l_hid1_drop'])
+            nonlinearity=lasagne.nonlinearities.rectify, R=data['l_hid1_drop.R'])
     l_hid2 = lasagne.layers.DenseLayer(
             l_hid1_drop, num_units=800,
-             W=data['Wl_hid1'], b=data['bl_hid2'])
+             W=data['l_hid2.W'], b=data['l_hid2.b'])
     l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.707,  
-            nonlinearity=lasagne.nonlinearities.rectify, R=data['l_hid2_drop'])
+            nonlinearity=lasagne.nonlinearities.rectify, R=data['l_hid2_drop.R'])
     l_out = lasagne.layers.DenseLayer(
-            l_hid2_drop, num_units=10, W=data['Wl_out'], b=data['bl_out'],
+            l_hid2_drop, num_units=10, W=data['l_out.W'], b=data['l_out.b'],
             nonlinearity=lasagne.nonlinearities.softmax)
     return l_out
+
 
 
 # ############################# Batch iterator ###############################
@@ -436,23 +441,9 @@ def save_model(model, file_name):
     '''Save the model parameters'''
     print('Saving model..')
     params = {}
-    for layer in lasagne.layers.get_all_layers(model):
-        if hasattr(layer, 'layer_type'):
-            if layer.layer_type == 'GaussianLayer':
-                M = layer.M.get_value()
-                R = layer.R.get_value()
-                params['M' + layer.name] = M
-                params['R' + layer.name] = R
-        else:
-            if hasattr(layer, 'W'):
-                W = layer.W
-                params['W' + layer.name] = W
-            if hasattr(layer, 'b'):
-                b = layer.b
-                params['b' + layer.name] = b
-            if hasattr(layer, 'R'):
-                R = layer.R.get_value()
-                params['R' + layer.name] = R
+    for param in lasagne.layers.get_all_params(model):
+        params[str(param)] = param.get_value()
+    
     file = open(file_name, 'w')
     cPickle.dump(params, file, cPickle.HIGHEST_PROTOCOL)
     file.close()
@@ -704,6 +695,13 @@ def histogram(model, scheme='KL'):
                     snr = np.abs(M)
                     snr_min = np.amin(snr)
                     SNR[layer.name] = np.log(snr - snr_min + 1e-6)
+        if hasattr(layer, 'W'):
+            W = layer.W.get_value()
+            b = layer.b.get_value()
+            if scheme == 'lowest':
+                    snr = np.abs(W)
+                    snr_min = np.amin(snr)
+                    SNR[layer.name] = np.log(snr - snr_min + 1e-6)
     hist, bin_edges = cumhist(SNR, 1000)
     bin_edges = bin_edges[1:]
     return (bin_edges, hist, SNR)
@@ -752,10 +750,10 @@ def plottests(num_steps):
     np.save('./models/new_KLG0.npy', acc)
 
 if __name__ == '__main__':
-    #main(model='mlp', save_name='./models/modelHG0.npz', dataset='MNIST',
-    #     num_epochs=500, L2Radius=3.87, base_lr=0.0003)
-    run_once(model='prune', file_name='./models/modelHG0.npz', proportion=0.99,
-            scheme='KL')
+    main(model='mlp', save_name='./models/modelGDrop.npz', dataset='MNIST',
+         num_epochs=500, L2Radius=3.87, base_lr=0.0003)
+    #run_once(model='prune', file_name='./models/modelGDrop.npz', proportion=0.99,
+    #         scheme='lowest')
     #plottests(25)
     
     
