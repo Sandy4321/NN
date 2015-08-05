@@ -185,32 +185,31 @@ def reloadModel(file_name, input_var=None, masks=None):
     file.close()
     
     keys = data.keys()
-    '''
+    
     if masks is None:
         masks = {}
         masks['l_hid1'] = None
         masks['l_hid2'] = None
         masks['l_out'] = None
-    '''
-
+    
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
     l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.2)
     l_hid1 = lasagne.layers.DenseLayer(
-            l_in_drop, num_units=800,
+            l_in_drop, num_units=800, mask=masks['l_hid1'],
             W=data['l_hid1.W'], b=data['l_hid1.b'])
     l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.707,
             nonlinearity=lasagne.nonlinearities.rectify, R=data['l_hid1_drop.R'])
     l_hid2 = lasagne.layers.DenseLayer(
-            l_hid1_drop, num_units=800,
+            l_hid1_drop, num_units=800, mask=masks['l_hid2'],
              W=data['l_hid2.W'], b=data['l_hid2.b'])
     l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.707,  
             nonlinearity=lasagne.nonlinearities.rectify, R=data['l_hid2_drop.R'])
     l_out = lasagne.layers.DenseLayer(
             l_hid2_drop, num_units=10, W=data['l_out.W'], b=data['l_out.b'],
-            nonlinearity=lasagne.nonlinearities.softmax)
+            nonlinearity=lasagne.nonlinearities.softmax, mask=masks['l_out'])
     return l_out
-
+# NEED TO WRITE MY OWN DENSE LAYER
 
 
 # ############################# Batch iterator ###############################
