@@ -188,26 +188,23 @@ def reloadModel(file_name, input_var=None, masks=None):
     
     if masks is None:
         masks = {}
-        masks['l_hid1'] = None
-        masks['l_hid2'] = None
-        masks['l_out'] = None
+        masks['0'] = None
+        masks['1'] = None
+        masks['2'] = None
     
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
     l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.2)
-    l_hid1 = lasagne.layers.DenseLayer(
-            l_in_drop, num_units=800, mask=masks['l_hid1'],
+    l_hid1 = MaskedDenseLayer(l_in_drop, num_units=800, mask=masks['0'],
             W=data['l_hid1.W'], b=data['l_hid1.b'])
     l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.707,
             nonlinearity=lasagne.nonlinearities.rectify, R=data['l_hid1_drop.R'])
-    l_hid2 = lasagne.layers.DenseLayer(
-            l_hid1_drop, num_units=800, mask=masks['l_hid2'],
+    l_hid2 = MaskedDenseLayer(l_hid1_drop, num_units=800, mask=masks['1'],
              W=data['l_hid2.W'], b=data['l_hid2.b'])
     l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.707,  
             nonlinearity=lasagne.nonlinearities.rectify, R=data['l_hid2_drop.R'])
-    l_out = lasagne.layers.DenseLayer(
-            l_hid2_drop, num_units=10, W=data['l_out.W'], b=data['l_out.b'],
-            nonlinearity=lasagne.nonlinearities.softmax, mask=masks['l_out'])
+    l_out = MaskedDenseLayer(l_hid2_drop, num_units=10, W=data['l_out.W'], b=data['l_out.b'],
+            nonlinearity=lasagne.nonlinearities.softmax, mask=masks['2'])
     return l_out
 # NEED TO WRITE MY OWN DENSE LAYER
 
@@ -446,6 +443,40 @@ def save_model(model, file_name):
     file = open(file_name, 'w')
     cPickle.dump(params, file, cPickle.HIGHEST_PROTOCOL)
     file.close()
+
+class MaskedDenseLayer(lasagne.layers.Layer):
+    """A dense layer where weights can be masked"""
+    def __init__(self, incoming, num_units, W=lasagne.init.GlorotUniform(),
+                 b=lasagne.init.Constant(0.), mask=None, 
+                 nonlinearity=lasagne.nonlinearities.rectify, **kwargs):
+        super(MaskedDenseLayer, self).__init__(incoming, **kwargs)
+        self.nonlinearity = nonlinearity
+        self.num_units = num_units
+        num_inputs = int(np.prod(self.input_shape[1:]))
+        self.W = self.add_param(W, (num_inputs, num_units), name="W")
+        if b is None:
+            self.b = None
+        else:
+            self.b = self.add_param(b, (num_units,), name="b",
+                                    regularizable=False)
+        self.mask = mask
+        
+    def get_output_shape_for(self, input_shape):
+        return (input_shape[0], self.num_units)
+
+    def get_output_for(self, input, **kwargs):
+        if input.ndim > 2:
+            # if the input has more than two dimensions, flatten it into a
+            # batch of feature vectors.
+            input = input.flatten(2)
+        
+        if self.mask is not None:
+            activation = T.dot(input, self.W*self.mask)
+        else:
+            activation = T.dot(input, self.W)
+        if self.b is not None:
+            activation = activation + self.b.dimshuffle('x', 0)
+        return self.nonlinearity(activation)
                 
 class GaussianLayer(lasagne.layers.Layer):
     def __init__(self, incoming, num_units, nonlinearity,
@@ -676,6 +707,7 @@ def cumhist(SNR, nbins):
 
 def histogram(model, scheme='KL'):
     SNR = {}
+    i = 0
     for layer in lasagne.layers.get_all_layers(model):
         if hasattr(layer, 'layer_type'):
             if layer.layer_type == 'GaussianLayer':
@@ -698,9 +730,10 @@ def histogram(model, scheme='KL'):
             W = layer.W.get_value()
             b = layer.b.get_value()
             if scheme == 'lowest':
-                    snr = np.abs(W)
-                    snr_min = np.amin(snr)
-                    SNR[layer.name] = np.log(snr - snr_min + 1e-6)
+                snr = np.abs(W)
+                snr_min = np.amin(snr)
+                SNR[str(i)] = np.log(snr - snr_min + 1e-6)
+                i += 1
     hist, bin_edges = cumhist(SNR, 1000)
     bin_edges = bin_edges[1:]
     return (bin_edges, hist, SNR)
