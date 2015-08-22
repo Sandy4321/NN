@@ -625,7 +625,7 @@ class GaussianDropoutLayer(lasagne.layers.Layer):
 class GaussianMixtureDropoutLayer(lasagne.layers.Layer):
     def __init__(self, incoming, nonlinearity,
                  R=None, prior_std=None, k=1, **kwargs):
-        super(GaussianDropoutLayer, self).__init__(incoming, **kwargs)
+        super(GaussianMixtureDropoutLayer, self).__init__(incoming, **kwargs)
         num_inputs = int(np.prod(incoming.output_shape[1:]))
         if prior_std == None:
             self.prior_std = 0.5
