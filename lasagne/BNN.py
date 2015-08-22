@@ -343,7 +343,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     params = lasagne.layers.get_all_params(network, trainable=True)
     learning_rate = T.fscalar('learning_rate')
     updates = lasagne.updates.nesterov_momentum(
-            loss, params, learning_rate=learning_rate, momentum=0.9)
+            loss, params, learning_rate=learning_rate, momentum=0.99)
 
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
