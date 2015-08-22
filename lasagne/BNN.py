@@ -343,7 +343,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     params = lasagne.layers.get_all_params(network, trainable=True)
     learning_rate = T.fscalar('learning_rate')
     updates = lasagne.updates.nesterov_momentum(
-            loss, params, learning_rate=learning_rate, momentum=0.99)
+            loss, params, learning_rate=learning_rate, momentum=0.9)
 
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
@@ -619,8 +619,8 @@ class GaussianDropoutLayer(lasagne.layers.Layer):
         # Nonlinearity
         smrg = MRG_RandomStreams()
         self.E = smrg.normal(size=input.shape)
-        self.alpha = 1.+self.E*self.S
-        return self.nonlinearity(input*self.alpha)
+        self.alpha = 0.+self.E*self.S
+        return self.nonlinearity(input+self.alpha)
 
 class OrientedGaussianLayer(lasagne.layers.Layer):
     def __init__(self, incoming, num_units, nonlinearity, 
