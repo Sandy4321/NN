@@ -119,7 +119,7 @@ def build_cnn(input_var=None):
             W=lasagne.init.GlorotUniform())
     network = lasagne.layers.DenseLayer(
             lasagne.layers.dropout(network, p=.5),
-            num_units=10,
+            num_units=10, W=lasagne.init.GlorotUniform(
             nonlinearity=lasagne.nonlinearities.softmax)
 
     return network
@@ -246,6 +246,59 @@ def main(model='mlp', num_epochs=500):
 
     # Optionally, you could now dump the network weights to a file like this:
     # np.savez('model.npz', lasagne.layers.get_all_param_values(network))
+
+class BatchNormalizationLayer(lasagne.layers.Layer):
+    def __init__(self, incoming, nonlinearity, g=None, b=None,
+                 **kwargs):
+        super(BatchNormalizationLayer, self).__init__(incoming, **kwargs)
+        num_channels = self.input_shape[1]
+        g = lasagne.init.Constant(1.)
+        b = lasagne.init.Constant(0.)
+        self.g = self.add_param(g, (num_channels,), name='g')
+        self.b = self.add_param(b, (num_channels,), name='b')
+        self.nonlinearity = nonlinearity
+    
+    def get_output_for(self, input, training=True, **kwargs):
+        if input.ndim > 2:
+            input2 = input.dimshuffle(1,0,2,3)
+        elif input.ndim == 2:
+            input2 = input.dimshuffle(1,0)
+        else:
+            print('Incompatible number of data dimensions')
+        input2 = input2.flatten(2)
+        mean = T.mean(input2, axis=1)
+        var = T.var(input2, axis=1)
+        eps = 1e-3
+        if input.ndim > 2:
+            norm_input = input - mean.dimshuffle('x',0,'x','x')
+            norm_input = norm_input/T.sqrt(var + eps).dimshuffle('x',0,'x','x')
+            output = self.g.dimshuffle('x',0,'x','x')*norm_input + \
+                                                self.b.dimshuffle('x',0,'x','x')
+        elif input.ndim == 2:
+            norm_input = input - mean.dimshuffle('x',0)
+            norm_input = norm_input/T.sqrt(var + eps).dimshuffle('x',0)
+            output = self.g.dimshuffle('x',0)*norm_input + self.b.dimshuffle('x',0)
+        return self.nonlinearity(output)
+                
+class GaussianLayer(lasagne.layers.Layer):
+    def __init__(self, incoming, num_units, nonlinearity,
+                 M=None, R=None, mask=None, **kwargs):
+        super(GaussianLayer, self).__init__(incoming, **kwargs)
+        num_inputs = int(np.prod(self.input_shape[1:]))
+        self.num_units = num_units
+        if M is None:
+            M = lasagne.init.Constant(0.0)
+        if R is None:
+            r = np.log(np.exp(np.sqrt(1./num_inputs))-1.)
+            R = lasagne.init.Constant(r)
+        self.M = self.add_param(M, (num_inputs+1, num_units), name='M')
+        self.R = self.add_param(R, (num_inputs+1, num_units), name='R')
+        self.S = T.log(1. + T.exp(self.R))
+        self.nonlinearity = nonlinearity
+        self.layer_type = 'GaussianLayer'
+        if mask != None:
+            self.mask = mask
+
 
 
 if __name__ == '__main__':

@@ -1,11 +1,12 @@
-import numpy 
-from matplotlib import pyplot as plt
+import theano
+import theano.tensor as T
 
-data = numpy.load('./models/PG0.npy')
-data[:,1:] = data[:,1:]/numpy.amax(data[:,1:],axis=0)
+m = T.scalar('m')
+S = T.scalar('S')
+#x = m + S
+y = m + S**2
+x = y - S**2 + S
+grad = theano.grad(x, y)
+compute = theano.function([m,S], grad)
 
-
-fig = plt.figure()
-plt.loglog(1-data[:,0], data[:,1:])
-plt.ylim(0.1, 1.)
-plt.show()
+print compute(2, 3)
