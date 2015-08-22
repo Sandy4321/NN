@@ -137,12 +137,12 @@ def build_glp(input_var=None, masks=None):
     l_hid1 = lasagne.layers.DenseLayer(
             l_in_drop, num_units=800,
             W=lasagne.init.GlorotUniform(), name='l_hid1')
-    l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.707,
+    l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.707/10,
             nonlinearity=lasagne.nonlinearities.rectify, name='l_hid1_drop')
     l_hid2 = lasagne.layers.DenseLayer(
             l_hid1_drop, num_units=800,
             W=lasagne.init.GlorotUniform(), name='l_hid2')
-    l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.707,  
+    l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.707/10,  
             nonlinearity=lasagne.nonlinearities.rectify, name='l_hid2_drop')
     l_out = lasagne.layers.DenseLayer(
             l_hid2_drop, num_units=10, name='l_out')
@@ -1053,7 +1053,7 @@ def copy_model_output(file_name, copy_temp=1):
 
 if __name__ == '__main__':
     main(model='glp', save_name='./models/mnistglp.npz', dataset='MNIST',
-         num_epochs=100, L2Radius=3.87, base_lr=1e-6)
+         num_epochs=100, L2Radius=3.87, base_lr=1e-5)
     #run_once(model='prune', file_name='./models/modelGDrop.npz',
     #                        proportion=1-p, scheme='lowest')
     #plottests(25)
