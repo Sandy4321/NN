@@ -150,19 +150,6 @@ def build_glp(input_var=None, masks=None):
             nonlinearity=lasagne.nonlinearities.softmax, name='l_out_drop')
     return l_out_drop
 
-def build_ogmlp(input_var=None, masks=None):
-    l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
-                                     input_var=input_var)
-    l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.2)
-    l_hid1 = OrientedGaussianLayer(l_in_drop, 800,
-                                lasagne.nonlinearities.rectify, s=0.707, t=1e-9)
-    l_hid2 = OrientedGaussianLayer(l_hid1, 800,
-                                lasagne.nonlinearities.rectify, s=0.707, t=1e-9)
-    l_out = lasagne.layers.DenseLayer(
-            l_hid2, num_units=10,
-            nonlinearity=lasagne.nonlinearities.softmax)
-    return l_out
-
 def build_cnn(input_var=None, masks=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var, name='l_in')
@@ -306,8 +293,8 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     print("Building model and compiling functions...")
     if model == 'mlp':
         network = build_mlp(input_var)
-    elif model == 'ogmlp':
-        network = build_ogmlp(input_var)
+    elif model == 'glp':
+        network = build_glp(input_var)
     elif model == 'cnn':
         network = build_cnn(input_var)
     elif model == 'reload':
