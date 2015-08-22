@@ -1065,12 +1065,12 @@ def copy_model_output(file_name, copy_temp=1):
     
 
 if __name__ == '__main__':
-    #main(model='cnn', save_name='./models/mnistcnn.npz', dataset='MNIST',
-    #     num_epochs=100, L2Radius=3.87, base_lr=1e-4)
+    main(model='glp', save_name='./models/mnistglp.npz', dataset='MNIST',
+         num_epochs=100, L2Radius=3.87, base_lr=1e-4)
     #run_once(model='prune', file_name='./models/modelGDrop.npz',
     #                        proportion=1-p, scheme='lowest')
     #plottests(25)
-    modelTransfer('./models/mnistcnn.npz', deterministic=True, copy_temp=4)
+    #modelTransfer('./models/mnistcnn.npz', deterministic=True, copy_temp=4)
 
     
     
