@@ -137,12 +137,12 @@ def build_glp(input_var=None, masks=None):
     l_hid1 = lasagne.layers.DenseLayer(
             l_in_drop, num_units=800,
             W=lasagne.init.GlorotUniform(), name='l_hid1')
-    l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.707/10,
+    l_hid1_drop = GaussianMixtureDropoutLayer(l_hid1, prior_std=0.707/10,
             nonlinearity=lasagne.nonlinearities.rectify, name='l_hid1_drop')
     l_hid2 = lasagne.layers.DenseLayer(
             l_hid1_drop, num_units=800,
             W=lasagne.init.GlorotUniform(), name='l_hid2')
-    l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.707/10,  
+    l_hid2_drop = GaussianMixtureDropoutLayer(l_hid2, prior_std=0.707/10,  
             nonlinearity=lasagne.nonlinearities.rectify, name='l_hid2_drop')
     l_out = lasagne.layers.DenseLayer(
             l_hid2_drop, num_units=10, name='l_out')
@@ -620,6 +620,40 @@ class GaussianDropoutLayer(lasagne.layers.Layer):
         smrg = MRG_RandomStreams()
         self.E = smrg.normal(size=input.shape)
         self.alpha = 1.+self.E*self.S
+        return self.nonlinearity(input*self.alpha)
+
+class GaussianMixtureDropoutLayer(lasagne.layers.Layer):
+    def __init__(self, incoming, nonlinearity,
+                 R=None, prior_std=None, k=1, **kwargs):
+        super(GaussianDropoutLayer, self).__init__(incoming, **kwargs)
+        num_inputs = int(np.prod(incoming.output_shape[1:]))
+        if prior_std == None:
+            self.prior_std = 0.5
+        else:
+            self.prior_std = prior_std
+        if R is None:
+            R = lasagne.init.Constant(np.log(np.exp(self.prior_std)-1.))
+        rho = lasagne.init.Constant(0.)
+        u = lasagne.init.Constant(0.5)
+        self.R = self.add_param(R, (num_inputs,), name='R')
+        self.S = T.log(1. + T.exp(self.R)).dimshuffle('x',0)
+        self.rho = self.add_param(rho, (num_inputs,k), name='rho')
+        self.pi = T.exp(self.rho)/T.sum(T.exp(self.rho), axis=1).dimshuffle(0,'x')
+        self.cumpi = T.extra_ops.cumsum(self.pi, axis=1)
+        self.u = self.add_param(u, (k,), name='u')
+        self.nonlinearity = nonlinearity
+        self.layer_type = 'GaussianDropoutLayer'
+
+    def get_output_for(self, input, **kwargs):
+        if input.ndim > 2:
+            input = input.flatten(2)
+        # Nonlinearity
+        smrg1 = MRG_RandomStreams()
+        smrg2 = MRG_RandomStreams()
+        self.E = smrg1.normal(size=input.shape)
+        self.U = smrg2.uniform(size=input.shape)
+        idx = (self.U > self.cumpi).nonzero()
+        self.alpha = (1.+self.E*self.S)*self.u[idx]
         return self.nonlinearity(input*self.alpha)
 
 class OrientedGaussianLayer(lasagne.layers.Layer):
