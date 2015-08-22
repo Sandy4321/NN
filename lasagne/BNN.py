@@ -619,8 +619,8 @@ class GaussianDropoutLayer(lasagne.layers.Layer):
         # Nonlinearity
         smrg = MRG_RandomStreams()
         self.E = smrg.normal(size=input.shape)
-        self.alpha = 0.+self.E*self.S
-        return self.nonlinearity(input+self.alpha)
+        self.alpha = 1.+self.E*self.S
+        return self.nonlinearity(input*self.alpha)
 
 class OrientedGaussianLayer(lasagne.layers.Layer):
     def __init__(self, incoming, num_units, nonlinearity, 
