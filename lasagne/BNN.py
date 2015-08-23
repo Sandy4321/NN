@@ -612,7 +612,7 @@ def GaussianRegulariser(W, E, M, S, Sp, prior = 'Gaussian'):
     elif prior == 'Laplace':
         return -0.5*T.sum(E**2) + T.sum(T.abs_(W))/(Sp*T.sqrt(2.)) - T.sum(T.log(S))
     elif prior == 'StudentT':
-        return 0.5*(-T.sum(E**2) + ((Sp+1.)/2)*T.sum(T.log(1.+(S**2)/Sp))) - T.sum(T.log(S))
+        return 0.5*(-T.sum(E**2) + ((Sp+1.)/2)*T.sum(T.log(1.+(W**2)/Sp))) - T.sum(T.log(S))
     else:
         print('Invalid regulariser')
         sys.exit(1)
