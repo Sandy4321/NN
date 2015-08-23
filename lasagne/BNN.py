@@ -909,7 +909,7 @@ def nesterov_momentum(loss_or_grads, params, learning_rate, momentum=0.9):
 
 if __name__ == '__main__':
     main(model='explin', save_name='./models/mnistglp.npz', dataset='MNIST',
-         num_epochs=100, L2Radius=3.87, base_lr=1e-2)
+         num_epochs=100, L2Radius=3.87, base_lr=3e-3)
 
     
     
