@@ -629,7 +629,7 @@ class RBFLayer(lasagne.layers.Layer):
                  nonlinearity=lasagne.nonlinearities.linear, **kwargs):
         super(RBFLayer, self).__init__(incoming, **kwargs)
         num_inputs = int(np.prod(incoming.output_shape[1:]))
-        W = lasagne.init.GlorotUniform()
+        W = 0.01*lasagne.init.GlorotUniform()
         b = lasagne.init.Constant(0.01)
         self.W = self.add_param(W, (num_inputs,num_units), name='W')
         self.b = self.add_param(b, (num_units,), name='b')
