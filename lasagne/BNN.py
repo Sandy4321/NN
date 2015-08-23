@@ -171,17 +171,14 @@ def build_rbf(input_var=None, masks=None):
                                      input_var=input_var)
     l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.2)
     l_hid1 = RBFLayer(
-            l_in_drop, num_units=800,
-            W=lasagne.init.GlorotUniform(), name='l_hid1')
+            l_in_drop, num_units=800, name='l_hid1')
     l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.707,
             nonlinearity=lasagne.nonlinearities.rectify, name='l_hid1_drop')
     l_hid2 = RBFLayer(
-            l_hid1_drop, num_units=800,
-            W=lasagne.init.GlorotUniform(), name='l_hid2')
+            l_hid1_drop, num_units=800, name='l_hid2')
     l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.707,  
             nonlinearity=lasagne.nonlinearities.rectify, name='l_hid2_drop')
-    l_out = RBFLayer(
-            l_hid2_drop, num_units=10, name='l_out')
+    l_out = RBFLayer(l_hid2_drop, num_units=10, name='l_out')
     l_out_drop = GaussianDropoutLayer(l_out, prior_std=1e-3,  
             nonlinearity=lasagne.nonlinearities.softmax, name='l_out_drop')
     return l_out_drop
@@ -628,7 +625,8 @@ class SoftermaxNonlinearity(lasagne.layers.Layer):
         return T.exp(input)/T.sum(T.exp(input), axis=1).dimshuffle(0,'x')
 
 class RBFLayer(lasagne.layers.Layer):
-    def __init__(self, incoming, num_units, nonlinearity, **kwargs):
+    def __init__(self, incoming, num_units,
+                 nonlinearity=lasagne.nonlinearities.linear, **kwargs):
         super(RBFLayer, self).__init__(incoming, **kwargs)
         num_inputs = int(np.prod(incoming.output_shape[1:]))
         W = lasagne.init.GlorotUniform()
