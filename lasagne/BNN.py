@@ -629,7 +629,7 @@ class RBFLayer(lasagne.layers.Layer):
                  nonlinearity=lasagne.nonlinearities.linear, **kwargs):
         super(RBFLayer, self).__init__(incoming, **kwargs)
         num_inputs = int(np.prod(incoming.output_shape[1:]))
-        W = 0.01*lasagne.init.GlorotUniform()
+        W = lasagne.init.GlorotUniform()
         b = lasagne.init.Constant(0.01)
         self.W = self.add_param(W, (num_inputs,num_units), name='W')
         self.b = self.add_param(b, (num_units,), name='b')
@@ -639,7 +639,7 @@ class RBFLayer(lasagne.layers.Layer):
     def get_output_for(self, input, **kwargs):
         if input.ndim > 2:
             input = input.flatten(2)
-        Z = T.exp(-T.dot(input,self.W)) + self.b
+        Z = T.exp(-0.5*T.dot(input,self.W)**2) + self.b
         return self.nonlinearity(Z)
     
     def get_output_shape_for(self, input_shape):
