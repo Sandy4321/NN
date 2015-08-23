@@ -13,7 +13,7 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-from . import utils
+from lasagne import utils
 from collections import OrderedDict
 from matplotlib import pyplot as plt
 from theano.sandbox.rng_mrg import MRG_RandomStreams
