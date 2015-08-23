@@ -137,12 +137,12 @@ def build_glp(input_var=None, masks=None):
     l_hid1 = lasagne.layers.DenseLayer(
             l_in_drop, num_units=800,
             W=lasagne.init.GlorotUniform(), name='l_hid1')
-    l_hid1_drop = GaussianMixtureDropoutLayer(l_hid1, prior_std=0.707/10,
+    l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.707/10,
             nonlinearity=lasagne.nonlinearities.rectify, name='l_hid1_drop')
     l_hid2 = lasagne.layers.DenseLayer(
             l_hid1_drop, num_units=800,
             W=lasagne.init.GlorotUniform(), name='l_hid2')
-    l_hid2_drop = GaussianMixtureDropoutLayer(l_hid2, prior_std=0.707/10,  
+    l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.707/10,  
             nonlinearity=lasagne.nonlinearities.rectify, name='l_hid2_drop')
     l_out = lasagne.layers.DenseLayer(
             l_hid2_drop, num_units=10, name='l_out')
