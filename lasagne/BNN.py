@@ -156,7 +156,7 @@ def build_bnn(input_var=None, masks=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
     l_hid1 = FullGaussianLayer(l_in, num_units=800,
-                               name='l_hid1', prior_std=0.25,
+                               name='l_hid1', prior_std=0.707,
                                nonlinearity=lasagne.nonlinearities.rectify)
     l_hid2 = FullGaussianLayer(l_hid1, num_units=800,
                                name='l_hid2', prior_std=0.707,
@@ -608,7 +608,7 @@ class SoftermaxNonlinearity(lasagne.layers.Layer):
 def GaussianRegulariser(W, E, M, S, Sp, prior = 'Gaussian'):
     '''Return cost of W'''
     if prior == 'Gaussian':
-        return 0.5*(-T.sum(E**2) + T.sum(W**2)/(Sp**2)) - T.sum(T.log(S))
+        return 0.5*(-T.sum(E**2) + T.sum(W**2)/(Sp**2)) - T.sum(T.log(S)) + T.sum(T.log(S/0.01)) + T.sum(S)
     elif prior == 'Laplace':
         return -0.5*T.sum(E**2) + T.sum(T.abs_(W))/(Sp*T.sqrt(2.)) - T.sum(T.log(S))
     else:
