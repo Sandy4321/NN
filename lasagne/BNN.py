@@ -156,7 +156,7 @@ def build_bnn(input_var=None, masks=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
     l_hid1 = FullGaussianLayer(l_in, num_units=800,
-                               name='l_hid1', prior_std=0.5,
+                               name='l_hid1', prior_std=0.25,
                                nonlinearity=lasagne.nonlinearities.rectify)
     l_hid2 = FullGaussianLayer(l_hid1, num_units=800,
                                name='l_hid2', prior_std=0.707,
