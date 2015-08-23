@@ -631,7 +631,7 @@ class RBFLayer(lasagne.layers.Layer):
         num_inputs = int(np.prod(incoming.output_shape[1:]))
         W = lasagne.init.GlorotUniform()
         b = lasagne.init.Constant(0.01)
-        c = lasagne.init.Constant(-0.1)
+        c = lasagne.init.Constant(1.)
         self.W = self.add_param(W, (num_inputs,num_units), name='W')
         self.b = self.add_param(b, (num_units,), name='b')
         self.c = self.add_param(c, (num_units,), name='c')
@@ -641,7 +641,7 @@ class RBFLayer(lasagne.layers.Layer):
     def get_output_for(self, input, **kwargs):
         if input.ndim > 2:
             input = input.flatten(2)
-        Z = T.exp(-T.abs_(T.dot(input,self.W))+ self.c) + self.b
+        Z = self.c*T.exp(-T.abs_(T.dot(input,self.W))) + self.b
         return self.nonlinearity(Z)
     
     def get_output_shape_for(self, input_shape):
