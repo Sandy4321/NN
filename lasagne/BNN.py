@@ -608,9 +608,11 @@ class SoftermaxNonlinearity(lasagne.layers.Layer):
 def GaussianRegulariser(W, E, M, S, Sp, prior = 'Gaussian'):
     '''Return cost of W'''
     if prior == 'Gaussian':
-        return 0.5*(-T.sum(E**2) + T.sum(W**2)/(Sp**2)) - T.sum(T.log(S)) + T.sum(S)
+        return 0.5*(-T.sum(E**2) + T.sum(W**2)/(Sp**2) - T.sum(T.log(S)))
     elif prior == 'Laplace':
         return -0.5*T.sum(E**2) + T.sum(T.abs_(W))/(Sp*T.sqrt(2.)) - T.sum(T.log(S))
+    elif prior == 'StudentT':
+        return 0.5*(-T.sum(E**2) + T.sum(W**2)/(Sp**2)) - T.sum(T.log(S))
     else:
         print('Invalid regulariser')
         sys.exit(1)
