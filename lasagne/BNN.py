@@ -983,8 +983,8 @@ def modelTransfer(file_name, save_name='./models/newmodel.npz',
     # Create update expressions for training
     params = lasagne.layers.get_all_params(approx, trainable=True)
     learning_rate = T.fscalar('learning_rate')
-    updates = lasagne.updates.nesterov_momentum(
-            loss, params, learning_rate=learning_rate, momentum=0.9)
+    updates = lasagne.updates.rmsprop(
+            loss, params, learning_rate=learning_rate)
 
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
