@@ -608,7 +608,7 @@ class SoftermaxNonlinearity(lasagne.layers.Layer):
 def GaussianRegulariser(W, E, M, S, Sp, prior = 'Gaussian'):
     '''Return cost of W'''
     if prior == 'Gaussian':
-        return 0.5*(-T.sum(E**2) + T.sum(W**2)/(Sp**2)) - T.sum(T.log(S)) + 0.5*T.sum(S**2)
+        return 0.5*(-T.sum(E**2) + T.sum(W**2)/(Sp**2)) - T.sum(T.log(S)) + 0.05*T.sum(S**2)
     elif prior == 'Laplace':
         return -0.5*T.sum(E**2) + T.sum(T.abs_(W))/(Sp*T.sqrt(2.)) - T.sum(T.log(S))
     elif prior == 'StudentT':
