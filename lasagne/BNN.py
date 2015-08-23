@@ -356,10 +356,9 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
             #layer.W = L2BallConstraint(layer.W, L2Radius)
     
     params = lasagne.layers.get_all_params(network, trainable=True)
-    learning_rate = T.fscalar('learning_rate')
-    #updates = nesterov_momentum(loss, params, learning_rate=learning_rate,
-    #                            momentum=0.9)
-    updates = lasagne.updates.rmsprop(loss, params, learning_rate=learning_rate)
+    learning_rate = T.fvector('learning_rate')
+    updates = nesterov_momentum(loss, params, learning_rate=learning_rate,
+                                momentum=0.9)
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
     # disabling dropout layers.
@@ -873,8 +872,9 @@ def nesterov_momentum(loss_or_grads, params, learning_rate, momentum=0.9):
     
 
 if __name__ == '__main__':
+    base_lr = [1e-3,2e-3]*3
     main(model='bnn', save_name='./models/mnistglp.npz', dataset='MNIST',
-         num_epochs=100, L2Radius=3.87, base_lr=1e-3)
+         num_epochs=100, L2Radius=3.87, base_lr=base_lr)
     #run_once(model='prune', file_name='./models/modelGDrop.npz',
     #                        proportion=1-p, scheme='lowest')
     #plottests(25)
