@@ -813,7 +813,7 @@ def sgd(loss_or_grads, params, learning_rate):
     grads = get_or_compute_grads(loss_or_grads, params)
     updates = OrderedDict()
     if T.gt(learning_rate.shape[0],1):
-        if not learning_rate.shape[0] == len(params):
+        if not T.eq(learning_rate.shape[0],len(params)):
             raise ValueError("Got %d learning rate expressions for %d \
                              parameters" % (learning_rate.shape[0], len(params)))
         for param, grad, lr in zip(params, grads, learning_rate):
