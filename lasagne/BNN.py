@@ -166,19 +166,19 @@ def build_bnn(input_var=None, masks=None):
                               nonlinearity=lasagne.nonlinearities.softmax)
     return l_out
 
-def build_rbf(input_var=None, masks=None):
+def build_explin(input_var=None, masks=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
     l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.2)
-    l_hid1 = RBFLayer(
+    l_hid1 = ExpLinLayer(
             l_in_drop, num_units=800, name='l_hid1')
     l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.707,
             nonlinearity=lasagne.nonlinearities.rectify, name='l_hid1_drop')
-    l_hid2 = RBFLayer(
+    l_hid2 = ExpLinLayer(
             l_hid1_drop, num_units=800, name='l_hid2')
     l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.707,  
             nonlinearity=lasagne.nonlinearities.rectify, name='l_hid2_drop')
-    l_out = RBFLayer(l_hid2_drop, num_units=10, name='l_out')
+    l_out = ExpLinLayer(l_hid2_drop, num_units=10, name='l_out')
     l_out_drop = GaussianDropoutLayer(l_out, prior_std=1e-3,  
             nonlinearity=lasagne.nonlinearities.softmax, name='l_out_drop')
     return l_out_drop
@@ -332,8 +332,8 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
         network = build_bnn(input_var)
     elif model == 'cnn':
         network = build_cnn(input_var)
-    elif model == 'rbf':
-        network = build_rbf(input_var)
+    elif model == 'explin':
+        network = build_explin(input_var)
     elif model == 'reload':
         network = reloadModel(file_name, input_var=input_var)
     elif model == 'prune':
@@ -624,7 +624,7 @@ class SoftermaxNonlinearity(lasagne.layers.Layer):
         input = input/self.temp
         return T.exp(input)/T.sum(T.exp(input), axis=1).dimshuffle(0,'x')
 
-class RBFLayer(lasagne.layers.Layer):
+class ExpLinLayer(lasagne.layers.Layer):
     def __init__(self, incoming, num_units,
                  nonlinearity=lasagne.nonlinearities.linear, **kwargs):
         super(RBFLayer, self).__init__(incoming, **kwargs)
@@ -908,7 +908,7 @@ def nesterov_momentum(loss_or_grads, params, learning_rate, momentum=0.9):
     
 
 if __name__ == '__main__':
-    main(model='rbf', save_name='./models/mnistglp.npz', dataset='MNIST',
+    main(model='explin', save_name='./models/mnistglp.npz', dataset='MNIST',
          num_epochs=100, L2Radius=3.87, base_lr=1e-3)
 
     
