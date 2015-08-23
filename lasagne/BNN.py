@@ -137,18 +137,29 @@ def build_glp(input_var=None, masks=None):
     l_hid1 = lasagne.layers.DenseLayer(
             l_in_drop, num_units=800,
             W=lasagne.init.GlorotUniform(), name='l_hid1')
-    l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.707/10,
+    l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.707,
             nonlinearity=lasagne.nonlinearities.rectify, name='l_hid1_drop')
     l_hid2 = lasagne.layers.DenseLayer(
             l_hid1_drop, num_units=800,
             W=lasagne.init.GlorotUniform(), name='l_hid2')
-    l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.707/10,  
+    l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.707,  
             nonlinearity=lasagne.nonlinearities.rectify, name='l_hid2_drop')
     l_out = lasagne.layers.DenseLayer(
             l_hid2_drop, num_units=10, name='l_out')
     l_out_drop = GaussianDropoutLayer(l_out, prior_std=1e-3,  
             nonlinearity=lasagne.nonlinearities.softmax, name='l_out_drop')
     return l_out_drop
+
+def build_bnn(input_var=None, masks=None):
+    l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
+                                     input_var=input_var)
+    l_hid1 = FullGaussianLayer(l_in, num_units=800, name='l_hid1',
+                               nonlinearity=lasagne.nonlinearities.rectify)
+    l_hid2 = FullGaussianLayer(l_hid1, num_units=800, name='l_hid2',
+                               nonlinearity=lasagne.nonlinearities.rectify)
+    l_out = FullGaussianLayer( l_hid2, num_units=10, name='l_out',
+                               nonlinearity=lasagne.nonlinearities.softmax)
+    return l_out
 
 def build_cnn(input_var=None, masks=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
@@ -295,6 +306,8 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
         network = build_mlp(input_var)
     elif model == 'glp':
         network = build_glp(input_var)
+    elif model == 'bnn':
+        network = build_bnn(input_var)
     elif model == 'cnn':
         network = build_cnn(input_var)
     elif model == 'reload':
@@ -1086,7 +1099,7 @@ def copy_model_output(file_name, copy_temp=1):
     
 
 if __name__ == '__main__':
-    main(model='glp', save_name='./models/mnistglp.npz', dataset='MNIST',
+    main(model='bnn', save_name='./models/mnistglp.npz', dataset='MNIST',
          num_epochs=100, L2Radius=3.87, base_lr=1e-4)
     #run_once(model='prune', file_name='./models/modelGDrop.npz',
     #                        proportion=1-p, scheme='lowest')
