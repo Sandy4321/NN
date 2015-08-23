@@ -872,8 +872,8 @@ def nesterov_momentum(loss_or_grads, params, learning_rate, momentum=0.9):
     
 
 if __name__ == '__main__':
-    base_lr = [1e-3,2e-3]*3
-    base_lr = [float(lr) for lr in base_lr]
+    base_lr = np.asarray([1e-3,2e-3]*3).astype(theano.config.floatX)
+    base_lr = list(base_lr)
     main(model='bnn', save_name='./models/mnistglp.npz', dataset='MNIST',
          num_epochs=100, L2Radius=3.87, base_lr=base_lr)
     #run_once(model='prune', file_name='./models/modelGDrop.npz',
