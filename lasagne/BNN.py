@@ -1100,7 +1100,7 @@ def copy_model_output(file_name, copy_temp=1):
 
 if __name__ == '__main__':
     main(model='bnn', save_name='./models/mnistglp.npz', dataset='MNIST',
-         num_epochs=100, L2Radius=3.87, base_lr=1e-4)
+         num_epochs=100, L2Radius=3.87, base_lr=1e-3)
     #run_once(model='prune', file_name='./models/modelGDrop.npz',
     #                        proportion=1-p, scheme='lowest')
     #plottests(25)
