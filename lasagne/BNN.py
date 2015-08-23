@@ -627,7 +627,7 @@ class SoftermaxNonlinearity(lasagne.layers.Layer):
 class ExpLinLayer(lasagne.layers.Layer):
     def __init__(self, incoming, num_units,
                  nonlinearity=lasagne.nonlinearities.linear, **kwargs):
-        super(RBFLayer, self).__init__(incoming, **kwargs)
+        super(ExpLinLayer, self).__init__(incoming, **kwargs)
         num_inputs = int(np.prod(incoming.output_shape[1:]))
         W = lasagne.init.GlorotUniform()
         b = lasagne.init.Constant(0.01)
