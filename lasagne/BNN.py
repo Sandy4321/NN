@@ -336,7 +336,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     elif model == 'cnn':
         network = build_cnn(input_var)
     elif model == 'rbf':
-        network == build_rbf(input_var)
+        network = build_rbf(input_var)
     elif model == 'reload':
         network = reloadModel(file_name, input_var=input_var)
     elif model == 'prune':
