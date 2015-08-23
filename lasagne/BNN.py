@@ -812,10 +812,10 @@ def sgd(loss_or_grads, params, learning_rate):
     Generates update expressions of the form"""
     grads = get_or_compute_grads(loss_or_grads, params)
     updates = OrderedDict()
-    if isinstance(learning_rate, list):
-        if not len(learning_rate) == len(params):
+    if learning_rate.shape[0]>1:
+        if not learning_rate.shape[0] == len(params):
             raise ValueError("Got %d learning rate expressions for %d \
-                             parameters" % (len(loss_or_grads), len(params)))
+                             parameters" % (learning_rate.shape[0], len(params)))
         for param, grad, lr in zip(params, grads, learning_rate):
             updates[param] = param - lr * grad
     else:
@@ -873,8 +873,6 @@ def nesterov_momentum(loss_or_grads, params, learning_rate, momentum=0.9):
 
 if __name__ == '__main__':
     base_lr = np.asarray([1e-3,2e-3]*3).astype(theano.config.floatX)
-    base_lr = list(base_lr)
-    print base_lr
     main(model='bnn', save_name='./models/mnistglp.npz', dataset='MNIST',
          num_epochs=100, L2Radius=3.87, base_lr=base_lr)
 
