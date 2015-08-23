@@ -336,7 +336,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
             if layer.layer_type == 'GaussianLayer':
                 reg += GaussianRegulariser(layer.W, layer.E,
                                           layer.M, layer.S,
-                                          prior_std, prior='Gaussian')
+                                          layer.prior_std, prior='Gaussian')
             if layer.layer_type == 'GaussianDropoutLayer':
                 reg += GaussianDropoutRegulariser(layer.E, layer.S,
                                                   layer.prior_std)
