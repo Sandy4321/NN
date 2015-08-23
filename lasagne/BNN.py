@@ -13,6 +13,8 @@ import numpy as np
 import theano
 import theano.tensor as T
 
+from . import utils
+from collections import OrderedDict
 from matplotlib import pyplot as plt
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 
@@ -355,8 +357,8 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     
     params = lasagne.layers.get_all_params(network, trainable=True)
     learning_rate = T.fscalar('learning_rate')
-    updates = lasagne.updates.nesterov_momentum(
-            loss, params, learning_rate=learning_rate, momentum=0.9)
+    updates = nesterov_momentum(loss, params, learning_rate=learning_rate,
+                                momentum=0.9)
 
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
@@ -499,79 +501,6 @@ def save_model(model, file_name):
     file = open(file_name, 'w')
     cPickle.dump(params, file, cPickle.HIGHEST_PROTOCOL)
     file.close()
-
-class MaskedDenseLayer(lasagne.layers.Layer):
-    """A dense layer where weights can be masked"""
-    def __init__(self, incoming, num_units, W=lasagne.init.GlorotUniform(),
-                 b=lasagne.init.Constant(0.), mask=None,
-                 nonlinearity=lasagne.nonlinearities.rectify, **kwargs):
-        super(MaskedDenseLayer, self).__init__(incoming, **kwargs)
-        self.nonlinearity = nonlinearity
-        self.num_units = num_units
-        num_inputs = int(np.prod(self.input_shape[1:]))
-        self.W = self.add_param(W, (num_inputs, num_units), name="W")
-        if b is None:
-            self.b = None
-        else:
-            self.b = self.add_param(b, (num_units,), name="b",
-                                    regularizable=False)
-        self.mask = mask
-        self.input = input
-        
-    def get_output_shape_for(self, input_shape):
-        return (input_shape[0], self.num_units)
-
-    def get_output_for(self, input, **kwargs):
-        if input.ndim > 2:
-            # if the input has more than two dimensions, flatten it into a
-            # batch of feature vectors.
-            input = input.flatten(2)
-        if self.mask is not None:
-            activation = T.dot(input, self.W*self.mask)
-        else:
-            activation = T.dot(input, self.W)
-        if self.b is not None:
-            activation = activation + self.b.dimshuffle('x', 0)
-        return self.nonlinearity(activation)
-                
-class GaussianLayer(lasagne.layers.Layer):
-    def __init__(self, incoming, num_units, nonlinearity,
-                 M=None, R=None, mask=None, **kwargs):
-        super(GaussianLayer, self).__init__(incoming, **kwargs)
-        num_inputs = int(np.prod(self.input_shape[1:]))
-        self.num_units = num_units
-        if M is None:
-            M = lasagne.init.Constant(0.0)
-        if R is None:
-            r = np.log(np.exp(np.sqrt(1./num_inputs))-1.)
-            R = lasagne.init.Constant(r)
-        self.M = self.add_param(M, (num_inputs+1, num_units), name='M')
-        self.R = self.add_param(R, (num_inputs+1, num_units), name='R')
-        self.S = T.log(1. + T.exp(self.R))
-        self.nonlinearity = nonlinearity
-        self.layer_type = 'GaussianLayer'
-        if mask != None:
-            self.mask = mask
-
-    def get_output_for(self, input, **kwargs):
-        if input.ndim > 2:
-            input = input.flatten(2)
-        b = T.ones_like(input[:,0]).dimshuffle(0,'x')
-        X = T.concatenate([input,b],axis=1)
-        if hasattr(self, 'mask'):
-            M = T.dot(X,self.M*self.mask)
-            s = T.sqrt(T.dot(X**2,self.mask*self.S**2))
-        else:
-            M = T.dot(X,self.M) 
-            s = T.sqrt(T.dot(X**2,self.S**2))
-        smrg = MRG_RandomStreams()
-        E = smrg.normal(size=s.shape)
-        H = M + s*E 
-        # Nonlinearity
-        return self.nonlinearity(H)
-
-    def get_output_shape_for(self, input_shape):
-        return (input_shape[0], self.num_units)
                 
 class FullGaussianLayer(lasagne.layers.Layer):
     def __init__(self, incoming, num_units, nonlinearity,
@@ -669,73 +598,6 @@ class GaussianMixtureDropoutLayer(lasagne.layers.Layer):
         self.alpha = (1.+self.E*self.S)*self.u[idx]
         return self.nonlinearity(input*self.alpha)
 
-class OrientedGaussianLayer(lasagne.layers.Layer):
-    def __init__(self, incoming, num_units, nonlinearity, 
-                 s, t, **kwargs):
-        super(OrientedGaussianLayer, self).__init__(incoming, **kwargs)
-        self.num_inputs = int(np.prod(incoming.output_shape[1:]))
-        self.num_units = num_units
-        self.nonlinearity = nonlinearity
-        self.layer_type = 'OrientedGaussianLayer'
-        self.s = s
-        self.t = t
-        Rs = lasagne.init.Constant(np.log(np.exp(s)-1.))
-        self.Rs = self.add_param(Rs, (num_units,), name='Rs')
-        Rt = lasagne.init.Constant(np.log(np.exp(t)-1.))
-        self.Rt = self.add_param(Rt, (num_units,), name='Rt')
-        self.S = T.log(1. + T.exp(self.Rs)).dimshuffle('x',0)
-        self.T = T.log(1. + T.exp(self.Rt)).dimshuffle('x',0)
-        W = lasagne.init.GlorotUniform()
-        b = lasagne.init.Constant(0.01)
-        self.W = self.add_param(W, (self.num_inputs,num_units), name='W')
-        self.b = self.add_param(b, (num_units,), name='b').dimshuffle('x', 0)
-
-    def get_output_for(self, input, **kwargs):
-        if input.ndim > 2:
-            input = input.flatten(2)
-        # DenseLayer
-        self.dense = T.dot(input, self.W) + self.b
-        varX = T.sqrt(T.sum(input**2, axis=1)).dimshuffle(0,'x')
-        smrg = MRG_RandomStreams()
-        self.Es = smrg.normal(size=(input.shape[0], self.num_units))
-        self.Et = smrg.normal(size=(input.shape[0], self.num_units))*varX
-        self.alpha = 1.+self.Es*self.S
-        return self.nonlinearity(self.dense*self.alpha + self.Et*self.T)
-    
-    def get_output_shape_for(self, input_shape):
-        return (input_shape[0], self.num_units)
-
-class FullLaplaceLayer(lasagne.layers.Layer):
-    def __init__(self, incoming, num_units, nonlinearity,
-                 M=None, R=None, **kwargs):
-        super(FullLaplaceLayer, self).__init__(incoming, **kwargs)
-        num_inputs = int(np.prod(self.input_shape[1:]))
-        self.num_units = num_units
-        if M is None:
-            M = lasagne.init.Constant(0.0)
-        if R is None:
-            r = np.log(np.exp(np.sqrt(1./num_inputs))-1.)
-            R = lasagne.init.Constant(r)
-        self.M = self.add_param(M, (num_inputs+1, num_units), name='M')
-        self.R = self.add_param(R, (num_inputs+1, num_units), name='R')
-        self.S = T.log(1. + T.exp(self.R))
-        self.nonlinearity = nonlinearity
-        self.layer_type = 'GaussianLayer'
-
-    def get_output_for(self, input, **kwargs):
-        if input.ndim > 2:
-            input = input.flatten(2)
-        b = T.ones_like(input[:,0]).dimshuffle(0,'x')
-        X = T.concatenate([input,b],axis=1)
-        self.E = LaplaceRNG(shape=self.M.shape)
-        self.W = self.M + self.S*self.E
-        H = T.dot(X,self.W)
-        # Nonlinearity
-        return self.nonlinearity(H)
-
-    def get_output_shape_for(self, input_shape):
-        return (input_shape[0], self.num_units)
-
 class SoftermaxNonlinearity(lasagne.layers.Layer):
     def __init__(self, incoming, temp=1, **kwargs):
         super(SoftermaxNonlinearity, self).__init__(incoming, **kwargs)
@@ -743,14 +605,7 @@ class SoftermaxNonlinearity(lasagne.layers.Layer):
 
     def get_output_for(self, input, **kwargs):
         input = input/self.temp
-        return T.exp(input)/T.sum(T.exp(input), axis=1).dimshuffle(0,'x')
-
-
-
-def LaplaceRNG(shape):
-    smrg = MRG_RandomStreams()
-    U = smrg.uniform(size=shape, low=-0.499, high=0.499)
-    return -T.sgn(U)*T.log(1.-2.*T.abs_(U))/T.sqrt(2.)    
+        return T.exp(input)/T.sum(T.exp(input), axis=1).dimshuffle(0,'x') 
 
 def GaussianRegulariser(W, E, M, S, Sp, prior = 'Gaussian'):
     '''Return cost of W'''
@@ -765,17 +620,6 @@ def GaussianRegulariser(W, E, M, S, Sp, prior = 'Gaussian'):
 def GaussianDropoutRegulariser(E, S, Sp):
     '''Return the cost of the Half Gaussian regularised layer'''
     return 0.5*(-T.sum(E**2) + T.sum((S*E)**2)/(Sp**2)) - T.sum(T.log(S))
-
-def LaplaceRegulariser(W, E, M, S, Sp, prior='Laplace'):
-    '''Regularise according to Laplace prior'''
-    if prior == 'Laplace':
-        return (T.sum(-T.abs_(E)) + T.sum(T.abs_(W))/Sp)*T.sqrt(2.) - T.sum(T.log(S))
-
-def OrientedDropoutRegulariser(S, R, s, t):
-    '''Oriented Gaussian regulariser'''
-    regS = T.sum(S**2)/(2.*s**2) - T.sum(T.log(S))
-    regT = T.sum(R**2)/(2.*t**2) - T.sum(T.log(R))
-    return regS + regT
 
 def L2BallConstraint(tensor_var, target_norm, norm_axes=None, epsilon=1e-7):
     ndim = tensor_var.ndim
@@ -796,144 +640,6 @@ def L2BallConstraint(tensor_var, target_norm, norm_axes=None, epsilon=1e-7):
         (tensor_var * (target_norm / (dtype(epsilon) + norms)))
 
     return constrained_output
-
-def cumhist(SNR, nbins):
-        '''Return normalised cumulative histogram of SNR'''
-        SNR = np.hstack([SNR[snr].flatten() for snr in SNR])
-        # Histogram of SNRs
-        hist, bin_edges = np.histogram(SNR, bins=nbins)
-        hist = np.cumsum(hist)
-        hist = hist/(hist[-1]*1.)
-        return (hist, bin_edges)
-
-def histogram(model, scheme='KL'):
-    SNR = {}
-    i = 0
-    '''
-    for layer in lasagne.layers.get_all_layers(model):
-        print layer
-        if hasattr(layer, 'layer_type'):
-            if layer.layer_type == 'GaussianLayer':
-                M = layer.M.get_value()[:-1,:]
-                R = layer.R.get_value()[:-1,:]
-                S = np.log(1. + np.exp(R))
-                if scheme == 'KL':
-                    snr = (M/S)**2 + 2.*np.log(S)
-                    snr_min = np.amin(snr)
-                    SNR[layer.name] = np.log(snr - snr_min + 1e-6)
-                elif scheme == 'SNR':
-                    snr = (M/S)**2 
-                    snr_min = np.amin(snr)
-                    SNR[layer.name] = np.log(snr - snr_min + 1e-6)
-                elif scheme == 'lowest':
-                    snr = np.abs(M)
-                    snr_min = np.amin(snr)
-                    SNR[layer.name] = np.log(snr - snr_min + 1e-6)
-    '''
-    params = lasagne.layers.get_all_params(model) # leverage parameter ordering
-    for i in np.arange(len(params)/3):
-        W = params[3*i].get_value()
-        b = params[3*i+1].get_value()
-        R = params[3*i+2].get_value()
-        S = np.log(1. + np.exp(R))[np.newaxis,:]
-        if scheme == 'lowest':
-            snr = np.abs(W)
-            snr_min = np.amin(snr)
-            SNR[str(i)] = np.log(snr - snr_min + 1e-6)
-            i += 1
-        elif scheme == 'SNR':
-            snr = (W / S)**2
-            snr_min = np.amin(snr)
-            SNR[str(i)] = np.log(snr - snr_min + 1e-6)
-            i += 1
-        elif scheme == 'KL':
-            snr = (W/S)**2 + 2.*np.log(S)
-            snr_min = np.amin(snr)
-            SNR[str(i)] = np.log(snr - snr_min + 1e-6)
-            i += 1
-    hist, bin_edges = cumhist(SNR, 1000)
-    bin_edges = bin_edges[1:]
-    return (bin_edges, hist, SNR)
-    
-def prune(file_name, proportion, scheme='KL', input_var=None):
-    '''Prune weights according to appropriate scheme'''
-    model = reloadModel(file_name)
-    bin_edges, hist, SNR = histogram(model, scheme=scheme)
-    #fig = plt.figure()
-    #plt.plot(bin_edges, hist)
-    #plt.show()
-    idx = (hist > proportion)
-    cutoff = np.compress(idx, bin_edges)
-    cutoff = np.amin(cutoff)
-    masks = {}
-    for snr in SNR:
-        msk = (SNR[snr] > cutoff)
-        masks[snr] = np.asarray(msk)
-    return reloadModel(file_name, input_var=input_var, masks=masks)
-    
-def plotToPrune(model):
-    '''Plot the weight histograms'''
-    schemes = ['KL', 'SNR', 'lowest']
-    fig = plt.figure()
-    for scheme in schemes:
-        bin_edges, hist, _ = histogram(model, scheme=scheme)
-        plt.plot(bin_edges, hist)
-    plt.show()
-
-def plottests(num_steps):
-    proportion = 1.-np.logspace(-3.0, -1.0, num_steps)
-    num_samples = [1,2,5,10,25]
-    acc = np.zeros((proportion.shape[0],4,len(num_samples)))
-    for j, ns in enumerate(num_samples):
-        for i, prop in enumerate(proportion):
-            print prop
-            acc[i,0,j] = prop
-            acc[i,1,j] = run_once(model='prune', file_name='./models/modelG0.npz',
-                           proportion=prop, scheme='KL', num_samples=ns)
-            acc[i,2,j] = run_once(model='prune', file_name='./models/modelG0.npz',
-                           proportion=prop, scheme='SNR', num_samples=ns)
-            acc[i,3,j] = run_once(model='prune', file_name='./models/modelG0.npz',
-                           proportion=prop, scheme='lowest', num_samples=ns)
-    np.save('./models/new_KLG0.npy', acc)
-
-def hessian(file_name, save_name='./models/newmodel.npz'):
-    # Load the dataset
-    print("Loading data...")
-    X_train, y_train, X_val, y_val, X_test, y_test = load_dataset()
-    dataset_size = X_train.shape[0]
-    # Prepare Theano variables for inputs and targets
-    input_var = T.tensor4('inputs')
-    # Create neural network model (depending on first command line parameter)
-    network = reloadModel(file_name, input_var=input_var)
-    
-    # THIS IS ALL WRONG
-    # Get intermediate layers
-    X = []
-    W = []
-    b = []
-    S = []
-    for layer in lasagne.layers.get_all_layers(network):
-        if hasattr(layer, 'W'):
-            X.append(layer.input)
-            W.append(layer.W)
-            b.append(layer.b)
-        if hasattr(layer, 'R'):
-            s = T.log(1. + T.exp(layer.R))
-            S.append(s)
-    # Get params and network output
-    w1 = T.dvector('w1')
-    w2 = T.dvector('w1')
-    S1 = T.dvector('S1')
-    S2 = T.dvector('S2')
-    b1 = T.dvector('b1')
-    b2 = T.dvector('b2')
-    x  = T.dvector('x')
-    input = [w1, w2, S1, S2, b1, b2, x]
-    wrt = [w1,]
-    y = KL(input)
-    H = theano.gradient.hessian(y,wrt=wrt)
-    h = theano.function(input, H)
-    print h([W[0],], [W[0],], [S[0],], [S[0],], [b[0],], [b[0],], [X[0]])
 
 def KL(input):
     w1, w2, S1, S2, b1, b2, x = input
@@ -983,8 +689,8 @@ def modelTransfer(file_name, save_name='./models/newmodel.npz',
     # Create update expressions for training
     params = lasagne.layers.get_all_params(approx, trainable=True)
     learning_rate = T.fscalar('learning_rate')
-    updates = lasagne.updates.rmsprop(
-            loss, params, learning_rate=learning_rate)
+    updates = lasagne.updates.nesterov_momentum(
+            loss, params, learning_rate=learning_rate, momentum=0.9)
 
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
@@ -1092,9 +798,77 @@ def copy_model_output(file_name, copy_temp=1):
     labels = np.vstack(labels)
     return labels
 
-   
+def get_or_compute_grads(loss_or_grads, params):
+    """Helper function returning a list of gradients"""
+    if isinstance(loss_or_grads, list):
+        if not len(loss_or_grads) == len(params):
+            raise ValueError("Got %d gradient expressions for %d parameters" %
+                             (len(loss_or_grads), len(params)))
+        return loss_or_grads
+    else:
+        return theano.grad(loss_or_grads, params)
 
-    
+def sgd(loss_or_grads, params, learning_rate):
+    """Stochastic Gradient Descent (SGD) updates
+    Generates update expressions of the form"""
+    grads = get_or_compute_grads(loss_or_grads, params)
+    updates = OrderedDict()
+    if isinstance(learning_rate, list):
+        if not len(learning_rate) == len(params):
+            raise ValueError("Got %d learning rate expressions for %d \
+                             parameters" % (len(loss_or_grads), len(params)))
+        for param, grad, lr in zip(params, grads, learning_rate):
+            updates[param] = param - lr * grad
+    else:
+        for param, grad in zip(params, grads):
+            updates[param] = param - learning_rate * grad
+    return updates
+
+def apply_momentum(updates, params=None, momentum=0.9):
+    """Returns a modified update dictionary including momentum
+    Generates update expressions of the form"""
+    if params is None:
+        params = updates.keys()
+    updates = OrderedDict(updates)
+
+    for param in params:
+        value = param.get_value(borrow=True)
+        velocity = theano.shared(np.zeros(value.shape, dtype=value.dtype),
+                                 broadcastable=param.broadcastable)
+        x = momentum * velocity + updates[param]
+        updates[velocity] = x - param
+        updates[param] = x
+    return updates
+
+def momentum(loss_or_grads, params, learning_rate, momentum=0.9):
+    """Stochastic Gradient Descent (SGD) updates with momentum
+    Generates update expressions of the form"""
+    updates = sgd(loss_or_grads, params, learning_rate)
+    return apply_momentum(updates, momentum=momentum)
+
+def apply_nesterov_momentum(updates, params=None, momentum=0.9):
+    """Returns a modified update dictionary including Nesterov momentum
+    Generates update expressions of the form"""
+    if params is None:
+        params = updates.keys()
+    updates = OrderedDict(updates)
+
+    for param in params:
+        value = param.get_value(borrow=True)
+        velocity = theano.shared(np.zeros(value.shape, dtype=value.dtype),
+                                 broadcastable=param.broadcastable)
+        x = momentum * velocity + updates[param] - param
+        updates[velocity] = x
+        updates[param] = momentum * x + updates[param]
+    return updates
+
+def nesterov_momentum(loss_or_grads, params, learning_rate, momentum=0.9):
+    """Stochastic Gradient Descent (SGD) updates with Nesterov momentum
+    Generates update expressions of the form"""
+    updates = sgd(loss_or_grads, params, learning_rate)
+    return apply_nesterov_momentum(updates, momentum=momentum)
+
+
     
     
 
