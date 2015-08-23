@@ -155,12 +155,15 @@ def build_glp(input_var=None, masks=None):
 def build_bnn(input_var=None, masks=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
-    l_hid1 = FullGaussianLayer(l_in, num_units=800, name='l_hid1',
+    l_hid1 = FullGaussianLayer(l_in, num_units=800,
+                               name='l_hid1', prior_std=0.707,
                                nonlinearity=lasagne.nonlinearities.rectify)
-    l_hid2 = FullGaussianLayer(l_hid1, num_units=800, name='l_hid2',
+    l_hid2 = FullGaussianLayer(l_hid1, num_units=800,
+                               name='l_hid2', prior_std=0.707,
                                nonlinearity=lasagne.nonlinearities.rectify)
-    l_out = FullGaussianLayer( l_hid2, num_units=10, name='l_out',
-                               nonlinearity=lasagne.nonlinearities.softmax)
+    l_out = FullGaussianLayer(l_hid2, num_units=10,
+                              name='l_out', prior_std=0.707,
+                              nonlinearity=lasagne.nonlinearities.softmax)
     return l_out
 
 def build_cnn(input_var=None, masks=None):
@@ -503,7 +506,7 @@ def save_model(model, file_name):
                 
 class FullGaussianLayer(lasagne.layers.Layer):
     def __init__(self, incoming, num_units, nonlinearity,
-                 M=None, R=None, mask=None, **kwargs):
+                 M=None, R=None, prior_std=0.707, **kwargs):
         super(FullGaussianLayer, self).__init__(incoming, **kwargs)
         num_inputs = int(np.prod(self.input_shape[1:]))
         self.num_units = num_units
@@ -517,8 +520,7 @@ class FullGaussianLayer(lasagne.layers.Layer):
         self.S = T.log(1. + T.exp(self.R))
         self.nonlinearity = nonlinearity
         self.layer_type = 'GaussianLayer'
-        if mask != None:
-            self.mask = mask
+        self.prior_std = prior_std
 
     def get_output_for(self, input, **kwargs):
         if input.ndim > 2:
@@ -528,10 +530,7 @@ class FullGaussianLayer(lasagne.layers.Layer):
         smrg = MRG_RandomStreams()
         self.E = smrg.normal(size=self.M.shape)
         self.W = self.M + self.S*self.E
-        if hasattr(self, 'mask'):
-            H = T.dot(X,self.W*self.mask)
-        else:
-            H = T.dot(X,self.W)
+        H = T.dot(X,self.W)
         # Nonlinearity
         return self.nonlinearity(H)
 
