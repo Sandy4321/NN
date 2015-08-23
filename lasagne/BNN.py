@@ -812,7 +812,7 @@ def sgd(loss_or_grads, params, learning_rate):
     Generates update expressions of the form"""
     grads = get_or_compute_grads(loss_or_grads, params)
     updates = OrderedDict()
-    if learning_rate.shape[0]>1:
+    if T.gt(learning_rate.shape[0],1):
         if not learning_rate.shape[0] == len(params):
             raise ValueError("Got %d learning rate expressions for %d \
                              parameters" % (learning_rate.shape[0], len(params)))
