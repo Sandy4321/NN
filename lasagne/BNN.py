@@ -633,13 +633,14 @@ class RBFLayer(lasagne.layers.Layer):
         b = lasagne.init.Constant(0.01)
         self.W = self.add_param(W, (num_inputs,num_units), name='W')
         self.b = self.add_param(b, (num_units,), name='b')
+        self.c = self.add_param(c, (num_units,), name='c')
         self.num_units = num_units
         self.nonlinearity = nonlinearity
 
     def get_output_for(self, input, **kwargs):
         if input.ndim > 2:
             input = input.flatten(2)
-        Z = T.exp(-T.abs_(T.dot(input,self.W))+ self.b) 
+        Z = T.exp(-T.abs_(T.dot(input,self.W))+ self.c) + self.b
         return self.nonlinearity(Z)
     
     def get_output_shape_for(self, input_shape):
