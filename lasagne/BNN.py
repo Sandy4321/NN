@@ -816,7 +816,8 @@ def sgd(loss_or_grads, params, learning_rate):
         if not T.eq(learning_rate.shape[0],len(params)):
             raise ValueError("Got %d learning rate expressions for %d \
                              parameters" % (learning_rate.shape[0], len(params)))
-        for param, grad, lr in zip(params, grads, list(learning_rate)):
+        learning_rate = list(learning_rate)
+        for param, grad, lr in zip(params, grads, learning_rate):
             updates[param] = param - lr * grad
     else:
         for param, grad in zip(params, grads):
