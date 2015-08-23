@@ -329,7 +329,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
     loss = loss.sum()
     # We could add some weight decay as well here, see lasagne.regularization.
-    '''
+    
     reg = 0
     for layer in lasagne.layers.get_all_layers(network):
         if hasattr(layer, 'layer_type'):
@@ -344,7 +344,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
                 reg += OrientedDropoutRegulariser(layer.S, layer.T,
                                                   layer.s, layer.t)
     loss = loss + reg/T.ceil(dataset_size/batch_size)
-    '''
+    
     
     # Create update expressions for training, i.e., how to modify the
     # parameters at each training step. Here, we'll use Stochastic Gradient
@@ -356,7 +356,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
             #layer.W = L2BallConstraint(layer.W, L2Radius)
     
     params = lasagne.layers.get_all_params(network, trainable=True)
-    learning_rate = T.fvector('learning_rate')
+    learning_rate = T.fscalar('learning_rate')
     updates = nesterov_momentum(loss, params, learning_rate=learning_rate,
                                 momentum=0.9)
     # Create a loss expression for validation/testing. The crucial difference
@@ -873,9 +873,8 @@ def nesterov_momentum(loss_or_grads, params, learning_rate, momentum=0.9):
     
 
 if __name__ == '__main__':
-    base_lr = np.asarray([1e-3,2e-3]*3).astype(theano.config.floatX)
     main(model='bnn', save_name='./models/mnistglp.npz', dataset='MNIST',
-         num_epochs=100, L2Radius=3.87, base_lr=base_lr)
+         num_epochs=100, L2Radius=3.87, base_lr=1e-3)
 
     
     
