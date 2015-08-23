@@ -631,7 +631,7 @@ class RBFLayer(lasagne.layers.Layer):
         num_inputs = int(np.prod(incoming.output_shape[1:]))
         W = lasagne.init.GlorotUniform()
         b = lasagne.init.Constant(0.01)
-        c = lasagne.init.Constant(-0.01)
+        c = lasagne.init.Constant(-0.1)
         self.W = self.add_param(W, (num_inputs,num_units), name='W')
         self.b = self.add_param(b, (num_units,), name='b')
         self.c = self.add_param(c, (num_units,), name='c')
