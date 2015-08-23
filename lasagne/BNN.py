@@ -156,13 +156,13 @@ def build_bnn(input_var=None, masks=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
     l_hid1 = FullGaussianLayer(l_in, num_units=800,
-                               name='l_hid1', prior_std=0.707,
+                               name='l_hid1', prior_std=2.5, #0.707,
                                nonlinearity=lasagne.nonlinearities.rectify)
     l_hid2 = FullGaussianLayer(l_hid1, num_units=800,
-                               name='l_hid2', prior_std=0.707,
+                               name='l_hid2', prior_std=2.5, #0.707,
                                nonlinearity=lasagne.nonlinearities.rectify)
     l_out = FullGaussianLayer(l_hid2, num_units=10,
-                              name='l_out', prior_std=0.707,
+                              name='l_out', prior_std=2.5, #0.707,
                               nonlinearity=lasagne.nonlinearities.softmax)
     return l_out
 
@@ -339,7 +339,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
             if layer.layer_type == 'GaussianLayer':
                 reg += GaussianRegulariser(layer.W, layer.E,
                                           layer.M, layer.S,
-                                          layer.prior_std, prior='Gaussian')
+                                          layer.prior_std, prior='StudentT')
             if layer.layer_type == 'GaussianDropoutLayer':
                 reg += GaussianDropoutRegulariser(layer.E, layer.S,
                                                   layer.prior_std)
