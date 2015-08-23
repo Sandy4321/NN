@@ -172,11 +172,11 @@ def build_explin(input_var=None, masks=None):
     l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.2)
     l_hid1 = ExpLinLayer(
             l_in_drop, num_units=800, name='l_hid1')
-    l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.707,
+    l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.8,
             nonlinearity=lasagne.nonlinearities.rectify, name='l_hid1_drop')
     l_hid2 = ExpLinLayer(
             l_hid1_drop, num_units=800, name='l_hid2')
-    l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=1.,  
+    l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.8,  
             nonlinearity=lasagne.nonlinearities.rectify, name='l_hid2_drop')
     l_out = ExpLinLayer(l_hid2_drop, num_units=10, name='l_out')
     l_out_drop = GaussianDropoutLayer(l_out, prior_std=1e-3,  
