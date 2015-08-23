@@ -641,7 +641,7 @@ class RBFLayer(lasagne.layers.Layer):
     def get_output_for(self, input, **kwargs):
         if input.ndim > 2:
             input = input.flatten(2)
-        Z = self.c*T.exp(-T.abs_(T.dot(input,self.W))) + self.b
+        Z = T.exp(-self.c*T.abs_(T.dot(input,self.W))) + self.b
         return self.nonlinearity(Z)
     
     def get_output_shape_for(self, input_shape):
