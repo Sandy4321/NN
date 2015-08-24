@@ -666,7 +666,6 @@ class ExpLinLayer(lasagne.layers.Layer):
 class SampleSigmoidLayer(lasagne.layers.Layer):
     def __init(self, incoming, **kwargs):
         super(SampleSigmoidLayer, self).__init__(incoming, **kwargs)
-        num_inputs = int(np.prod(incoming.output_shape[1:]))
         self.nonlinearity = lasagne.nonlinearities.sigmoid
 
     def get_output_for(self, input, **kwargs):
