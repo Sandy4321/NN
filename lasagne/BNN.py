@@ -365,7 +365,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
     batch_size = 125
     margin_lr = 25
-    prediction = lasagne.layers.get_output(network, deterministic=False)
+    prediction = lasagne.layers.get_output(network, deterministic=True)
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
     loss = loss.sum()
     # We could add some weight decay as well here, see lasagne.regularization.
@@ -402,7 +402,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
     # disabling dropout layers.
-    test_prediction = lasagne.layers.get_output(network, deterministic=True)
+    test_prediction = lasagne.layers.get_output(network, deterministic=False)
     test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
                                                             target_var)
     test_loss = test_loss.mean()
