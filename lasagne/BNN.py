@@ -183,6 +183,20 @@ def build_explin(input_var=None, masks=None):
             nonlinearity=lasagne.nonlinearities.softmax, name='l_out_drop')
     return l_out_drop
 
+def build_samplesigmoid(input_var=None, masks=None):
+    l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
+                                     input_var=input_var)
+    l_hid1 = lasagne.layers.DenseLayer(l_in, num_units=800,
+            W=lasagne.init.GlorotUniform(), name='l_hid1')
+    l_hid1_samp = SampleSigmoidLayer(l_hid1)
+    l_hid2 = lasagne.layers.DenseLayer(l_hid1_samp, num_units=800,
+            W=lasagne.init.GlorotUniform(), name='l_hid2')
+    l_hid2_samp = SampleSigmoidLayer(l_hid1)
+    l_out = lasagne.layers.DenseLayer(l_hid2_samp, num_units=10,
+            W=lasagne.init.GlorotUniform(), name='l_out',
+            nonlinearity=lasagne.nonlinearities.softmax)
+    return l_soft
+
 def build_cnn(input_var=None, masks=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var, name='l_in')
@@ -334,6 +348,8 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
         network = build_cnn(input_var)
     elif model == 'explin':
         network = build_explin(input_var)
+    elif model == 'samplesigmoid':
+        network = build_samplesigmoid(input_var)
     elif model == 'reload':
         network = reloadModel(file_name, input_var=input_var)
     elif model == 'prune':
@@ -646,6 +662,19 @@ class ExpLinLayer(lasagne.layers.Layer):
     
     def get_output_shape_for(self, input_shape):
         return (input_shape[0], self.num_units)
+
+class SampleSigmoidLayer(lasagne.layers.Layer):
+    def __init(self, incoming, **kwargs):
+        super(SampleSigmoidLayer, self).__init__(incoming, **kwargs)
+        num_inputs = int(np.prod(incoming.output_shape[1:]))
+        self.nonlinearity = lasagne.nonlinearities.sigmoid
+
+    def get_output_for(self, input, **kwargs):
+        if input.ndim > 2:
+            input = input.flatten(2)
+        smrg = MRG_RandomStreams()
+        return self.nonlinearity(input) >= smrg.uniform(size=input.shape)
+
 
 def GaussianRegulariser(W, E, M, S, Sp, prior = 'Gaussian'):
     '''Return cost of W'''
