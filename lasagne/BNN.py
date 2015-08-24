@@ -672,7 +672,8 @@ class SampleSigmoidLayer(lasagne.layers.Layer):
         if input.ndim > 2:
             input = input.flatten(2)
         smrg = MRG_RandomStreams()
-        return self.nonlinearity(input) >= smrg.uniform(size=input.shape)
+        Z = self.nonlinearity(input)
+        return  Z >= smrg.uniform(size=input.shape)
 
 
 def GaussianRegulariser(W, E, M, S, Sp, prior = 'Gaussian'):
