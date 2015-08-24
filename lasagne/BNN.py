@@ -942,7 +942,7 @@ def nesterov_momentum(loss_or_grads, params, learning_rate, momentum=0.9):
 
 if __name__ == '__main__':
     main(model='samplesigmoid', save_name='./models/mnistss.npz', dataset='MNIST',
-         num_epochs=500, L2Radius=3.87, base_lr=1e-5)
+         num_epochs=500, L2Radius=3.87, base_lr=1e-3)
 
     
     
