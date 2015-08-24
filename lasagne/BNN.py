@@ -191,11 +191,11 @@ def build_samplesigmoid(input_var=None, masks=None):
     l_hid1_samp = SampleSigmoidLayer(l_hid1)
     l_hid2 = lasagne.layers.DenseLayer(l_hid1_samp, num_units=800,
             W=lasagne.init.GlorotUniform(), name='l_hid2')
-    l_hid2_samp = SampleSigmoidLayer(l_hid1)
+    l_hid2_samp = SampleSigmoidLayer(l_hid2)
     l_out = lasagne.layers.DenseLayer(l_hid2_samp, num_units=10,
             W=lasagne.init.GlorotUniform(), name='l_out',
             nonlinearity=lasagne.nonlinearities.softmax)
-    return l_soft
+    return l_out
 
 def build_cnn(input_var=None, masks=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
