@@ -351,6 +351,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     elif model == 'explin':
         network = build_explin(input_var)
     elif model == 'samplesigmoid':
+        print 'hello'
         network = build_samplesigmoid(input_var)
     elif model == 'reload':
         network = reloadModel(file_name, input_var=input_var)
@@ -363,7 +364,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
 
     # Create a loss expression for training, i.e., a scalar objective we want
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
-    batch_size = 500
+    batch_size = 125
     margin_lr = 25
     prediction = lasagne.layers.get_output(network, deterministic=False)
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
