@@ -670,12 +670,15 @@ class SampleSigmoidLayer(lasagne.layers.Layer):
         super(SampleSigmoidLayer, self).__init__(incoming, **kwargs)
         self.nonlinearity = lasagne.nonlinearities.sigmoid
 
-    def get_output_for(self, input, **kwargs):
+    def get_output_for(self, input, deterministic=False**kwargs):
         if input.ndim > 2:
             input = input.flatten(2)
         smrg = MRG_RandomStreams()
         Z = self.nonlinearity(input)
-        return  (Z >= smrg.uniform(size=input.shape))
+        if deterministic == True:
+            return Z
+        else:
+            return  (Z >= smrg.uniform(size=input.shape))
 
 def GaussianRegulariser(W, E, M, S, Sp, prior = 'Gaussian'):
     '''Return cost of W'''
