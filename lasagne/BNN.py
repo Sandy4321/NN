@@ -187,11 +187,11 @@ def build_samplesigmoid(input_var=None, masks=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
     l_hid1 = lasagne.layers.DenseLayer(l_in, num_units=800,
-            W=lasagne.init.GlorotUniform(), b=lasagne.init.Constant(0.3),
+            W=lasagne.init.Normal(std=0.01), b=lasagne.init.Constant(0.3),
             name='l_hid1')
     l_hid1_samp = SampleSigmoidLayer(l_hid1)
     l_hid2 = lasagne.layers.DenseLayer(l_hid1_samp, num_units=800,
-            W=lasagne.init.GlorotUniform(), b=lasagne.init.Constant(0.3),
+            W=lasagne.init.Normal(std=0.01), b=lasagne.init.Constant(0.3),
             name='l_hid2')
     l_hid2_samp = SampleSigmoidLayer(l_hid2)
     l_out = lasagne.layers.DenseLayer(l_hid2_samp, num_units=10,
