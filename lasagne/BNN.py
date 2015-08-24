@@ -664,7 +664,7 @@ class ExpLinLayer(lasagne.layers.Layer):
         return (input_shape[0], self.num_units)
 
 class SampleSigmoidLayer(lasagne.layers.Layer):
-    def __init(self, incoming, **kwargs):
+    def __init__(self, incoming, **kwargs):
         super(SampleSigmoidLayer, self).__init__(incoming, **kwargs)
         self.nonlinearity = lasagne.nonlinearities.sigmoid
 
@@ -674,7 +674,6 @@ class SampleSigmoidLayer(lasagne.layers.Layer):
         smrg = MRG_RandomStreams()
         Z = self.nonlinearity(input)
         return  Z >= smrg.uniform(size=input.shape)
-
 
 def GaussianRegulariser(W, E, M, S, Sp, prior = 'Gaussian'):
     '''Return cost of W'''
