@@ -675,7 +675,7 @@ class SampleSigmoidLayer(lasagne.layers.Layer):
             input = input.flatten(2)
         smrg = MRG_RandomStreams()
         Z = self.nonlinearity(input)
-        return  Z #>= smrg.uniform(size=input.shape)
+        return  (Z >= smrg.uniform(size=input.shape))
 
 def GaussianRegulariser(W, E, M, S, Sp, prior = 'Gaussian'):
     '''Return cost of W'''
