@@ -187,11 +187,11 @@ def build_samplesigmoid(input_var=None, masks=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
     l_hid1 = lasagne.layers.DenseLayer(l_in, num_units=800,
-            W=lasagne.init.GlorotUniform(), b=lasagne.init.Constant(0.1),
+            W=lasagne.init.GlorotUniform(), b=lasagne.init.Constant(0.3),
             name='l_hid1')
     l_hid1_samp = SampleSigmoidLayer(l_hid1)
     l_hid2 = lasagne.layers.DenseLayer(l_hid1_samp, num_units=800,
-            W=lasagne.init.GlorotUniform(), b=lasagne.init.Constant(0.1),
+            W=lasagne.init.GlorotUniform(), b=lasagne.init.Constant(0.3),
             name='l_hid2')
     l_hid2_samp = SampleSigmoidLayer(l_hid2)
     l_out = lasagne.layers.DenseLayer(l_hid2_samp, num_units=10,
@@ -351,7 +351,6 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     elif model == 'explin':
         network = build_explin(input_var)
     elif model == 'samplesigmoid':
-        print 'hello'
         network = build_samplesigmoid(input_var)
     elif model == 'reload':
         network = reloadModel(file_name, input_var=input_var)
