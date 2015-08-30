@@ -186,7 +186,6 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     margin_lr = 25
     prediction = lasagne.layers.get_output(network, deterministic=True)
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
-    
     params = lasagne.layers.get_all_params(network, trainable=True)
     learning_rate = T.fscalar('learning_rate')
     # The prior
@@ -200,7 +199,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
             print 'b'
             value = param.get_value(borrow=True)
             log_prior += -0.5*1.*T.sum(value**2) # Need to add layer wise
-    print log_prior
+    print T.grad(log_prior, params)
     updates = SGLD(loss, params, learning_rate, log_prior, N=50000)
     #updates = nesterov_momentum(loss, params, learning_rate=learning_rate,
     #                            momentum=0.9)
