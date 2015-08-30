@@ -193,13 +193,10 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     for param in params:
         if param.name[-1] == 'W':
             print('Prior W')
-            value = param.get_value(borrow=True)
             log_prior += -0.5*1.*T.sum(param**2) # Need to add layer wise
         elif param.name[-1] == 'b':
             print('Prior b')
-            value = param.get_value(borrow=True)
             log_prior += -0.5*1.*T.sum(param**2) # Need to add layer wise
-    print T.grad(log_prior, params)
     updates = SGLD(loss, params, learning_rate, log_prior, N=50000)
     #updates = nesterov_momentum(loss, params, learning_rate=learning_rate,
     #                            momentum=0.9)
@@ -434,9 +431,9 @@ def SGLD(loss, params, learning_rate, log_prior, N):
     """Apply the SGLD MCMC sampler"""
     g_lik = N*get_or_compute_grads(loss.mean(), params)
     g_prior = get_or_compute_grads(log_prior, params)
-    print len(g_prior)
     smrg = MRG_RandomStreams()
     eta = smrg.normal(size=params, std=T.sqrt(learning_rate))
+    print len(eta)
     updates = OrderedDict()
     for param, delta, e in zip(params, new_param, eta):
         delta = 0.5*learning_rate*(g_lik + g_prior)
