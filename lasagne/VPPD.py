@@ -433,6 +433,7 @@ def SGLD(loss, params, learning_rate, log_prior, N):
     """Apply the SGLD MCMC sampler"""
     g_lik = N*get_or_compute_grads(loss.mean(), params)
     g_prior = get_or_compute_grads(log_prior, params)
+    print len(g_prior)
     smrg = MRG_RandomStreams()
     eta = smrg.normal(size=params, std=T.sqrt(learning_rate))
     updates = OrderedDict()
