@@ -186,25 +186,19 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     margin_lr = 25
     prediction = lasagne.layers.get_output(network, deterministic=True)
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
-    loss = loss.sum()
-    # We could add some weight decay as well here, see lasagne.regularization.
-    
-    loss = loss #+ NO REG YET 
-    
-    
-    # Create update expressions for training, i.e., how to modify the
-    # parameters at each training step. Here, we'll use Stochastic Gradient
-    # Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
-    
-    for layer in lasagne.layers.get_all_layers(network):
-        if hasattr(layer, 'W'):
-            layer.W = lasagne.updates.norm_constraint(layer.W, L2Radius)
-            #layer.W = L2BallConstraint(layer.W, L2Radius)
     
     params = lasagne.layers.get_all_params(network, trainable=True)
     learning_rate = T.fscalar('learning_rate')
-    updates = nesterov_momentum(loss, params, learning_rate=learning_rate,
-                                momentum=0.9)
+    # The prior
+    log_prior = 0.
+    for param in params:
+        if param == 'W':
+            value = param.get_value(borrow=True)
+            log_prior += -0.5*1.*T.sum(value**2) # Need to add layer wise
+    
+    updates = SGLD(loss, params, learning_rate, log_prior, N=50000)
+    #updates = nesterov_momentum(loss, params, learning_rate=learning_rate,
+    #                            momentum=0.9)
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
     # disabling dropout layers.
@@ -432,9 +426,22 @@ def nesterov_momentum(loss_or_grads, params, learning_rate, momentum=0.9):
     updates = sgd(loss_or_grads, params, learning_rate)
     return apply_nesterov_momentum(updates, momentum=momentum)
 
+def SGLD(loss, params, learning_rate, log_prior, N):
+    """Apply the SGLD MCMC sampler"""
+    g_lik = N*get_or_compute_grads(loss.mean(), params)
+    g_prior = get_or_compute_grads(log_prior, params)
+    smrg = MRG_RandomStreams()
+    eta = smrg.normal(size=params, std=T.sqrt(learning_rate))
+    updates = OrderedDict()
+    for param, delta, e in zip(params, new_param, eta):
+        delta = 0.5*learning_rate*(g_lik + g_prior)
+        updates[param] = param + delta
+    return updates
+    
+
 
 if __name__ == '__main__':
-    main(model='mlp', save_name='./models/mnistss.npz', dataset='MNIST',
+    main(model='mlp', save_name='./models/mnistVPPD.npz', dataset='MNIST',
          num_epochs=500, L2Radius=3.87, base_lr=3e-4)
 
     
