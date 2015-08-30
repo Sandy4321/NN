@@ -338,8 +338,9 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
         for batch in iterate_minibatches(X_train, y_train, batch_size, shuffle=True):
             inputs, targets = batch
             # Sample weights from teacher
-            err, t_acc = t_fn(inputs, targets, learning_rate=learning_rate)
+            err, acc = t_fn(inputs, targets, learning_rate=learning_rate)
             t_err += err
+            t_acc += acc
             t_batches += 1
             
         # Then we print the results for this epoch:
