@@ -121,13 +121,10 @@ def build_mlp(input_var=None, masks=None, temp=1):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
     l_hid1 = lasagne.layers.DenseLayer(
-            l_in, num_units=800,
+            l_in, num_units=100,
             W=lasagne.init.GlorotUniform(), name='l_hid1')
-    l_hid2 = lasagne.layers.DenseLayer(
-            l_hid1, num_units=800,
-            W=lasagne.init.GlorotUniform(), name='l_hid2')
     l_out = lasagne.layers.DenseLayer(
-            l_hid2, num_units=10,
+            l_hid1, num_units=10,
             W=lasagne.init.GlorotUniform(), name='l_out',
             nonlinearity=lasagne.nonlinearities.softmax)
     return l_out
@@ -182,7 +179,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
 
     # Create a loss expression for training, i.e., a scalar objective we want
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
-    batch_size = 250
+    batch_size = 500
     margin_lr = 25
     prediction = lasagne.layers.get_output(network, deterministic=True)
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
@@ -196,7 +193,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
             log_prior += -0.5*1.*T.sum(param**2) # Need to add layer wise
         elif param.name[-1] == 'b':
             print('Prior b')
-            log_prior += -0.5*0.1*T.sum(param**2) # Need to add layer wise
+            log_prior += -0.5*1.*T.sum(param**2) # Need to add layer wise
     updates = SGLD(loss, params, learning_rate, log_prior, N=50000)
     mean_loss = loss.mean()
     #updates = nesterov_momentum(loss, params, learning_rate=learning_rate,
@@ -432,7 +429,7 @@ def SGLD(loss, params, learning_rate, log_prior, N):
 
 if __name__ == '__main__':
     main(model='mlp', save_name='./models/mnistVPPD.npz', dataset='MNIST',
-         num_epochs=500, L2Radius=3.87, base_lr=3e-2)
+         num_epochs=500, L2Radius=3.87, base_lr=2e-5)
 
     
     
