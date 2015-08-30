@@ -350,7 +350,6 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
         # Then we print the results for this epoch:
         print("Epoch {} of {} took {:.3f}s".format(
             epoch + 1, num_epochs, time.time() - start_time))
-        print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
         print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
         print("  validation accuracy:\t\t{:.2f} %".format(
             val_acc / val_batches * 100))
