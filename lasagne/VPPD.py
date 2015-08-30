@@ -121,9 +121,11 @@ def build_mlp(input_var=None, masks=None, temp=1):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
     l_hid1 = lasagne.layers.DenseLayer(
-            l_in, num_units=100,
-            W=lasagne.init.GlorotUniform(), name='l_hid1',
-            nonlinearity=lasagne.nonlinearities.sigmoid)
+            l_in, num_units=400,
+            W=lasagne.init.GlorotUniform(), name='l_hid1')
+    l_hid1 = lasagne.layers.DenseLayer(
+            l_in, num_units=400,
+            W=lasagne.init.GlorotUniform(), name='l_hid2')
     l_out = lasagne.layers.DenseLayer(
             l_hid1, num_units=10,
             W=lasagne.init.GlorotUniform(), name='l_out',
@@ -191,10 +193,10 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     for param in params:
         if param.name[-1] == 'W':
             print('Prior W')
-            log_prior += -0.5*0.1*T.sum(param**2) # Need to add layer wise
+            log_prior += -lambda_w*T.sum(param**2)
         elif param.name[-1] == 'b':
             print('Prior b')
-            log_prior += 0.*T.sum(param) # Need to add layer wise
+            log_prior += -lambda_b*T.sum(param**2) 
     updates = SGLD(loss, params, learning_rate, log_prior, N=50000)
     mean_loss = loss.mean()
     #updates = nesterov_momentum(loss, params, learning_rate=learning_rate,
@@ -422,7 +424,7 @@ def SGLD(loss, params, learning_rate, log_prior, N):
     updates = OrderedDict()
     for param, gl, gp in zip(params, g_lik, g_prior):
         eta = T.sqrt(learning_rate)*smrg.normal(size=param.shape)
-        delta = 0.5*learning_rate*(gl + gp) + eta/10
+        delta = 0.5*learning_rate*(gl + gp) + eta
         updates[param] = param + delta
     return updates
     
