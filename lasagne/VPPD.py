@@ -333,18 +333,6 @@ class SoftermaxNonlinearity(lasagne.layers.Layer):
         input = input/self.temp
         return T.exp(input)/T.sum(T.exp(input), axis=1).dimshuffle(0,'x')
 
-def GaussianRegulariser(W, E, M, S, Sp, prior = 'Gaussian'):
-    '''Return cost of W'''
-    if prior == 'Gaussian':
-        return 0.5*(-T.sum(E**2) + T.sum(W**2)/(Sp**2)) - T.sum(T.log(S)) +T.sum(S)
-    elif prior == 'Laplace':
-        return -0.5*T.sum(E**2) + T.sum(T.abs_(W))/(Sp*T.sqrt(2.)) - T.sum(T.log(S))
-    elif prior == 'StudentT':
-        return 0.5*(-T.sum(E**2) + ((Sp+1.)/2)*T.sum(T.log(1.+(W**2)/Sp))) - T.sum(T.log(S))
-    else:
-        print('Invalid regulariser')
-        sys.exit(1)
-
 def L2BallConstraint(tensor_var, target_norm, norm_axes=None, epsilon=1e-7):
     ndim = tensor_var.ndim
     if norm_axes is not None:
@@ -430,7 +418,7 @@ def nesterov_momentum(loss_or_grads, params, learning_rate, momentum=0.9):
 
 def SGLD(loss, params, learning_rate, log_prior, N):
     """Apply the SGLD MCMC sampler"""
-    g_lik = N*get_or_compute_grads(loss.mean(), params)
+    g_lik = N*get_or_compute_grads(-loss, params)
     g_prior = get_or_compute_grads(log_prior, params)
     smrg = MRG_RandomStreams()
     updates = OrderedDict()
@@ -444,7 +432,7 @@ def SGLD(loss, params, learning_rate, log_prior, N):
 
 if __name__ == '__main__':
     main(model='mlp', save_name='./models/mnistVPPD.npz', dataset='MNIST',
-         num_epochs=500, L2Radius=3.87, base_lr=3e-6)
+         num_epochs=500, L2Radius=3.87, base_lr=3e-4)
 
     
     
