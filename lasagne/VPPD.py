@@ -337,7 +337,6 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
             inputs, targets = batch
             # Sample weights from teacher
             t_err += t_fn(inputs, targets, learning_rate=learning_rate)
-            print t_err
             # Train student
             s_fn(inputs, learning_rate)
             t_batches += 1
@@ -503,7 +502,7 @@ def SGLD(loss, params, learning_rate, log_prior, N):
 
 if __name__ == '__main__':
     main2(save_name='./models/mnistVPPD.npz', dataset='MNIST',
-         num_epochs=500, L2Radius=3.87, base_lr=5e-5)
+         num_epochs=500, L2Radius=3.87, base_lr=5e-4)
 
     
     
