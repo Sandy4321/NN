@@ -189,30 +189,6 @@ def reloadModel(file_name, input_var=None, masks=None):
     file = open(file_name, 'r')
     data = cPickle.load(file)
     file.close()
-    '''
-    if masks is None:
-        masks = {}
-        masks['0'] = None
-        masks['1'] = None
-        masks['2'] = None
-    
-    l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
-                                     input_var=input_var)
-    l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.2)
-    l_hid1 = MaskedDenseLayer(l_in_drop, num_units=800, mask=masks['0'],
-            W=data['l_hid1.W'], b=data['l_hid1.b'])
-    l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.707,
-            nonlinearity=lasagne.nonlinearities.rectify, R=data['l_hid1_drop.R'])
-    l_hid2 = MaskedDenseLayer(l_hid1_drop, num_units=800, mask=masks['1'],
-             W=data['l_hid2.W'], b=data['l_hid2.b'])
-    l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.707,  
-            nonlinearity=lasagne.nonlinearities.rectify, R=data['l_hid2_drop.R'])
-    l_out = MaskedDenseLayer(l_hid2_drop, num_units=10, W=data['l_out.W'],
-                             b=data['l_out.b'], mask=masks['2'])
-    l_out_drop = GaussianDropoutLayer(l_out, prior_std=1e-3,
-            nonlinearity=lasagne.nonlinearities.softmax, R=data['l_out_drop.R'])
-    return l_out_drop
-    '''
     keys = data.keys()
     print keys
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
@@ -309,24 +285,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     prediction = lasagne.layers.get_output(network, deterministic=False)
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
     loss = loss.sum()
-    # We could add some weight decay as well here, see lasagne.regularization.
-    '''
-    reg = 0
-    for layer in lasagne.layers.get_all_layers(network):
-        if hasattr(layer, 'layer_type'):
-            if layer.layer_type == 'GaussianLayer':
-                reg += GaussianRegulariser(layer.W, layer.E,
-                                          layer.M, layer.S,
-                                          prior_std, prior='Gaussian')
-            if layer.layer_type == 'GaussianDropoutLayer':
-                reg += GaussianDropoutRegulariser(layer.E, layer.S,
-                                                  layer.prior_std)
-            if layer.layer_type == 'OrientedGaussianLayer':
-                reg += OrientedDropoutRegulariser(layer.S, layer.T,
-                                                  layer.s, layer.t)
-    loss = loss + reg/T.ceil(dataset_size/batch_size)
-    '''
-    
+    # We could add some weight decay as well here, see lasagne.regularization.    
     # Create update expressions for training, i.e., how to modify the
     # parameters at each training step. Here, we'll use Stochastic Gradient
     # Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
@@ -817,11 +776,11 @@ def display_soft_targets(file_name):
     
 
 if __name__ == '__main__':
-    #main(model='cnn', save_name='./models/mnistcnn.npz', dataset='MNIST',
-    #     num_epochs=100, L2Radius=3.87, base_lr=1e-4)
+    main(model='cnn', save_name='./models/mnistcnn.npz', dataset='MNIST',
+         num_epochs=100, L2Radius=3.87, base_lr=1e-4)
     #run_once(model='reload', file_name='./models/mnistcnn.npz')
-    modelTransfer('./models/mnistcnn.npz', deterministic=True, copy_temp=20,
-                  mode='hinton')
+    #modelTransfer('./models/mnistcnn.npz', deterministic=True, copy_temp=20,
+    #              mode='hinton')
     #scan_temperatures('./models/accuracies_lr.npy')
     #plot_temperatures('./models/accuracies.npy')
     #analyse_soft_targets('./models/mnistcnn.npz', './models/soft_targets.npz')

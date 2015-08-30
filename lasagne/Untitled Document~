@@ -1,0 +1,6 @@
+import matplotlib.pyplot as plt
+
+plt.ion()
+plt.plot([1.76,1.4])
+
+

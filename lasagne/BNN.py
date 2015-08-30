@@ -135,22 +135,25 @@ def build_mlp(input_var=None, masks=None, temp=1):
 def build_glp(input_var=None, masks=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
-    l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.2)
+    l_in_drop = lasagne.layers.dropout(l_in, p=0.2)
     l_hid1 = lasagne.layers.DenseLayer(
             l_in_drop, num_units=800,
             W=lasagne.init.GlorotUniform(), name='l_hid1')
-    l_hid1_drop = GaussianDropoutLayer(l_hid1, prior_std=0.707,
+    l_hid1_drop0 = GaussianDropoutLayer(l_hid1, prior_std=0.5,
+	    nonlinearity=lasagne.nonlinearities.linear, name='l_hid1_drop0')
+    l_hid1_drop = GaussianDropoutLayer(l_hid1_drop0, prior_std=0.5,
             nonlinearity=lasagne.nonlinearities.rectify, name='l_hid1_drop')
     l_hid2 = lasagne.layers.DenseLayer(
             l_hid1_drop, num_units=800,
             W=lasagne.init.GlorotUniform(), name='l_hid2')
-    l_hid2_drop = GaussianDropoutLayer(l_hid2, prior_std=0.707,  
+    l_hid2_drop0 = GaussianDropoutLayer(l_hid2, prior_std=0.5,
+	    nonlinearity=lasagne.nonlinearities.linear, name='l_hid2_drop0')
+    l_hid2_drop = GaussianDropoutLayer(l_hid2_drop0, prior_std=0.5,  
             nonlinearity=lasagne.nonlinearities.rectify, name='l_hid2_drop')
     l_out = lasagne.layers.DenseLayer(
-            l_hid2_drop, num_units=10, name='l_out')
-    l_out_drop = GaussianDropoutLayer(l_out, prior_std=1e-3,  
-            nonlinearity=lasagne.nonlinearities.softmax, name='l_out_drop')
-    return l_out_drop
+            l_hid2_drop, num_units=10, name='l_out',  
+            nonlinearity=lasagne.nonlinearities.softmax)
+    return l_out
 
 def build_bnn(input_var=None, masks=None):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
@@ -363,7 +366,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
 
     # Create a loss expression for training, i.e., a scalar objective we want
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
-    batch_size = 125
+    batch_size = 250
     margin_lr = 25
     prediction = lasagne.layers.get_output(network, deterministic=True)
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
@@ -383,7 +386,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
             if layer.layer_type == 'OrientedGaussianLayer':
                 reg += OrientedDropoutRegulariser(layer.S, layer.T,
                                                   layer.s, layer.t)
-    loss = loss + reg/T.ceil(dataset_size/batch_size)
+    loss = loss + 0.3*reg/T.ceil(dataset_size/batch_size)
     
     
     # Create update expressions for training, i.e., how to modify the
@@ -936,13 +939,53 @@ def nesterov_momentum(loss_or_grads, params, learning_rate, momentum=0.9):
     updates = sgd(loss_or_grads, params, learning_rate)
     return apply_nesterov_momentum(updates, momentum=momentum)
 
+# ################################# Pruning ####################################
 
+def prune(file_name, proportion, scheme='KL', input_var=None):
+    '''Prune weights according to appropriate scheme'''
+    model = reloadModel(file_name)
+    bin_edges, hist, SNR = histogram(model, scheme=scheme)
+    #fig = plt.figure()
+    #plt.plot(bin_edges, hist)
+    #plt.show()
+    idx = (hist > proportion)
+    cutoff = np.compress(idx, bin_edges)
+    cutoff = np.amin(cutoff)
+    masks = {}
+    for snr in SNR:
+        msk = (SNR[snr] > cutoff)
+        masks[snr] = np.asarray(msk)
+    return reloadModel(file_name, input_var=input_var, masks=masks)
     
+def plotToPrune(model):
+    '''Plot the weight histograms'''
+    schemes = ['KL', 'SNR', 'lowest']
+    fig = plt.figure()
+    for scheme in schemes:
+        bin_edges, hist, _ = histogram(model, scheme=scheme)
+        plt.plot(bin_edges, hist)
+    plt.show()
+
+def plottests(num_steps):
+    proportion = 1.-np.logspace(-3.0, -1.0, num_steps)
+    num_samples = [1,2,5,10,25]
+    acc = np.zeros((proportion.shape[0],4,len(num_samples)))
+    for j, ns in enumerate(num_samples):
+        for i, prop in enumerate(proportion):
+            print prop
+            acc[i,0,j] = prop
+            acc[i,1,j] = run_once(model='prune', file_name='./models/modelG0.npz',
+                           proportion=prop, scheme='KL', num_samples=ns)
+            acc[i,2,j] = run_once(model='prune', file_name='./models/modelG0.npz',
+                           proportion=prop, scheme='SNR', num_samples=ns)
+            acc[i,3,j] = run_once(model='prune', file_name='./models/modelG0.npz',
+                           proportion=prop, scheme='lowest', num_samples=ns)
+    np.save('./models/new_KLG0.npy', acc)
     
 
 if __name__ == '__main__':
-    main(model='samplesigmoid', save_name='./models/mnistss.npz', dataset='MNIST',
-         num_epochs=500, L2Radius=3.87, base_lr=1e-4)
+    main(model='glp', save_name='./models/mnistss.npz', dataset='MNIST',
+         num_epochs=500, L2Radius=3.87, base_lr=3e-4)
 
     
     

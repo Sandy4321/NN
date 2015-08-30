@@ -119,7 +119,7 @@ def build_cnn(input_var=None):
             W=lasagne.init.GlorotUniform())
     network = lasagne.layers.DenseLayer(
             lasagne.layers.dropout(network, p=.5),
-            num_units=10, W=lasagne.init.GlorotUniform(
+            num_units=10, W=lasagne.init.GlorotUniform(),
             nonlinearity=lasagne.nonlinearities.softmax)
 
     return network
