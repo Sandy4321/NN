@@ -298,7 +298,7 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
     # Sample the teacher network weight posterior
     # The Gaussian weight/bias prior
     log_prior = 0.
-    for param in params:
+    for param in t_params:
         if param.name[-1] == 'W':
             print('Prior W')
             log_prior += -0.1*T.sum(param**2)
@@ -308,7 +308,8 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
     t_updates = SGLD(t_loss, params, learning_rate, log_prior, N=50000)
     # SGD on the student network parameters
     s_loss = T.sum(s_pred*(T.log(s_pred)-T.log(t_pred)))/batch_size
-    s_updates = nesterov_momentum(s_loss, params, learning_rate=learning_rate,
+    s_params = lasagne.layers.get_all_params(teacher, trainable=True)
+    s_updates = nesterov_momentum(s_loss, s_params, learning_rate=learning_rate,
                                   momentum=0.9)
     # Compile functions
     t_fn = theano.function([input_var, target_var, learning_rate],
