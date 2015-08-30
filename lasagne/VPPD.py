@@ -416,7 +416,7 @@ def nesterov_momentum(loss_or_grads, params, learning_rate, momentum=0.9):
 
 def SGLD(loss, params, learning_rate, log_prior, N):
     """Apply the SGLD MCMC sampler"""
-    g_lik = N*get_or_compute_grads(-loss.sum(), params)
+    g_lik = N*get_or_compute_grads(-loss.mean(), params)
     g_prior = get_or_compute_grads(log_prior, params)
     smrg = MRG_RandomStreams()
     updates = OrderedDict()
@@ -430,7 +430,7 @@ def SGLD(loss, params, learning_rate, log_prior, N):
 
 if __name__ == '__main__':
     main(model='mlp', save_name='./models/mnistVPPD.npz', dataset='MNIST',
-         num_epochs=500, L2Radius=3.87, base_lr=1e-1)
+         num_epochs=500, L2Radius=3.87, base_lr=5e-6)
 
     
     
