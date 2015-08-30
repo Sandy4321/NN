@@ -178,13 +178,11 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     else:
         print("Unrecognized model type %r." % model)
 
-    
-
     # Create a loss expression for training, i.e., a scalar objective we want
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
     batch_size = 500
     margin_lr = 25
-    prediction = lasagne.layers.get_output(network, deterministic=True)
+    prediction = lasagne.layers.get_output(network)
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
     params = lasagne.layers.get_all_params(network, trainable=True)
     learning_rate = T.fscalar('learning_rate')
@@ -204,7 +202,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
     # disabling dropout layers.
-    test_prediction = lasagne.layers.get_output(network, deterministic=False)
+    test_prediction = lasagne.layers.get_output(network)
     test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
                                                             target_var)
     test_loss = test_loss.mean()
@@ -432,7 +430,7 @@ def SGLD(loss, params, learning_rate, log_prior, N):
 
 if __name__ == '__main__':
     main(model='mlp', save_name='./models/mnistVPPD.npz', dataset='MNIST',
-         num_epochs=500, L2Radius=3.87, base_lr=2e-3)
+         num_epochs=500, L2Radius=3.87, base_lr=1e-1)
 
     
     
