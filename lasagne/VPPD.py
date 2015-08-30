@@ -314,8 +314,10 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
     s_updates = nesterov_momentum(s_loss, s_params, learning_rate=learning_rate,
                                   momentum=0.9)
     # Compile functions
+    t_acc = T.mean(T.eq(T.argmax(t_pred, axis=1), target_var),
+                      dtype=theano.config.floatX)
     t_fn = theano.function([input_var, target_var, learning_rate], t_loss,
-        updates=t_updates)
+        t_acc, updates=t_updates)
     s_fn = theano.function([input_var, learning_rate], updates=s_updates)
 
     # Compile a second function computing the validation loss and accuracy:
