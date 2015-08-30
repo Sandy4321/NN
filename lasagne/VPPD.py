@@ -293,7 +293,7 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
     t_pred = lasagne.layers.get_output(teacher)
     s_pred = lasagne.layers.get_output(student)
     # Loss functions
-    t_loss = lasagne.objectives.categorical_crossentropy(teacher, target_var)
+    t_loss = lasagne.objectives.categorical_crossentropy(t_pred, target_var)
     t_params = lasagne.layers.get_all_params(teacher, trainable=True)
     # Sample the teacher network weight posterior
     # The Gaussian weight/bias prior
