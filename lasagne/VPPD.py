@@ -248,7 +248,6 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
             val_acc += acc
             val_batches += 1
         
-        print train_err
         # Then we print the results for this epoch:
         print("Epoch {} of {} took {:.3f}s".format(
             epoch + 1, num_epochs, time.time() - start_time))
@@ -438,6 +437,7 @@ def SGLD(loss, params, learning_rate, log_prior, N):
         eta = smrg.normal(size=param.shape, std=T.sqrt(learning_rate))
         delta = 0.5*learning_rate*(gl + gp) + eta
         updates[param] = param + delta
+    print len(updates)
     return updates
     
 
