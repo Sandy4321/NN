@@ -191,10 +191,10 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     for param in params:
         if param.name[-1] == 'W':
             print('Prior W')
-            log_prior += -0.5*T.sum(param**2)
+            log_prior += -0.1*T.sum(param**2)
         elif param.name[-1] == 'b':
             print('Prior b')
-            log_prior += -0.5*T.sum(param**2) 
+            log_prior += -0.1*T.sum(param**2) 
     updates = SGLD(loss, params, learning_rate, log_prior, N=50000)
     mean_loss = loss.mean()
     #updates = nesterov_momentum(loss, params, learning_rate=learning_rate,
@@ -235,6 +235,108 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
             i+=1
             #print('B%i' % i),
             #sys.stdout.flush()
+
+        # And a full pass over the validation data:
+        val_err = 0
+        val_acc = 0
+        val_batches = 0
+        for batch in iterate_minibatches(X_val, y_val, batch_size, shuffle=False):
+            inputs, targets = batch
+            err, acc = val_fn(inputs, targets)
+            val_err += err
+            val_acc += acc
+            val_batches += 1
+        
+        # Then we print the results for this epoch:
+        print("Epoch {} of {} took {:.3f}s".format(
+            epoch + 1, num_epochs, time.time() - start_time))
+        print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
+        print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
+        print("  validation accuracy:\t\t{:.2f} %".format(
+            val_acc / val_batches * 100))
+
+    # After training, we compute and print the test error:
+    test_err = 0
+    test_acc = 0
+    test_batches = 0
+    for batch in iterate_minibatches(X_test, y_test, 500, shuffle=False):
+        inputs, targets = batch
+        err, acc = val_fn(inputs, targets)
+        test_err += err
+        test_acc += acc
+        test_batches += 1
+    print("Final results:")
+    print("  test loss:\t\t\t{:.6f}".format(test_err / test_batches))
+    print("  test accuracy:\t\t{:.2f} %".format(
+        test_acc / test_batches * 100))
+
+    # Optionally, you could now dump the network weights to a file like this:
+    save_model(network, save_name)
+    print('Complete')
+    return test_acc / test_batches * 100
+
+def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
+          dataset='MNIST', L2Radius=3.87, base_lr=0.0003):
+    # Load the dataset
+    print("Loading data...")
+    X_train, y_train, X_val, y_val, X_test, y_test = load_dataset(dataset)
+    dataset_size = X_train.shape[0]
+    # Prepare Theano variables for inputs and targets
+    input_var = T.tensor4('inputs')
+    target_var = T.ivector('targets')
+    learning_rate = T.fscalar('learning_rate')
+    # Create neural network model (depending on first command line parameter)
+    print("Building model and compiling functions...")
+    teacher = build_mlp(input_var)
+    student = build_mlp(input_var)
+    # Hyperparameters
+    batch_size = 100
+    margin_lr = 25
+    # Networks
+    t_pred = lasagne.layers.get_output(teacher)
+    s_pred = lasagne.layers.get_output(student)
+    # Loss functions
+    t_loss = lasagne.objectives.categorical_crossentropy(teacher, target_var)
+    t_params = lasagne.layers.get_all_params(teacher, trainable=True)
+    # Sample the teacher network weight posterior
+    # The Gaussian weight/bias prior
+    log_prior = 0.
+    for param in params:
+        if param.name[-1] == 'W':
+            print('Prior W')
+            log_prior += -0.1*T.sum(param**2)
+        elif param.name[-1] == 'b':
+            print('Prior b')
+            log_prior += -0.1*T.sum(param**2) 
+    t_updates = SGLD(t_loss, params, learning_rate, log_prior, N=50000)
+    # SGD on the student network parameters
+    s_loss = T.sum(s_pred*(T.log(s_pred)-T.log(t_pred)))/batch_size
+    s_updates = nesterov_momentum(s_loss, params, learning_rate=learning_rate,
+                                  momentum=0.9)
+    # Compile functions
+    t_fn = theano.function([input_var, target_var, learning_rate],
+        updates=t_updates)
+    s_fn = theano.function([input_var, learning_rate], updates=s_updates)
+
+    # Compile a second function computing the validation loss and accuracy:
+    s_tar_loss = lasagne.objectives.categorical_crossentropy(s_pred, target_var)
+    s_tar_acc = T.mean(T.eq(T.argmax(s_pred, axis=1), target_var),
+                      dtype=theano.config.floatX)
+    val_fn = theano.function([input_var, target_var], [s_tar_loss, s_tar_acc])
+
+    # Finally, launch the training loop.
+    print("Starting training...")
+    # We iterate over epochs:
+    for epoch in range(num_epochs):
+        learning_rate = get_learning_rate(epoch, margin_lr, base_lr)
+        # In each epoch, we do a full pass over the training data:
+        start_time = time.time()
+        for batch in iterate_minibatches(X_train, y_train, batch_size, shuffle=True):
+            inputs, targets = batch
+            # Sample weights from teacher
+            t_fn(inputs, targets, learning_rate=learning_rate)
+            # Train student
+            s_fn(inputs, learning_rate)
 
         # And a full pass over the validation data:
         val_err = 0
