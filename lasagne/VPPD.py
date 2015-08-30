@@ -193,10 +193,10 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     for param in params:
         if param.name[-1] == 'W':
             print('Prior W')
-            log_prior += -lambda_w*T.sum(param**2)
+            log_prior += -0.1*T.sum(param**2)
         elif param.name[-1] == 'b':
             print('Prior b')
-            log_prior += -lambda_b*T.sum(param**2) 
+            log_prior += -0.1*T.sum(param**2) 
     updates = SGLD(loss, params, learning_rate, log_prior, N=50000)
     mean_loss = loss.mean()
     #updates = nesterov_momentum(loss, params, learning_rate=learning_rate,
