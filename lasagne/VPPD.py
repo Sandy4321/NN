@@ -289,6 +289,7 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
     # Hyperparameters
     batch_size = 500
     margin_lr = 25
+    burn_in = 100
     # Networks
     t_pred = lasagne.layers.get_output(teacher)
     s_pred = lasagne.layers.get_output(student)
@@ -325,8 +326,26 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
         [s_tar_loss.mean(), s_tar_acc])
 
     # Finally, launch the training loop.
-    print("Starting training...")
+    print("BURNING IN")
+    for epoch in range(burn_in):
+        learning_rate = get_learning_rate(epoch, margin_lr, base_lr)
+        # In each epoch, we do a full pass over the training data:
+        start_time = time.time()
+        t_err = 0
+        t_batches = 0
+        for batch in iterate_minibatches(X_train, y_train, batch_size, shuffle=True):
+            inputs, targets = batch
+            # Sample weights from teacher
+            t_err += t_fn(inputs, targets, learning_rate=learning_rate)
+            t_batches += 1
+            
+        # Then we print the results for this epoch:
+        print("Burn {} of {} took {:.3f}s".format(
+            epoch + 1, burn_in, time.time() - start_time))
+        print("  training loss:\t\t{:.6f}".format(t_err / t_batches))    
+     
     # We iterate over epochs:
+    print("Knowledge transfer")
     for epoch in range(num_epochs):
         learning_rate = get_learning_rate(epoch, margin_lr, base_lr)
         # In each epoch, we do a full pass over the training data:
@@ -502,7 +521,7 @@ def SGLD(loss, params, learning_rate, log_prior, N):
 
 if __name__ == '__main__':
     main2(save_name='./models/mnistVPPD.npz', dataset='MNIST',
-         num_epochs=500, L2Radius=3.87, base_lr=5e-4)
+         num_epochs=500, L2Radius=3.87, base_lr=5e-5)
 
     
     
