@@ -198,6 +198,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
             print('Prior b')
             log_prior += -0.5*1.*T.sum(param**2) # Need to add layer wise
     updates = SGLD(loss, params, learning_rate, log_prior, N=50000)
+    mean_loss = loss.mean()
     #updates = nesterov_momentum(loss, params, learning_rate=learning_rate,
     #                            momentum=0.9)
     # Create a loss expression for validation/testing. The crucial difference
@@ -214,7 +215,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     # Compile a function performing a training step on a mini-batch (by giving
     # the updates dictionary) and returning the corresponding training loss:
     train_fn = theano.function([input_var, target_var, learning_rate],
-        loss, updates=updates)
+        mean_loss, updates=updates)
 
     # Compile a second function computing the validation loss and accuracy:
     val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
@@ -437,7 +438,6 @@ def SGLD(loss, params, learning_rate, log_prior, N):
         eta = smrg.normal(size=param.shape, std=T.sqrt(learning_rate))
         delta = 0.5*learning_rate*(gl + gp) + eta
         updates[param] = param + delta
-    print len(updates)
     return updates
     
 
