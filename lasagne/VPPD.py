@@ -432,7 +432,7 @@ def SGLD(loss, params, learning_rate, log_prior, N):
 
 if __name__ == '__main__':
     main(model='mlp', save_name='./models/mnistVPPD.npz', dataset='MNIST',
-         num_epochs=500, L2Radius=3.87, base_lr=3e-3)
+         num_epochs=500, L2Radius=3.87, base_lr=3e-2)
 
     
     
