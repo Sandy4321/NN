@@ -422,7 +422,7 @@ def SGLD(loss, params, learning_rate, log_prior, N):
     updates = OrderedDict()
     for param, gl, gp in zip(params, g_lik, g_prior):
         eta = T.sqrt(learning_rate)*smrg.normal(size=param.shape)
-        delta = 0.5*learning_rate*(gl + gp) + eta
+        delta = 0.5*learning_rate*(gl + gp) + eta/10
         updates[param] = param + delta
     return updates
     
