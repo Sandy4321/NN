@@ -337,6 +337,7 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
             inputs, targets = batch
             # Sample weights from teacher
             t_err += t_fn(inputs, targets, learning_rate=learning_rate)
+            print t_err
             # Train student
             s_fn(inputs, learning_rate)
             t_batches += 1
@@ -393,39 +394,6 @@ def save_model(model, file_name):
     file = open(file_name, 'w')
     cPickle.dump(params, file, cPickle.HIGHEST_PROTOCOL)
     file.close()
-                
-class FullGaussianLayer(lasagne.layers.Layer):
-    def __init__(self, incoming, num_units, nonlinearity,
-                 M=None, R=None, prior_std=0.707, **kwargs):
-        super(FullGaussianLayer, self).__init__(incoming, **kwargs)
-        num_inputs = int(np.prod(self.input_shape[1:]))
-        self.num_units = num_units
-        if M is None:
-            M = lasagne.init.Constant(0.0)
-        if R is None:
-            r = np.log(np.exp(np.sqrt(1./num_inputs))-1.)
-            R = lasagne.init.Constant(r)
-        self.M = self.add_param(M, (num_inputs+1, num_units), name='M')
-        self.R = self.add_param(R, (num_inputs+1, num_units), name='R')
-        self.S = T.log(1. + T.exp(self.R))
-        self.nonlinearity = nonlinearity
-        self.layer_type = 'GaussianLayer'
-        self.prior_std = prior_std
-
-    def get_output_for(self, input, **kwargs):
-        if input.ndim > 2:
-            input = input.flatten(2)
-        b = T.ones_like(input[:,0]).dimshuffle(0,'x')
-        X = T.concatenate([input,b],axis=1)
-        smrg = MRG_RandomStreams()
-        self.E = smrg.normal(size=self.M.shape)
-        self.W = self.M + self.S*self.E
-        H = T.dot(X,self.W)
-        # Nonlinearity
-        return self.nonlinearity(H)
-
-    def get_output_shape_for(self, input_shape):
-        return (input_shape[0], self.num_units)
 
 class SoftermaxNonlinearity(lasagne.layers.Layer):
     def __init__(self, incoming, temp=1, **kwargs):
