@@ -192,13 +192,13 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     log_prior = 0.
     for param in params:
         if param.name[-1] == 'W':
-            print 'W'
+            print('Prior W')
             value = param.get_value(borrow=True)
-            log_prior += -0.5*1.*T.sum(value**2) # Need to add layer wise
+            log_prior += -0.5*1.*T.sum(param**2) # Need to add layer wise
         elif param.name[-1] == 'b':
-            print 'b'
+            print('Prior b')
             value = param.get_value(borrow=True)
-            log_prior += -0.5*1.*T.sum(value**2) # Need to add layer wise
+            log_prior += -0.5*1.*T.sum(param**2) # Need to add layer wise
     print T.grad(log_prior, params)
     updates = SGLD(loss, params, learning_rate, log_prior, N=50000)
     #updates = nesterov_momentum(loss, params, learning_rate=learning_rate,
