@@ -305,7 +305,7 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
         elif param.name[-1] == 'b':
             print('Prior b')
             log_prior += -0.1*T.sum(param**2) 
-    t_updates = SGLD(t_loss, params, learning_rate, log_prior, N=50000)
+    t_updates = SGLD(t_loss, t_params, learning_rate, log_prior, N=50000)
     # SGD on the student network parameters
     s_loss = T.sum(s_pred*(T.log(s_pred)-T.log(t_pred)))/batch_size
     s_params = lasagne.layers.get_all_params(teacher, trainable=True)
