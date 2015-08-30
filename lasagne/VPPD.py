@@ -193,7 +193,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     log_prior = 0.
     for param in params:
         print('not visited')
-        print param[-1]
+        print param.name[-1]
         if param.name == 'W':
             print('visited')
             value = param.get_value(borrow=True)
