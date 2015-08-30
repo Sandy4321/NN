@@ -123,7 +123,7 @@ def build_mlp(input_var=None, masks=None, temp=1):
     l_hid1 = lasagne.layers.DenseLayer(
             l_in, num_units=400,
             W=lasagne.init.GlorotUniform(), name='l_hid1')
-    l_hid1 = lasagne.layers.DenseLayer(
+    l_hid2 = lasagne.layers.DenseLayer(
             l_in, num_units=400,
             W=lasagne.init.GlorotUniform(), name='l_hid2')
     l_out = lasagne.layers.DenseLayer(
