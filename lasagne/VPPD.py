@@ -309,7 +309,8 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
             log_prior += -0.1*T.sum(param**2) 
     t_updates = SGLD(t_loss, t_params, learning_rate, log_prior, N=50000)
     # SGD on the student network parameters
-    s_loss = T.mean(s_pred*(T.log(s_pred)-T.log(t_pred)))
+    #s_loss = T.mean(s_pred*(T.log(s_pred)-T.log(t_pred)))
+    s_loss = T.mean(t_pred*T.log(s_pred))
     s_params = lasagne.layers.get_all_params(teacher, trainable=True)
     s_updates = nesterov_momentum(s_loss, s_params, learning_rate=learning_rate,
                                   momentum=0.9)
