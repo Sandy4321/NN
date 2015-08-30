@@ -305,9 +305,9 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
         elif param.name[-1] == 'b':
             print('Prior b')
             log_prior += -0.1*T.sum(param**2) 
-    t_updates = SGLD(t_loss, t_params, learning_rate, log_prior, N=50000)
+    t_updates = SGLD(t_loss.mean(), t_params, learning_rate, log_prior, N=50000)
     # SGD on the student network parameters
-    s_loss = T.sum(s_pred*(T.log(s_pred)-T.log(t_pred)))/batch_size
+    s_loss = T.mean(s_pred*(T.log(s_pred)-T.log(t_pred)))
     s_params = lasagne.layers.get_all_params(teacher, trainable=True)
     s_updates = nesterov_momentum(s_loss, s_params, learning_rate=learning_rate,
                                   momentum=0.9)
@@ -320,7 +320,8 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
     s_tar_loss = lasagne.objectives.categorical_crossentropy(s_pred, target_var)
     s_tar_acc = T.mean(T.eq(T.argmax(s_pred, axis=1), target_var),
                       dtype=theano.config.floatX)
-    val_fn = theano.function([input_var, target_var], [s_tar_loss, s_tar_acc])
+    val_fn = theano.function([input_var, target_var],
+        [s_tar_loss.mean(), s_tar_acc])
 
     # Finally, launch the training loop.
     print("Starting training...")
@@ -515,7 +516,7 @@ def nesterov_momentum(loss_or_grads, params, learning_rate, momentum=0.9):
 
 def SGLD(loss, params, learning_rate, log_prior, N):
     """Apply the SGLD MCMC sampler"""
-    g_lik = N*get_or_compute_grads(-loss.mean(), params)
+    g_lik = N*get_or_compute_grads(-loss, params)
     g_prior = get_or_compute_grads(log_prior, params)
     smrg = MRG_RandomStreams()
     updates = OrderedDict()
