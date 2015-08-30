@@ -192,9 +192,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
     # The prior
     log_prior = 0.
     for param in params:
-        print('not visited')
-        print param.name[-1]
-        if param.name == 'W':
+        if param.name[-1] == 'W':
             print('visited')
             value = param.get_value(borrow=True)
             log_prior += -0.5*1.*T.sum(value**2) # Need to add layer wise
