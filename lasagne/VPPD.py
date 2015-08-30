@@ -159,7 +159,7 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
 # more functions to better separate the code, but it wouldn't make it any
 # easier to read.
 
-def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
+def main(num_epochs=100, file_name=None, proportion=0.,
          save_name='./models/model.npz', dataset='MNIST', L2Radius=3.87,
          base_lr=0.0003):
     # Load the dataset
@@ -173,10 +173,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
 
     # Create neural network model (depending on first command line parameter)
     print("Building model and compiling functions...")
-    if model == 'mlp':
-        network = build_mlp(input_var)
-    else:
-        print("Unrecognized model type %r." % model)
+    network = build_mlp(input_var)
 
     # Create a loss expression for training, i.e., a scalar objective we want
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
@@ -531,7 +528,7 @@ def SGLD(loss, params, learning_rate, log_prior, N):
 
 
 if __name__ == '__main__':
-    main(model='mlp', save_name='./models/mnistVPPD.npz', dataset='MNIST',
+    main2(save_name='./models/mnistVPPD.npz', dataset='MNIST',
          num_epochs=500, L2Radius=3.87, base_lr=5e-2)
 
     
