@@ -294,6 +294,7 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
     s_pred = lasagne.layers.get_output(student)
     # Loss functions
     t_loss = lasagne.objectives.categorical_crossentropy(t_pred, target_var)
+    t_loss = t_loss.mean()
     t_params = lasagne.layers.get_all_params(teacher, trainable=True)
     # Sample the teacher network weight posterior
     # The Gaussian weight/bias prior
@@ -305,14 +306,14 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
         elif param.name[-1] == 'b':
             print('Prior b')
             log_prior += -0.1*T.sum(param**2) 
-    t_updates = SGLD(t_loss.mean(), t_params, learning_rate, log_prior, N=50000)
+    t_updates = SGLD(t_loss, t_params, learning_rate, log_prior, N=50000)
     # SGD on the student network parameters
     s_loss = T.mean(s_pred*(T.log(s_pred)-T.log(t_pred)))
     s_params = lasagne.layers.get_all_params(teacher, trainable=True)
     s_updates = nesterov_momentum(s_loss, s_params, learning_rate=learning_rate,
                                   momentum=0.9)
     # Compile functions
-    t_fn = theano.function([input_var, target_var, learning_rate],
+    t_fn = theano.function([input_var, target_var, learning_rate], t_loss,
         updates=t_updates)
     s_fn = theano.function([input_var, learning_rate], updates=s_updates)
 
@@ -330,12 +331,15 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
         learning_rate = get_learning_rate(epoch, margin_lr, base_lr)
         # In each epoch, we do a full pass over the training data:
         start_time = time.time()
+        t_err = 0
+        t_batches = 0
         for batch in iterate_minibatches(X_train, y_train, batch_size, shuffle=True):
             inputs, targets = batch
             # Sample weights from teacher
-            t_fn(inputs, targets, learning_rate=learning_rate)
+            t_err += t_fn(inputs, targets, learning_rate=learning_rate)
             # Train student
             s_fn(inputs, learning_rate)
+            t_batches += 1
 
         # And a full pass over the validation data:
         val_err = 0
@@ -351,6 +355,7 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
         # Then we print the results for this epoch:
         print("Epoch {} of {} took {:.3f}s".format(
             epoch + 1, num_epochs, time.time() - start_time))
+        print("  training loss:\t\t{:.6f}".format(t_err / t_batches))
         print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
         print("  validation accuracy:\t\t{:.2f} %".format(
             val_acc / val_batches * 100))
