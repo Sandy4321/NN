@@ -287,7 +287,7 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
     teacher = build_mlp(input_var)
     student = build_mlp(input_var)
     # Hyperparameters
-    batch_size = 100
+    batch_size = 500
     margin_lr = 25
     # Networks
     t_pred = lasagne.layers.get_output(teacher)
