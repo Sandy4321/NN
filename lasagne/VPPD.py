@@ -316,8 +316,8 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
     # Compile functions
     t_acc = T.mean(T.eq(T.argmax(t_pred, axis=1), target_var),
                       dtype=theano.config.floatX)
-    t_fn = theano.function([input_var, target_var, learning_rate], t_loss,
-        t_acc, updates=t_updates)
+    t_fn = theano.function([input_var, target_var, learning_rate],
+        [t_loss, t_acc], updates=t_updates)
     s_fn = theano.function([input_var, learning_rate], updates=s_updates)
 
     # Compile a second function computing the validation loss and accuracy:
@@ -338,14 +338,16 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
         for batch in iterate_minibatches(X_train, y_train, batch_size, shuffle=True):
             inputs, targets = batch
             # Sample weights from teacher
-            t_err += t_fn(inputs, targets, learning_rate=learning_rate)
+            err, t_acc = t_fn(inputs, targets, learning_rate=learning_rate)
+            t_err += err
             t_batches += 1
             
         # Then we print the results for this epoch:
         print("Burn {} of {} took {:.3f}s".format(
             epoch + 1, burn_in, time.time() - start_time))
-        print("  training loss:\t\t{:.6f}".format(t_err / t_batches))    
-     
+        print("  training loss:\t\t{:.6f}".format(t_err / t_batches))
+        print("  training acc:\t\t{:.6f}".format(t_acc / t_batches))
+        
     # We iterate over epochs:
     print("Knowledge transfer")
     for epoch in range(burn_in+num_epochs):
