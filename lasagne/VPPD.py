@@ -347,7 +347,7 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
     # We iterate over epochs:
     print("Knowledge transfer")
     for epoch in range(num_epochs):
-        learning_rate = get_learning_rate(epoch, margin_lr, base_lr)
+        learning_rate = get_learning_rate(epoch, margin_lr, base_lr/100)
         # In each epoch, we do a full pass over the training data:
         start_time = time.time()
         t_err = 0
