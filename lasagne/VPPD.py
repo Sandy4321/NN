@@ -363,6 +363,8 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
             inputs, targets = batch
             # Sample weights from teacher
             err, _ = t_fn(inputs, targets, learning_rate=learning_rate)
+            # Train student
+            s_fn(inputs, learning_rate)
             t_err += err
             # Train student
             s_fn(inputs, learning_rate)
