@@ -334,20 +334,21 @@ def main2(num_epochs=100, file_name=None, save_name='./models/model.npz',
         # In each epoch, we do a full pass over the training data:
         start_time = time.time()
         t_err = 0
+        t_accu = 0
         t_batches = 0
         for batch in iterate_minibatches(X_train, y_train, batch_size, shuffle=True):
             inputs, targets = batch
             # Sample weights from teacher
             err, acc = t_fn(inputs, targets, learning_rate=learning_rate)
             t_err += err
-            t_acc += acc
+            t_accu += acc
             t_batches += 1
             
         # Then we print the results for this epoch:
         print("Burn {} of {} took {:.3f}s".format(
             epoch + 1, burn_in, time.time() - start_time))
         print("  training loss:\t\t{:.6f}".format(t_err / t_batches))
-        print("  training acc:\t\t{:.6f}".format(t_acc / t_batches))
+        print("  training acc:\t\t{:.6f}".format(t_accu / t_batches))
         
     # We iterate over epochs:
     print("Knowledge transfer")
