@@ -432,11 +432,10 @@ def SGLD(loss, params, learning_rate, log_prior, N):
     g_lik = N*get_or_compute_grads(loss.mean(), params)
     g_prior = get_or_compute_grads(log_prior, params)
     smrg = MRG_RandomStreams()
-    eta = smrg.normal(size=params, std=T.sqrt(learning_rate))
-    print len(eta)
     updates = OrderedDict()
-    for param, delta, e in zip(params, new_param, eta):
-        delta = 0.5*learning_rate*(g_lik + g_prior)
+    for param, gl, gp in zip(params, g_lik, g_prior):
+        eta = smrg.normal(size=param, std=T.sqrt(learning_rate))
+        delta = 0.5*learning_rate*(gl + gp) + eta
         updates[param] = param + delta
     return updates
     
