@@ -434,7 +434,7 @@ def SGLD(loss, params, learning_rate, log_prior, N):
     smrg = MRG_RandomStreams()
     updates = OrderedDict()
     for param, gl, gp in zip(params, g_lik, g_prior):
-        eta = smrg.normal(size=param, std=T.sqrt(learning_rate))
+        eta = smrg.normal(size=param.shape, std=T.sqrt(learning_rate))
         delta = 0.5*learning_rate*(gl + gp) + eta
         updates[param] = param + delta
     return updates
