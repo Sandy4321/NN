@@ -198,7 +198,7 @@ def main(model='mlp', num_epochs=100, file_name=None, proportion=0.,
         elif param.name[-1] == 'b':
             value = param.get_value(borrow=True)
             log_prior += -0.5*1.*T.sum(value**2) # Need to add layer wise
-    
+    print log_prior
     updates = SGLD(loss, params, learning_rate, log_prior, N=50000)
     #updates = nesterov_momentum(loss, params, learning_rate=learning_rate,
     #                            momentum=0.9)
